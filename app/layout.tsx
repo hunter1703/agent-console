@@ -39,15 +39,7 @@ export default function RootLayout({
             </a>
           </nav>
 
-          <div className="mt-auto px-4 py-4 border-t border-white/5">
-            <div className="flex items-center gap-3">
-              <div className="w-8 h-8 rounded-full bg-gradient-to-tr from-gray-700 to-gray-600"></div>
-              <div>
-                <p className="text-xs font-medium">Developer</p>
-                <p className="text-[10px] text-muted-foreground">Admin Access</p>
-              </div>
-            </div>
-          </div>
+
         </aside>
 
         {/* Main Content Area */}

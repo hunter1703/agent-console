@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { AgentConfig } from "@/models/Agent";
 import { fetchAgents } from "@/lib/api";
 import AgentCard from "@/components/AgentCard";
+import Link from "next/link";
 
 export default function Dashboard() {
   const [agents, setAgents] = useState<AgentConfig[]>([]);
@@ -77,5 +78,3 @@ export default function Dashboard() {
     </div>
   );
 }
-
-import Link from "next/link";

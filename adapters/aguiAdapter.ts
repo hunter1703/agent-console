@@ -22,45 +22,55 @@ export function translateAguiEvent(raw: AguiRawEvent): AgentEvent[] {
 
     switch (type) {
         case "RUN_STARTED":
-            if (raw.thread_id) {
-                events.push({ type: "SessionAssigned", threadId: raw.thread_id });
-            }
+            events.push({
+                type: "RunStarted",
+                runId: raw.runId || raw.run_id || "unknown",
+                threadId: raw.threadId || raw.thread_id
+            });
             break;
 
         case "TEXT_MESSAGE_CONTENT":
             events.push({
                 type: "AssistantTextDelta",
                 content: raw.delta || "",
-                messageId: raw.message_id,
+                messageId: raw.messageId || raw.message_id,
             });
             break;
 
         case "TEXT_MESSAGE_END":
             events.push({
                 type: "AssistantTextFinal",
-                messageId: raw.message_id,
+                messageId: raw.messageId || raw.message_id,
             });
             break;
 
         case "STEP_STARTED":
             events.push({
                 type: "ThinkingStart",
-                stepName: raw.step_name || "Thought",
+                stepName: raw.stepName || raw.step_name || "Thought",
             });
             break;
 
         case "STEP_FINISHED":
             events.push({
                 type: "ThinkingEnd",
-                stepName: raw.step_name || "Thought",
+                stepName: raw.stepName || raw.step_name || "Thought",
             });
             break;
 
-        case "TOOL_CALL_START":
             events.push({
                 type: "ToolCallStarted",
-                toolName: raw.tool_call_name || "unknown",
-                toolCallId: raw.tool_call_id,
+                toolName: raw.toolCallName || raw.tool_call_name || "unknown",
+                toolCallId: raw.toolCallId || raw.tool_call_id,
+                arguments: "" // Initialize empty
+            });
+            break;
+
+        case "TOOL_CALL_ARGS":
+            events.push({
+                type: "ToolArgsUpdate",
+                toolCallId: raw.toolCallId || raw.tool_call_id || "",
+                argumentsDelta: raw.delta || ""
             });
             break;
 
@@ -69,7 +79,7 @@ export function translateAguiEvent(raw: AguiRawEvent): AgentEvent[] {
                 type: "ToolResult",
                 toolName: "unknown", // Logic to find name by ID can be added in state
                 content: raw.content || "",
-                toolCallId: raw.tool_call_id,
+                toolCallId: raw.toolCallId || raw.tool_call_id,
             });
             break;
 
@@ -77,7 +87,7 @@ export function translateAguiEvent(raw: AguiRawEvent): AgentEvent[] {
             events.push({
                 type: "ToolCallEnded",
                 toolName: "unknown",
-                toolCallId: raw.tool_call_id,
+                toolCallId: raw.toolCallId || raw.tool_call_id,
             });
             break;
 

@@ -35,13 +35,7 @@ export interface AgentResponse {
 export interface AssetRequest {
   assetType?: string;
   keys?: string[];
-  page?: Page;
-}
-
-export interface AssetResponse {
-  data?: any[];
-  nextPageToken?: string;
-  totalCount?: number;
+  query?: Query;
 }
 
 export interface ContextManagerConfig {
@@ -51,6 +45,14 @@ export interface ContextManagerConfig {
 export interface Page {
   offset?: number;
   limit?: number;
+  cursor?: string;
+}
+
+export interface PaginatedResult {
+  items?: any[];
+  nextCursor?: string;
+  total?: number;
+  hasMore?: boolean;
 }
 
 export interface PublisherBaseEvent {
@@ -61,6 +63,10 @@ export interface PublisherBaseEvent {
 export interface PublisherMapStringObject {
   // Empty object as defined in the schema
   [key: string]: any;
+}
+
+export interface Query {
+  page?: Page;
 }
 
 export interface SessionServiceConfig {

@@ -1,4 +1,4 @@
-import { AgentConfig, AgentRequest, AgentResponse, AssetRequest, AssetResponse, PublisherBaseEvent, PublisherMapStringObject } from '@/models/ApiSchemas';
+import { AgentConfig, AgentRequest, AgentResponse, AssetRequest, PaginatedResult, PublisherBaseEvent, PublisherMapStringObject } from '@/models/ApiSchemas';
 
 const API_BASE = process.env.NEXT_PUBLIC_API_BASE_URL || '';
 export const IS_MOCK = process.env.NEXT_PUBLIC_MOCK_MODE === 'true';
@@ -176,7 +176,7 @@ export async function* streamAgentResponses(agentRequest: any): AsyncGenerator<P
 }
 
 // Catalog APIs
-export async function searchCatalog(assetRequest: AssetRequest): Promise<AssetResponse> {
+export async function searchCatalog(assetRequest: AssetRequest): Promise<PaginatedResult> {
   const res = await fetch(`${API_BASE}/v1/catalog/search`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },

@@ -3,19 +3,10 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { fetchAgentConfig } from "@/lib/api";
-import { AgentConfig } from "@/models/Agent";
-import { Message } from "@/components/ChatWindow";
-
-interface SessionSummary {
-    agentId: string;
-    agentName: string;
-    lastMessage: string;
-    messageCount: number;
-    timestamp: number; // We don't have this yet, but we can approximate or add it
-}
+import { ChatSession } from "@/models/Session";
 
 export default function HistoryPage() {
-    const [sessions, setSessions] = useState<SessionSummary[]>([]);
+    const [sessions, setSessions] = useState<(ChatSession & { agentName: string })[]>([]);
     const [loading, setLoading] = useState(true);
 
     useEffect(() => {
@@ -23,51 +14,45 @@ export default function HistoryPage() {
     }, []);
 
     const loadHistory = async () => {
-        const items: SessionSummary[] = [];
+        const items: (ChatSession & { agentName: string })[] = [];
 
         // Iterate through all keys in localStorage
         for (let i = 0; i < localStorage.length; i++) {
             const key = localStorage.key(i);
-            if (key && key.startsWith("history_")) {
-                const agentId = key.replace("history_", "");
+            if (key && key.startsWith("session_")) {
                 try {
-                    const messages: Message[] = JSON.parse(localStorage.getItem(key) || "[]");
-                    if (messages.length === 0) continue;
+                    const session: ChatSession = JSON.parse(localStorage.getItem(key) || "{}");
+                    if (!session.id || !session.messages || session.messages.length === 0) continue;
 
-                    let agentName = agentId;
+                    let agentName = session.agentId;
                     try {
-                        const config = await fetchAgentConfig(agentId);
+                        const config = await fetchAgentConfig(session.agentId);
                         agentName = config.name;
                     } catch (e) {
-                        // Keep ID if fetch fails (e.g. deleted agent)
+                        // Keep ID if fetch fails
                     }
 
-                    const lastMsg = messages[messages.length - 1];
-
-                    items.push({
-                        agentId,
-                        agentName,
-                        lastMessage: lastMsg.content,
-                        messageCount: messages.length,
-                        timestamp: parseInt(lastMsg.id) || Date.now() // Fallback if ID isn't timestamp
-                    });
+                    items.push({ ...session, agentName });
                 } catch (e) {
-                    console.error("Failed to parse history", e);
+                    console.error("Failed to parse session", e);
                 }
             }
         }
 
-        // Sort by newest first
-        items.sort((a, b) => b.timestamp - a.timestamp);
+        // Sort by last active (newest first)
+        items.sort((a, b) => b.lastActiveAt - a.lastActiveAt);
         setSessions(items);
         setLoading(false);
     };
 
-    const clearHistory = (agentId: string) => {
-        if (!confirm("Are you sure you want to delete this conversation?")) return;
-        localStorage.removeItem(`history_${agentId}`);
-        localStorage.removeItem(`threadId_${agentId}`);
-        loadHistory(); // Reload list
+    const deleteSession = (sessionId: string) => {
+        localStorage.removeItem(`session_${sessionId}`);
+        loadHistory();
+    };
+
+    const formatTime = (ts: number) => {
+        if (!ts) return "Unknown";
+        return new Date(ts).toLocaleDateString([], { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' });
     };
 
     return (
@@ -91,30 +76,33 @@ export default function HistoryPage() {
                 ) : (
                     <div className="grid gap-4">
                         {sessions.map((session) => (
-                            <div key={session.agentId} className="glass p-6 rounded-2xl flex items-center justify-between group hover:border-primary/30 transition-all">
-                                <Link href={`/agents/${session.agentId}`} className="flex-1 min-w-0 pr-4">
-                                    <div className="flex justify-between items-baseline mb-1">
-                                        <h3 className="font-bold text-lg text-white group-hover:text-primary transition-colors">
-                                            {session.agentName}
+                            <div key={session.id} className="glass p-6 rounded-2xl flex items-center justify-between group hover:border-primary/30 transition-all">
+                                <Link href={`/agents/${session.agentId}?sessionId=${session.id}`} className="flex-1 min-w-0 pr-4">
+                                    <div className="flex justify-between items-baseline mb-2">
+                                        <h3 className="font-bold text-lg text-white group-hover:text-primary transition-colors truncate pr-4">
+                                            {session.title || "Untitled Session"}
                                         </h3>
-                                        <span className="text-xs text-muted font-mono">
-                                            {new Date(session.timestamp).toLocaleDateString()}
+                                        <span className="text-xs text-muted font-mono whitespace-nowrap">
+                                            {formatTime(session.lastActiveAt)}
                                         </span>
                                     </div>
-                                    <p className="text-sm text-muted-foreground truncate">
-                                        {session.lastMessage}
-                                    </p>
-                                    <div className="flex gap-2 mt-3">
-                                        <span className="text-[10px] bg-white/10 px-2 py-1 rounded text-muted-foreground">
-                                            {session.messageCount} messages
-                                        </span>
+
+                                    <div className="flex items-center gap-3 text-xs text-muted-foreground">
+                                        <div className="flex items-center gap-1.5 px-2 py-0.5 rounded-full bg-white/5 border border-white/10">
+                                            <span className="w-1.5 h-1.5 rounded-full bg-primary/70"></span>
+                                            {session.agentName}
+                                        </div>
+                                        <span>•</span>
+                                        <span>Started {formatTime(session.createdAt)}</span>
+                                        <span>•</span>
+                                        <span>{session.messages.length} messages</span>
                                     </div>
                                 </Link>
 
                                 <button
-                                    onClick={() => clearHistory(session.agentId)}
+                                    onClick={() => deleteSession(session.id)}
                                     className="p-3 text-muted-foreground hover:text-red-500 hover:bg-red-500/10 rounded-xl transition-all opacity-0 group-hover:opacity-100"
-                                    title="Delete History"
+                                    title="Delete Session"
                                 >
                                     🗑️
                                 </button>

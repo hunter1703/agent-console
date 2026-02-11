@@ -39,7 +39,7 @@ export default function MessageInput({
     };
 
     return (
-        <div className="absolute bottom-6 left-64 right-0 px-6 pointer-events-none z-30">
+        <div className="absolute bottom-6 left-0 right-0 px-6 pointer-events-none z-30">
             <div className="max-w-3xl mx-auto pointer-events-auto relative">
                 <div className="relative group">
                     <div className="absolute -inset-0.5 bg-gradient-to-r from-primary/20 to-blue-600/20 rounded-[32px] blur opacity-75 group-hover:opacity-100 transition duration-1000"></div>

@@ -1,11 +1,13 @@
 export type EventType =
     | "SessionAssigned"
+    | "RunStarted"
     | "AssistantTextDelta"
     | "AssistantTextFinal"
     | "ThinkingStart"
     | "ThinkingUpdate"
     | "ThinkingEnd"
     | "ToolCallStarted"
+    | "ToolArgsUpdate"
     | "ToolCallEnded"
     | "ToolResult"
     | "StreamEnd"
@@ -19,6 +21,12 @@ export interface BaseAgentEvent {
 export interface SessionAssignedEvent extends BaseAgentEvent {
     type: "SessionAssigned";
     threadId: string;
+}
+
+export interface RunStartedEvent extends BaseAgentEvent {
+    type: "RunStarted";
+    runId: string;
+    threadId?: string;
 }
 
 export interface AssistantTextDeltaEvent extends BaseAgentEvent {
@@ -42,6 +50,13 @@ export interface ToolCallEvent extends BaseAgentEvent {
     type: "ToolCallStarted" | "ToolCallEnded";
     toolName: string;
     toolCallId?: string;
+    arguments?: string;
+}
+
+export interface ToolArgsUpdateEvent extends BaseAgentEvent {
+    type: "ToolArgsUpdate";
+    toolCallId: string;
+    argumentsDelta: string;
 }
 
 export interface ToolResultEvent extends BaseAgentEvent {
@@ -64,10 +79,12 @@ export interface ErrorEvent extends BaseAgentEvent {
 
 export type AgentEvent =
     | SessionAssignedEvent
+    | RunStartedEvent
     | AssistantTextDeltaEvent
     | AssistantTextFinalEvent
     | ThinkingEvent
     | ToolCallEvent
+    | ToolArgsUpdateEvent
     | ToolResultEvent
     | StreamEndEvent
     | ErrorEvent;

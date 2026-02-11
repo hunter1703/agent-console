@@ -104,6 +104,12 @@ export default function AdminPage() {
                                     </div>
                                 </div>
                                 <div className="flex gap-2">
+                                    <a
+                                        href={`/agents/${agent.id}`}
+                                        className="px-4 py-2 text-xs font-semibold bg-white/5 hover:bg-white/10 text-white rounded-lg border border-white/5 transition-all flex items-center gap-2"
+                                    >
+                                        <span>💬</span> Test
+                                    </a>
                                     <button
                                         onClick={() => handleEdit(agent)}
                                         className="px-4 py-2 text-xs font-semibold bg-white/5 hover:bg-white/10 text-white rounded-lg border border-white/5 transition-all"

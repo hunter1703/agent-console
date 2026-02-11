@@ -38,7 +38,8 @@ export default function AgentCard({ agent }: { agent: AgentConfig }) {
                 href={`/agents/${agent.id}`}
                 className="w-full py-3 bg-white/5 hover:bg-white/10 border border-white/5 text-white rounded-xl text-sm font-medium transition-all backdrop-blur-md flex items-center justify-center gap-2 group-hover:bg-primary group-hover:border-primary group-hover:shadow-lg group-hover:shadow-primary/20"
             >
-                Open Console
+                <span className="text-lg">💬</span>
+                Start Chat
             </Link>
         </div>
     );

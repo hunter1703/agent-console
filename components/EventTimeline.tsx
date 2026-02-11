@@ -18,11 +18,16 @@ export default function EventTimeline({
 
     const filteredEvents = events.filter((ev) => {
         if (!showThoughts && ev.type.startsWith("Thinking")) return false;
+        if (ev.type === "ToolCallEnded") return false;
+        if (ev.type === "AssistantTextDelta") return false;
+        if (ev.type === "AssistantTextFinal") return false;
+        if (ev.type === "RunStarted") return false;
+        if (ev.type === "ToolArgsUpdate") return false;
         return true;
     });
 
     return (
-        <div className="w-80 border-l border-white/5 bg-black/40 backdrop-blur-xl flex flex-col font-sans text-xs z-10 transition-all duration-300">
+        <div className="w-80 h-full border-l border-white/5 bg-black/40 backdrop-blur-xl flex flex-col font-sans text-xs z-10 transition-all duration-300">
             <div className="h-14 flex items-center justify-between px-4 border-b border-white/5">
                 <span className="font-semibold text-muted-foreground tracking-tight">Timeline</span>
                 <div className="px-2 py-0.5 rounded-full bg-white/5 border border-white/5 text-[10px] font-mono text-muted-foreground">
@@ -30,7 +35,7 @@ export default function EventTimeline({
                 </div>
             </div>
 
-            <div className="flex-1 overflow-y-auto p-4 space-y-4" ref={listRef}>
+            <div className="flex-1 overflow-y-auto p-4 space-y-4 scrollbar-hide" ref={listRef}>
                 {filteredEvents.length === 0 && (
                     <div className="text-muted-foreground/40 italic text-center mt-10">Waiting for activity...</div>
                 )}
@@ -63,16 +68,25 @@ function renderEvent(ev: AgentEvent) {
                     Session Started
                 </div>
             );
+        case "RunStarted":
+            return <div className="text-muted-foreground/40 text-[10px] uppercase tracking-wider my-2">Run Started</div>;
         case "ThinkingStart":
             return <div className="text-muted-foreground italic">Thinking...</div>;
         case "ThinkingUpdate":
             return <div className="text-muted-foreground/60 pl-2 border-l-2 border-white/5 my-1">{ev.content}</div>;
         case "ThinkingEnd":
-            return <div className="text-muted-foreground/60 text-[10px] uppercase tracking-wider">Analysis Complete</div>;
+            return <div className="text-muted-foreground/60 text-[10px] uppercase tracking-wider">Step Complete</div>;
         case "ToolCallStarted":
             return (
-                <div className="text-orange-400 font-medium flex items-center gap-1.5">
-                    <span>🛠</span> Calling: {ev.toolName}
+                <div className="flex flex-col gap-1">
+                    <div className="text-orange-400 font-medium flex items-center gap-1.5">
+                        <span>🛠</span> Calling: {ev.toolName}
+                    </div>
+                    {ev.arguments && (
+                        <div className="text-[10px] bg-white/5 border border-white/5 rounded p-1.5 font-mono text-muted-foreground break-all whitespace-pre-wrap">
+                            {ev.arguments}
+                        </div>
+                    )}
                 </div>
             );
         case "ToolResult":
@@ -83,14 +97,15 @@ function renderEvent(ev: AgentEvent) {
                 </div>
             );
         case "ToolCallEnded":
-            return null; // Skip end event to reduce noise
         case "AssistantTextDelta":
-            return <span className="text-white/30 text-[10px] font-mono leading-none">T</span>;
+        case "AssistantTextFinal":
+            return null;
+
         case "ErrorEvent":
             return <span className="text-red-500 font-bold bg-red-500/10 px-2 py-1 rounded">Error: {ev.error}</span>;
         case "StreamEnd":
             return <div className="h-px bg-white/10 w-full my-2" />;
         default:
-            return <span className="text-muted-foreground">{ev.type}</span>;
+            return <span className="text-muted-foreground/30 text-[10px]">{(ev as any).type}</span>;
     }
 }
