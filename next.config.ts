@@ -4,7 +4,11 @@ const nextConfig: NextConfig = {
   async rewrites() {
     return [
       {
-        source: "/v1/:path*",
+        source: "/api/v1/schemas/:path*",
+        destination: "http://localhost:8080/schemas/:path*",
+      },
+      {
+        source: "/api/v1/:path*",
         destination: "http://localhost:8080/v1/:path*",
       },
     ];

@@ -34,8 +34,12 @@ export default function RootLayout({
               History
             </a>
             <a href="/admin/agents" className="flex items-center gap-3 px-4 py-2.5 rounded-xl hover:bg-white/5 text-sm font-medium text-muted-foreground hover:text-foreground transition-all duration-200">
-              <span className="opacity-70">⚙</span>
-              Settings
+              <span className="opacity-70">🤖</span>
+              Agent Management
+            </a>
+            <a href="/admin/models" className="flex items-center gap-3 px-4 py-2.5 rounded-xl hover:bg-white/5 text-sm font-medium text-muted-foreground hover:text-foreground transition-all duration-200">
+              <span className="opacity-70">🧠</span>
+              Model Management
             </a>
           </nav>
 

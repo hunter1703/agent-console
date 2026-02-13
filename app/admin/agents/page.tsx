@@ -2,23 +2,39 @@
 
 import { useEffect, useState } from "react";
 import { AgentConfig } from "@/models/Agent";
-import { fetchAgents, createAgent, updateAgent, deleteAgent, IS_MOCK } from "@/lib/api";
+import { ModelConfig } from "@/models/Model";
+import { fetchAgents, createAgent, updateAgent, deleteAgent, IS_MOCK, fetchSchema } from "@/lib/api";
+import { fetchModels } from "@/lib/modelApi";
+import JsonForm from "@/components/JsonForm";
 
 export default function AdminPage() {
     const [agents, setAgents] = useState<AgentConfig[]>([]);
+    const [models, setModels] = useState<ModelConfig[]>([]);
     const [editingAgent, setEditingAgent] = useState<AgentConfig | null>(null);
+    const [isCreating, setIsCreating] = useState<boolean>(false);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
+    const [agentSchema, setAgentSchema] = useState<any>(null);
+    const [agentLayout, setAgentLayout] = useState<any>(null);
 
     useEffect(() => {
-        loadAgents();
+        loadAgentsAndModels();
     }, []);
 
-    const loadAgents = async () => {
+    const loadAgentsAndModels = async () => {
         setLoading(true);
         try {
-            const data = await fetchAgents();
-            setAgents(data);
+            const [agentsData, modelsData, schemaResponse] = await Promise.all([
+                fetchAgents(),
+                fetchModels(),
+                fetchSchema('agent')
+            ]);
+            setAgents(agentsData);
+            setModels(modelsData);
+            if (schemaResponse) {
+                setAgentSchema(schemaResponse.schema);
+                setAgentLayout(schemaResponse.layout);
+            }
         } catch (err) {
             setError(String(err));
         } finally {
@@ -26,21 +42,112 @@ export default function AdminPage() {
         }
     };
 
+    const loadAgents = async () => {
+        try {
+            const data = await fetchAgents();
+            setAgents(data);
+        } catch (err) {
+            setError(String(err));
+        }
+    };
+
     const handleEdit = (agent: AgentConfig) => {
         setEditingAgent({ ...agent });
+        setIsCreating(false);
+    };
+
+    const validateAgentConfig = (): string | null => {
+        if (!editingAgent) return "No agent configuration to validate";
+
+        // Validate required fields
+        if (!isCreating && editingAgent.id && editingAgent.id.length > 255) {
+            return "Agent ID must be 255 characters or less";
+        }
+
+        // Model ID is required for both new and existing agents
+        if (!editingAgent.model || !editingAgent.model.modelId || editingAgent.model.modelId.trim() === "") {
+            return "Model ID is required";
+        }
+        if (editingAgent.model.modelId.length > 255) {
+            return "Model ID must be 255 characters or less";
+        }
+
+        if (!editingAgent.model.systemPrompt || editingAgent.model.systemPrompt.trim() === "") {
+            return "System Prompt is required";
+        }
+        if (editingAgent.model.systemPrompt.length < 1) {
+            return "System Prompt must be at least 1 character";
+        }
+
+        // Validate name length
+        // Validate name length
+        if (editingAgent.name && editingAgent.name.length > 255) {
+            return "Name must be 255 characters or less";
+        }
+
+        // Validate description length
+        if (editingAgent.description && editingAgent.description.length > 1000) {
+            return "Description must be 1000 characters or less";
+        }
+
+        // Validate avatar length
+        if (editingAgent.avatar && editingAgent.avatar.length > 500) {
+            return "Avatar URL must be 500 characters or less";
+        }
+
+        // Validate role length
+        if (editingAgent.model?.role && editingAgent.model.role.length > 255) {
+            return "Role must be 255 characters or less";
+        }
+
+        // Validate context manager config
+        if (editingAgent.model?.contextManagerConfig?.type === "last_n") {
+            const keepLast = editingAgent.model.contextManagerConfig['keepLast'];
+            if (keepLast !== undefined && (isNaN(keepLast) || keepLast < 1 || keepLast > 1000)) {
+                return "Keep Last N Interactions must be between 1 and 1000";
+            }
+        }
+
+        // Validate enabled tools
+        if (editingAgent.model?.tools?.enabled) {
+            for (const toolId of editingAgent.model.tools.enabled) {
+                if (toolId.length < 1 || toolId.length > 255) {
+                    return "Each enabled tool ID must be between 1 and 255 characters";
+                }
+            }
+        }
+
+        // Validate standard tools
+        if (editingAgent.model?.tools?.standardTools) {
+            for (const toolId of editingAgent.model.tools.standardTools) {
+                if (toolId.length < 1 || toolId.length > 255) {
+                    return "Each standard tool ID must be between 1 and 255 characters";
+                }
+            }
+        }
+
+        return null;
     };
 
     const handleSave = async () => {
         if (!editingAgent) return;
+
+        const validationError = validateAgentConfig();
+        if (validationError) {
+            alert(validationError);
+            return;
+        }
+
         try {
-            if (editingAgent.id.startsWith("new-")) {
+            if (isCreating) {
                 const created = await createAgent(editingAgent);
                 setAgents(prev => [...prev, created]);
             } else {
-                const updated = await updateAgent(editingAgent.id, editingAgent);
+                const updated = await updateAgent(editingAgent.id!, editingAgent);
                 setAgents(prev => prev.map(a => a.id === updated.id ? updated : a));
             }
             setEditingAgent(null);
+            setIsCreating(false);
         } catch (err) {
             alert(`Failed to save: ${err}`);
         }
@@ -58,13 +165,35 @@ export default function AdminPage() {
 
     const handleCreate = () => {
         const newAgent: AgentConfig = {
-            id: "new-" + Math.random().toString(36).slice(2, 7),
-            name: "New Agent",
+            id: "",
+            name: "",
+            type: "assistant",
             description: "",
-            systemPrompt: "You are a helpful assistant.",
+            avatar: "",
+            model: {
+                modelId: "",
+                role: "",
+                systemPrompt: "",
+                tools: {
+                    enabled: [],
+                    configs: {},
+                    standardTools: []
+                },
+                contextManagerConfig: {
+                    type: "last_n",
+                    keepLast: undefined as any
+                },
+                type: "OPEN_AI_COMPATIBLE"
+            },
+            sessionStore: {
+                type: "memory"
+            }
         };
         setEditingAgent(newAgent);
+        setIsCreating(true);
     };
+
+
 
     return (
         <div className="flex-1 overflow-auto p-8">
@@ -117,7 +246,7 @@ export default function AdminPage() {
                                         Edit
                                     </button>
                                     <button
-                                        onClick={() => handleDelete(agent.id)}
+                                        onClick={() => handleDelete(agent.id!)}
                                         className="px-4 py-2 text-xs font-semibold bg-red-500/10 hover:bg-red-500/20 text-red-400 rounded-lg border border-red-500/10 transition-all"
                                     >
                                         Delete
@@ -130,46 +259,26 @@ export default function AdminPage() {
 
                 {editingAgent && (
                     <div className="fixed inset-0 bg-black/80 backdrop-blur-md flex items-center justify-center p-4 z-50 animate-in fade-in duration-300">
-                        <div className="glass w-full max-w-xl p-8 flex flex-col gap-6 shadow-2xl border-white/10">
+                        <div className="glass w-full max-w-3xl p-8 flex flex-col gap-6 shadow-2xl border-white/10 max-h-[90vh] overflow-y-auto">
                             <div className="flex justify-between items-center border-b border-white/5 pb-4">
                                 <h3 className="text-xl font-bold text-white">
-                                    {editingAgent.id.startsWith("new") ? "Create New Agent" : "Edit Agent Configuration"}
+                                    {editingAgent.id?.startsWith("new") ? "Create New Agent" : "Edit Agent Configuration"}
                                 </h3>
                                 <div className="text-[10px] text-muted font-mono bg-white/5 px-2 py-1 rounded uppercase">
-                                    ID: {editingAgent.id}
+                                    ID: {editingAgent.id || "new"}
                                 </div>
                             </div>
 
-                            <div className="grid grid-cols-1 gap-6">
-                                <div className="flex flex-col gap-2">
-                                    <label className="text-[10px] text-muted-foreground font-bold uppercase tracking-widest px-1">Display Name</label>
-                                    <input
-                                        className="bg-white/5 border border-white/10 rounded-xl p-3 text-sm text-white focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary transition-all"
-                                        placeholder="e.g., Stock Analyst"
-                                        value={editingAgent.name}
-                                        onChange={e => setEditingAgent({ ...editingAgent, name: e.target.value })}
+                            <div className="flex flex-col gap-6">
+                                {agentSchema && (
+                                    <JsonForm
+                                        schema={agentSchema}
+                                        data={editingAgent}
+                                        onChange={setEditingAgent}
+                                        isNew={isCreating}
+                                        layout={agentLayout}
                                     />
-                                </div>
-
-                                <div className="flex flex-col gap-2">
-                                    <label className="text-[10px] text-muted-foreground font-bold uppercase tracking-widest px-1">Description</label>
-                                    <input
-                                        className="bg-white/5 border border-white/10 rounded-xl p-3 text-sm text-white focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary transition-all"
-                                        placeholder="Briefly describe what this agent does..."
-                                        value={editingAgent.description}
-                                        onChange={e => setEditingAgent({ ...editingAgent, description: e.target.value })}
-                                    />
-                                </div>
-
-                                <div className="flex flex-col gap-2">
-                                    <label className="text-[10px] text-muted-foreground font-bold uppercase tracking-widest px-1">System Prompt</label>
-                                    <textarea
-                                        className="bg-white/5 border border-white/10 rounded-xl p-4 text-sm text-white font-mono focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary transition-all h-40 resize-none"
-                                        placeholder="Define the agent's behavior and personality..."
-                                        value={editingAgent.systemPrompt}
-                                        onChange={e => setEditingAgent({ ...editingAgent, systemPrompt: e.target.value })}
-                                    />
-                                </div>
+                                )}
                             </div>
 
                             <div className="flex justify-end gap-3 mt-4 pt-4 border-t border-white/5">

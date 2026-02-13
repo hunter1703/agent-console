@@ -1,11 +1,11 @@
 import { AgentConfig, AgentRequest, AgentResponse, AssetRequest, PaginatedResult, PublisherBaseEvent, PublisherMapStringObject } from '@/models/ApiSchemas';
+import { API_CONFIG } from './config';
 
-const API_BASE = process.env.NEXT_PUBLIC_API_BASE_URL || '';
 export const IS_MOCK = process.env.NEXT_PUBLIC_MOCK_MODE === 'true';
 
 // Agent APIs
 export async function createAgent(agentConfig: AgentConfig): Promise<AgentConfig> {
-  const res = await fetch(`${API_BASE}/v1/agent`, {
+  const res = await fetch(`${API_CONFIG.BASE_URL}/v1/agent`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(agentConfig),
@@ -20,7 +20,7 @@ export async function createAgent(agentConfig: AgentConfig): Promise<AgentConfig
 }
 
 export async function updateAgent(agentId: string, agentConfig: AgentConfig): Promise<AgentConfig> {
-  const res = await fetch(`${API_BASE}/v1/agent/${agentId}`, {
+  const res = await fetch(`${API_CONFIG.BASE_URL}/v1/agent/${agentId}`, {
     method: 'PUT',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(agentConfig),
@@ -35,7 +35,7 @@ export async function updateAgent(agentId: string, agentConfig: AgentConfig): Pr
 }
 
 export async function deleteAgent(agentId: string): Promise<void> {
-  const res = await fetch(`${API_BASE}/v1/agent/${agentId}`, {
+  const res = await fetch(`${API_CONFIG.BASE_URL}/v1/agent/${agentId}`, {
     method: 'DELETE',
   });
 
@@ -47,9 +47,9 @@ export async function deleteAgent(agentId: string): Promise<void> {
 
 // Agent Execution APIs
 export async function* streamAgentEvents(agentRequest: AgentRequest): AsyncGenerator<PublisherBaseEvent, void, unknown> {
-  const response = await fetch(`${API_BASE}/v1/events`, {
+  const response = await fetch(`${API_CONFIG.BASE_URL}/v1/events`, {
     method: 'POST',
-    headers: { 
+    headers: {
       'Content-Type': 'application/json',
       'Accept': 'text/event-stream'
     },
@@ -104,7 +104,7 @@ export async function* streamAgentEvents(agentRequest: AgentRequest): AsyncGener
 }
 
 export async function invokeAgentSync(agentRequest: AgentRequest): Promise<AgentResponse> {
-  const res = await fetch(`${API_BASE}/v1/invoke`, {
+  const res = await fetch(`${API_CONFIG.BASE_URL}/v1/invoke`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(agentRequest),
@@ -119,9 +119,9 @@ export async function invokeAgentSync(agentRequest: AgentRequest): Promise<Agent
 }
 
 export async function* streamAgentResponses(agentRequest: any): AsyncGenerator<PublisherMapStringObject, void, unknown> {
-  const response = await fetch(`${API_BASE}/v1/responses`, {
+  const response = await fetch(`${API_CONFIG.BASE_URL}/v1/responses`, {
     method: 'POST',
-    headers: { 
+    headers: {
       'Content-Type': 'application/json',
       'Accept': 'text/event-stream'
     },
@@ -177,7 +177,7 @@ export async function* streamAgentResponses(agentRequest: any): AsyncGenerator<P
 
 // Catalog APIs
 export async function searchCatalog(assetRequest: AssetRequest): Promise<PaginatedResult> {
-  const res = await fetch(`${API_BASE}/v1/catalog/search`, {
+  const res = await fetch(`${API_CONFIG.BASE_URL}/v1/catalog/search`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(assetRequest),
@@ -192,7 +192,7 @@ export async function searchCatalog(assetRequest: AssetRequest): Promise<Paginat
 }
 
 export async function getResourceById(resourceType: string, id: string, projection?: string): Promise<any> {
-  let url = `${API_BASE}/v1/catalog/${resourceType}/${id}`;
+  let url = `${API_CONFIG.BASE_URL}/v1/catalog/${resourceType}/${id}`;
   if (projection) {
     const params = new URLSearchParams({ projection });
     url += `?${params.toString()}`;

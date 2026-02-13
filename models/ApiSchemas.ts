@@ -1,8 +1,8 @@
 // Generated from OpenAPI specification
 
 export interface AgentConfig {
+  id?: string;
   type?: string;
-  agentId?: string;
   name?: string;
   description?: string;
   avatar?: string;
@@ -42,6 +42,10 @@ export interface ContextManagerConfig {
   type?: string;
 }
 
+export interface LastNContextManagerConfig extends ContextManagerConfig {
+  keepLast?: number;
+}
+
 export interface Page {
   offset?: number;
   limit?: number;
@@ -71,6 +75,13 @@ export interface Query {
 
 export interface SessionServiceConfig {
   type?: string;
+}
+
+export interface InMemorySessionServiceConfig extends SessionServiceConfig {
+}
+
+export interface MongoSessionServiceConfig extends SessionServiceConfig {
+  connectionString?: string;
 }
 
 export interface ToolsConfig {

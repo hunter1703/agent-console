@@ -152,7 +152,7 @@ export default function AgentChatPage() {
                     handleAgentEvent(ev);
                 }
             } else {
-                const API_BASE = process.env.NEXT_PUBLIC_API_BASE_URL || "";
+                const API_BASE = process.env.NEXT_PUBLIC_API_BASE_URL || "/api";
                 const url = `${API_BASE}/v1/events`;
                 // Use backend threadId if we have one for this session, otherwise undefined (new thread)
                 const body = {

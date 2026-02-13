@@ -58,6 +58,7 @@ export function translateAguiEvent(raw: AguiRawEvent): AgentEvent[] {
             });
             break;
 
+        case "TOOL_CALL_STARTED":
             events.push({
                 type: "ToolCallStarted",
                 toolName: raw.toolCallName || raw.tool_call_name || "unknown",

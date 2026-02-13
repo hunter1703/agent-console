@@ -1,7 +1,41 @@
 import { AgentConfig } from "@/models/Agent";
+import { ModelConfig } from "@/models/Model";
 import { AgentEvent } from "@/models/Events";
 
 export const MOCK_AGENTS: AgentConfig[] = [];
+export const MOCK_MODELS: ModelConfig[] = [
+  {
+    id: "model-openai-gpt4",
+    type: "OPEN_AI_COMPATIBLE",
+    name: "OpenAI GPT-4",
+    model: "gpt-4-turbo-preview",
+    baseUrl: "https://api.openai.com/v1",
+    capabilities: ["chat", "completion", "vision"],
+    temperature: 0.7,
+    toolCallingEnabled: true,
+    toolCallingSupported: true
+  },
+  {
+    id: "model-anthropic-claude3",
+    type: "OPEN_AI_COMPATIBLE",
+    name: "Anthropic Claude 3",
+    model: "claude-3-opus-20240229",
+    capabilities: ["chat", "completion", "reasoning"],
+    temperature: 0.5,
+    toolCallingEnabled: true,
+    toolCallingSupported: true
+  },
+  {
+    id: "model-google-gemini",
+    type: "GEMINI",
+    name: "Google Gemini Pro",
+    model: "gemini-pro",
+    capabilities: ["chat", "completion", "multimodal"],
+    temperature: 0.6,
+    toolCallingEnabled: true,
+    toolCallingSupported: true
+  }
+];
 
 export async function* mockStreamResponse(
     prompt: string
