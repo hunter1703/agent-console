@@ -7,4 +7,5 @@ export interface ChatSession {
     createdAt: number;
     lastActiveAt: number;
     messages: Message[];
+    threadId?: string;
 }

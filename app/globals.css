@@ -1,41 +1,69 @@
 @import "tailwindcss";
 
 :root {
-  /* Apple-inspired Dark Theme Palette */
-  --background: #000000;
-  --foreground: #F5F5F7;
-  /* Apple Off-White */
+  /* Apple Design System: Light Mode (Calming Pastel - Maximum Contrast) */
+  --background: #FDFCF8;
+  /* Warm off-white / Cream */
+  --foreground: #000000;
+  /* True Black for clarity */
 
-  --primary: #0A84FF;
-  /* iOS Blue */
+  --primary: #0071E3;
+  /* System Blue */
   --primary-foreground: #FFFFFF;
 
-  --secondary: #1C1C1E;
-  /* iOS System Gray 6 */
-  --secondary-foreground: #EBEBF5;
+  --secondary: rgba(0, 0, 0, 0.1);
+  /* More distinct surfaces */
+  --secondary-foreground: #1C1C1E;
+  /* Very dark charcoal */
 
-  --accent: #0A84FF;
-  --accent-foreground: #FFFFFF;
+  --muted: rgba(0, 0, 0, 0.15);
+  --muted-foreground: #424245;
+  /* Darker Gray for secondary text */
 
-  --muted: #8E8E93;
-  /* iOS System Gray */
-  --muted-foreground: #AEAEB2;
+  --border: rgba(0, 0, 0, 0.2);
+  /* Solid separators */
+  --ring: rgba(0, 113, 227, 0.5);
 
-  --border: #38383A;
-  /* iOS Separator */
+  /* Glassmorphism Light (Robust) */
+  --glass-bg: rgba(255, 255, 255, 0.85);
+  --glass-border: rgba(0, 0, 0, 0.15);
 
-  --success: #30D158;
-  /* iOS Green */
-  --destructive: #FF453A;
-  /* iOS Red */
+  --sidebar-bg: #F2F2F7;
+  /* System Gray 6 equivalent */
+  --sidebar-border: rgba(0, 0, 0, 0.15);
+}
 
-  /* Glassmorphism Variables */
-  --glass-bg: rgba(28, 28, 30, 0.65);
+.dark {
+  /* Apple Design System: Dark Mode (Refined for Contrast) */
+  --background: #1C1C1E;
+  /* System Background */
+  --foreground: rgba(255, 255, 255, 0.92);
+  /* Increased from 0.87 for better legibility */
+
+  --primary: #0A84FF;
+  /* System Blue for Dark Mode */
+  --primary-foreground: #FFFFFF;
+
+  --secondary: rgba(255, 255, 255, 0.1);
+  --secondary-foreground: rgba(255, 255, 255, 0.85);
+
+  --muted: rgba(255, 255, 255, 0.08);
+  --muted-foreground: rgba(255, 255, 255, 0.7);
+
+  --border: rgba(255, 255, 255, 0.12);
+  --ring: rgba(10, 132, 255, 0.5);
+
+  /* Glassmorphism Dark */
+  --glass-bg: rgba(255, 255, 255, 0.05);
   --glass-border: rgba(255, 255, 255, 0.1);
+
+  --sidebar-bg: #2C2C2E;
+  /* Secondary Background / Elevation Level 1 */
+  --sidebar-border: rgba(255, 255, 255, 0.08);
 }
 
 @theme {
-  --font-sans: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif, "Apple Color Emoji", "Segoe UI Emoji", "Segoe UI Symbol";
+  --font-sans: -apple-system, BlinkMacSystemFont, "SF Pro Display", "SF Pro Icons", "Helvetica Neue", Helvetica, Arial, sans-serif;
 
   --color-background: var(--background);
   --color-foreground: var(--foreground);
@@ -43,17 +71,16 @@
   --color-primary-foreground: var(--primary-foreground);
   --color-secondary: var(--secondary);
   --color-secondary-foreground: var(--secondary-foreground);
-  --color-accent: var(--accent);
-  --color-accent-foreground: var(--accent-foreground);
   --color-muted: var(--muted);
   --color-muted-foreground: var(--muted-foreground);
   --color-border: var(--border);
-  --color-success: var(--success);
-  --color-destructive: var(--destructive);
+  --color-ring: var(--ring);
 
-  --animate-in: fade-in 0.3s ease-out;
-  --animate-out: fade-out 0.2s ease-in;
+  --animate-in: fade-in 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+  --animate-out: fade-out 0.2s cubic-bezier(0.4, 0, 0.2, 1);
   --animate-slide-up: slide-up 0.4s cubic-bezier(0.16, 1, 0.3, 1);
+  --radius-xl: 12px;
+  --radius-2xl: 16px;
 }
 
 @keyframes slide-up {

@@ -1,45 +1,41 @@
 import { AgentConfig } from "@/models/Agent";
 import Link from "next/link";
+import { Bot, ArrowRight, ArrowUpRight } from "lucide-react";
 
 export default function AgentCard({ agent }: { agent: AgentConfig }) {
     return (
-        <div className="glass rounded-3xl p-8 relative overflow-hidden group transition-all duration-300 hover:bg-white/5 hover:scale-[1.01] hover:shadow-2xl hover:shadow-primary/10">
-            <div className="absolute top-0 right-0 p-8 opacity-0 group-hover:opacity-100 transition-opacity duration-500">
-                <span className="text-2xl">↗</span>
-            </div>
+        <div className="bg-secondary border border-border rounded-[32px] p-10 flex flex-col gap-8 transition-all duration-700 hover:bg-muted/50 hover:shadow-[0_24px_48px_-12px_rgba(0,0,0,0.1)] dark:hover:shadow-[0_24px_48px_-12px_rgba(0,0,0,0.5)] group hover:-translate-y-1">
 
-            {/* Avatar Header */}
-            <div className="flex items-center gap-4 mb-6">
-                <div className="w-16 h-16 rounded-2xl overflow-hidden glass border border-white/10 flex-shrink-0 shadow-inner">
+            {/* Minimalist Header */}
+            <div className="flex flex-col gap-6">
+                <div className="w-16 h-16 rounded-[22px] bg-background border border-border flex items-center justify-center text-3xl group-hover:scale-105 transition-all duration-500 shadow-sm">
                     {agent.avatar ? (
-                        <img src={agent.avatar} alt={agent.name} className="w-full h-full object-cover" />
+                        <img src={agent.avatar} alt={agent.name} className="w-full h-full object-cover rounded-[22px]" />
                     ) : (
-                        <div className="w-full h-full bg-primary flex items-center justify-center text-xl font-bold">
-                            {agent.name.charAt(0)}
-                        </div>
+                        <Bot size={32} strokeWidth={1} className="text-muted-foreground/60 group-hover:text-primary/80 transition-colors" />
                     )}
                 </div>
+
                 <div>
-                    <h3 className="text-2xl font-semibold tracking-tight text-white mb-0.5">
+                    <h3 className="text-[20px] font-semibold tracking-tight text-foreground mb-1.5 group-hover:text-primary transition-colors duration-500">
                         {agent.name}
                     </h3>
-                    <div className="flex items-center gap-2">
-                        <span className="w-1.5 h-1.5 rounded-full bg-green-500 animate-pulse"></span>
-                        <span className="text-[10px] text-muted-foreground uppercase tracking-widest font-medium">Ready</span>
-                    </div>
+                    <p className="text-[14px] text-muted-foreground/70 font-medium uppercase tracking-[0.1em]">
+                        Ready to assist
+                    </p>
                 </div>
             </div>
 
-            <p className="text-muted-foreground text-sm leading-relaxed mb-8 line-clamp-3 pr-4">
+            <p className="text-[15px] text-muted-foreground/80 leading-relaxed line-clamp-2 min-h-[3rem]">
                 {agent.description}
             </p>
 
             <Link
                 href={`/agents/${agent.id}`}
-                className="w-full py-3 bg-white/5 hover:bg-white/10 border border-white/5 text-white rounded-xl text-sm font-medium transition-all backdrop-blur-md flex items-center justify-center gap-2 group-hover:bg-primary group-hover:border-primary group-hover:shadow-lg group-hover:shadow-primary/20"
+                className="inline-flex items-center justify-center h-12 px-8 bg-background hover:bg-primary border border-border hover:border-primary text-foreground hover:text-white text-[14px] font-semibold rounded-2xl transition-all duration-500 group/btn"
             >
-                <span className="text-lg">💬</span>
-                Start Chat
+                Start Session
+                <ArrowRight size={16} className="ml-2 opacity-0 group-hover/btn:opacity-100 group-hover/btn:translate-x-1 transition-all duration-300" />
             </Link>
         </div>
     );

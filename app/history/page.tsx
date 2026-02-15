@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import { fetchAgentConfig } from "@/lib/api";
 import { ChatSession } from "@/models/Session";
+import { Clock, Trash2 } from "lucide-react";
 
 export default function HistoryPage() {
     const [sessions, setSessions] = useState<(ChatSession & { agentName: string })[]>([]);
@@ -56,55 +57,72 @@ export default function HistoryPage() {
     };
 
     return (
-        <div className="flex-1 overflow-auto p-8">
-            <div className="max-w-4xl mx-auto">
-                <header className="mb-12">
-                    <h2 className="text-3xl font-bold mb-2">Chat History</h2>
-                    <p className="text-muted">Resume your previous conversations.</p>
+        <div className="flex-1 bg-background">
+            <div className="max-w-[1200px] mx-auto px-10 pt-20 pb-40">
+                <header className="flex justify-between items-end mb-16 border-b border-white/[0.03] pb-10">
+                    <div className="flex flex-col gap-2">
+                        <p className="text-[13px] font-bold uppercase tracking-[0.2em] text-primary/80 mb-1">Activity</p>
+                        <h2 className="text-[34px] font-semibold tracking-tight text-foreground px-0.5">History</h2>
+                        <p className="text-[16px] text-muted-foreground/80 leading-relaxed max-w-md">
+                            Review and resume your previous intelligence sessions.
+                        </p>
+                    </div>
                 </header>
 
                 {loading ? (
-                    <div className="text-muted italic animate-pulse">Scanning local history...</div>
+                    <div className="flex items-center gap-4 text-muted-foreground/50 text-[15px] font-medium animate-pulse py-10">
+                        <div className="w-5 h-5 border-2 border-primary/20 border-t-primary rounded-full animate-spin"></div>
+                        Retrieving your past conversations...
+                    </div>
                 ) : sessions.length === 0 ? (
-                    <div className="text-center py-20 text-muted-foreground bg-white/5 rounded-3xl border border-white/5">
-                        <div className="text-4xl mb-4 opacity-50">🕰️</div>
-                        <p>No conversation history found on this device.</p>
-                        <Link href="/" className="inline-block mt-4 text-primary hover:underline">
-                            Start a new chat
-                        </Link>
+                    <div className="py-20 text-center flex flex-col items-center gap-6 animate-in fade-in duration-700">
+                        <div className="w-20 h-20 rounded-[40px] bg-white/[0.02] border border-white/5 flex items-center justify-center mb-2 opacity-20">
+                            <Clock size={32} strokeWidth={1} />
+                        </div>
+                        <div className="flex flex-col gap-2">
+                            <p className="text-muted-foreground/60 text-[17px] italic">No conversation history found on this device.</p>
+                            <Link href="/" className="text-primary font-medium hover:underline text-[15px]">
+                                Start a new session
+                            </Link>
+                        </div>
                     </div>
                 ) : (
-                    <div className="grid gap-4">
+                    <div className="flex flex-col divide-y divide-white/[0.04]">
                         {sessions.map((session) => (
-                            <div key={session.id} className="glass p-6 rounded-2xl flex items-center justify-between group hover:border-primary/30 transition-all">
-                                <Link href={`/agents/${session.agentId}?sessionId=${session.id}`} className="flex-1 min-w-0 pr-4">
-                                    <div className="flex justify-between items-baseline mb-2">
-                                        <h3 className="font-bold text-lg text-white group-hover:text-primary transition-colors truncate pr-4">
-                                            {session.title || "Untitled Session"}
-                                        </h3>
-                                        <span className="text-xs text-muted font-mono whitespace-nowrap">
-                                            {formatTime(session.lastActiveAt)}
-                                        </span>
+                            <div key={session.id} className="py-10 flex items-center justify-between group transition-all duration-500 hover:px-2">
+                                <Link
+                                    href={`/agents/${session.agentId}?sessionId=${session.id}`}
+                                    className="flex-1 min-w-0 pr-10 flex flex-col gap-4"
+                                >
+                                    <div className="flex flex-col gap-1">
+                                        <div className="flex items-center gap-3">
+                                            <h3 className="text-[19px] font-semibold text-foreground/90 group-hover:text-primary transition-colors duration-300 tracking-tight truncate">
+                                                {session.title || "Untitled Session"}
+                                            </h3>
+                                            <span className="text-[12px] text-muted-foreground/60 font-mono tracking-tighter uppercase tabular-nums pt-1">
+                                                {formatTime(session.lastActiveAt)}
+                                            </span>
+                                        </div>
                                     </div>
 
-                                    <div className="flex items-center gap-3 text-xs text-muted-foreground">
-                                        <div className="flex items-center gap-1.5 px-2 py-0.5 rounded-full bg-white/5 border border-white/10">
-                                            <span className="w-1.5 h-1.5 rounded-full bg-primary/70"></span>
+                                    <div className="flex items-center gap-4 text-[13px] font-medium">
+                                        <div className="flex items-center gap-2 px-3 py-1 rounded-full bg-white/[0.03] border border-white/5 text-muted-foreground/80 group-hover:text-white transition-colors duration-500">
+                                            <span className="w-1.5 h-1.5 rounded-full bg-primary/40 group-hover:bg-primary transition-colors"></span>
                                             {session.agentName}
                                         </div>
-                                        <span>•</span>
-                                        <span>Started {formatTime(session.createdAt)}</span>
-                                        <span>•</span>
-                                        <span>{session.messages.length} messages</span>
+                                        <span className="text-muted-foreground/40 leading-none">/</span>
+                                        <span className="text-muted-foreground/70">{session.messages.length} messages</span>
+                                        <span className="text-muted-foreground/40 leading-none">/</span>
+                                        <span className="text-muted-foreground/70">Started {formatTime(session.createdAt)}</span>
                                     </div>
                                 </Link>
 
                                 <button
                                     onClick={() => deleteSession(session.id)}
-                                    className="p-3 text-muted-foreground hover:text-red-500 hover:bg-red-500/10 rounded-xl transition-all opacity-0 group-hover:opacity-100"
+                                    className="w-11 h-11 flex items-center justify-center text-muted-foreground/40 hover:text-red-400 hover:bg-red-400/5 rounded-2xl transition-all duration-300 opacity-0 group-hover:opacity-100"
                                     title="Delete Session"
                                 >
-                                    🗑️
+                                    <Trash2 size={18} strokeWidth={1.5} />
                                 </button>
                             </div>
                         ))}

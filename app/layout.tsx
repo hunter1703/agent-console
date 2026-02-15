@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import Sidebar from "@/components/Sidebar";
 import "./globals.css";
 
 export const metadata: Metadata = {
@@ -6,51 +7,32 @@ export const metadata: Metadata = {
   description: "Advanced interaction and debugging for AI Agents",
 };
 
+import { ThemeProvider } from "@/components/ThemeProvider";
+
 export default function RootLayout({
   children,
 }: {
   children: React.ReactNode;
 }) {
   return (
-    <html lang="en" className="dark">
+    <html lang="en" suppressHydrationWarning>
       <body className="antialiased h-screen w-full flex overflow-hidden bg-background text-foreground selection:bg-primary/30">
+        <ThemeProvider
+          attribute="class"
+          defaultTheme="system"
+          enableSystem
+          disableTransitionOnChange
+        >
+          {/* Minimalist Sidebar extracted to client component */}
+          <Sidebar />
 
-        {/* Sidebar Navigation */}
-        <aside className="w-64 flex-shrink-0 flex flex-col glass border-r border-white/5 p-6 z-20">
-          <div className="flex items-center gap-3 px-2 mb-10 text-foreground">
-            <div className="w-8 h-8 rounded-xl bg-gradient-to-br from-primary to-blue-600 flex items-center justify-center shadow-lg shadow-blue-500/20">
-              <span className="text-lg">🤖</span>
+          {/* Centered Main Content Area */}
+          <main className="flex-1 relative overflow-y-auto bg-background selection:bg-primary/20 custom-scrollbar">
+            <div className="max-w-[1200px] mx-auto min-h-screen flex flex-col">
+              {children}
             </div>
-            <h1 className="text-sm font-bold tracking-wide">Agent Console</h1>
-          </div>
-
-          <nav className="flex flex-col gap-2 flex-1">
-            <a href="/" className="flex items-center gap-3 px-4 py-2.5 rounded-xl hover:bg-white/5 text-sm font-medium text-muted-foreground hover:text-foreground transition-all duration-200">
-              <span className="opacity-70">◆</span>
-              Dashboard
-            </a>
-            <a href="/history" className="flex items-center gap-3 px-4 py-2.5 rounded-xl hover:bg-white/5 text-sm font-medium text-muted-foreground hover:text-foreground transition-all duration-200">
-              <span className="opacity-70">🕒</span>
-              History
-            </a>
-            <a href="/admin/agents" className="flex items-center gap-3 px-4 py-2.5 rounded-xl hover:bg-white/5 text-sm font-medium text-muted-foreground hover:text-foreground transition-all duration-200">
-              <span className="opacity-70">🤖</span>
-              Agent Management
-            </a>
-            <a href="/admin/models" className="flex items-center gap-3 px-4 py-2.5 rounded-xl hover:bg-white/5 text-sm font-medium text-muted-foreground hover:text-foreground transition-all duration-200">
-              <span className="opacity-70">🧠</span>
-              Model Management
-            </a>
-          </nav>
-
-
-        </aside>
-
-        {/* Main Content Area */}
-        <main className="flex-1 relative flex flex-col overflow-hidden bg-gradient-to-b from-background to-[#050505]">
-          {children}
-        </main>
-
+          </main>
+        </ThemeProvider>
       </body>
     </html>
   );

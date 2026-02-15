@@ -2,6 +2,7 @@
 
 import { AgentEvent } from "@/models/Events";
 import { useEffect, useRef } from "react";
+import { Terminal, Wrench, Play, Brain, CheckCircle2 } from "lucide-react";
 
 export default function EventTimeline({
     events,
@@ -27,29 +28,29 @@ export default function EventTimeline({
     });
 
     return (
-        <div className="w-80 h-full border-l border-white/5 bg-black/40 backdrop-blur-xl flex flex-col font-sans text-xs z-10 transition-all duration-300">
-            <div className="h-14 flex items-center justify-between px-4 border-b border-white/5">
-                <span className="font-semibold text-muted-foreground tracking-tight">Timeline</span>
-                <div className="px-2 py-0.5 rounded-full bg-white/5 border border-white/5 text-[10px] font-mono text-muted-foreground">
-                    {filteredEvents.length} events
+        <div className="flex-1 flex flex-col font-sans text-xs overflow-hidden">
+            <div className="h-20 flex items-center justify-between px-8 border-b border-border">
+                <span className="text-[13px] font-bold uppercase tracking-[0.2em] text-muted-foreground/80">Timeline</span>
+                <div className="text-[11px] font-mono text-muted-foreground/60 tabular-nums">
+                    {filteredEvents.length} ACTIVITIES
                 </div>
             </div>
 
-            <div className="flex-1 overflow-y-auto p-4 space-y-4 scrollbar-hide" ref={listRef}>
+            <div className="flex-1 overflow-y-auto px-8 py-10 space-y-8 custom-scrollbar" ref={listRef}>
                 {filteredEvents.length === 0 && (
-                    <div className="text-muted-foreground/40 italic text-center mt-10">Waiting for activity...</div>
+                    <div className="text-muted-foreground/50 italic text-[14px] text-center mt-20 font-medium">Listening for events...</div>
                 )}
                 {filteredEvents.map((ev, i) => (
-                    <div key={i} className="relative pl-4 border-l border-white/10 py-0.5 group hover:border-white/20 transition-colors">
-                        <div className="absolute -left-[3px] top-2 w-1.5 h-1.5 rounded-full bg-white/20 group-hover:bg-primary transition-colors ring-4 ring-black" />
+                    <div key={i} className="relative pl-8 border-l border-border py-1 transition-all duration-500 hover:border-border/80 group">
+                        <div className="absolute -left-[5px] top-2.5 w-2 h-2 rounded-full bg-secondary border border-border group-hover:bg-primary/40 transition-all duration-500 shadow-sm" />
 
-                        <div className="flex items-center gap-2 mb-1 opacity-50 group-hover:opacity-100 transition-opacity">
-                            <span className="font-mono text-[10px]">
+                        <div className="flex items-center gap-2 mb-2">
+                            <span className="font-mono text-[10px] text-muted-foreground/60 tracking-tighter tabular-nums">
                                 {new Date(ev.timestamp || Date.now()).toLocaleTimeString([], { hour12: false, hour: '2-digit', minute: '2-digit', second: '2-digit' })}
                             </span>
                         </div>
 
-                        <div className="text-sm">
+                        <div className="text-[14px] leading-relaxed">
                             {renderEvent(ev)}
                         </div>
                     </div>
@@ -63,27 +64,26 @@ function renderEvent(ev: AgentEvent) {
     switch (ev.type) {
         case "SessionAssigned":
             return (
-                <div className="text-primary font-medium flex items-center gap-2">
-                    <span className="w-2 h-2 rounded-full bg-primary" />
-                    Session Started
+                <div className="text-foreground/80 font-semibold flex items-center gap-2 tracking-tight">
+                    <Play size={10} fill="currentColor" /> Session Initialized
                 </div>
             );
         case "RunStarted":
-            return <div className="text-muted-foreground/40 text-[10px] uppercase tracking-wider my-2">Run Started</div>;
+            return null;
         case "ThinkingStart":
-            return <div className="text-muted-foreground italic">Thinking...</div>;
+            return <div className="text-foreground/60 italic font-medium flex items-center gap-2"><Brain size={10} /> Analyzing...</div>;
         case "ThinkingUpdate":
-            return <div className="text-muted-foreground/60 pl-2 border-l-2 border-white/5 my-1">{ev.content}</div>;
+            return <div className="text-muted-foreground/60 pl-4 border-l border-border my-2 leading-relaxed">{ev.content}</div>;
         case "ThinkingEnd":
-            return <div className="text-muted-foreground/60 text-[10px] uppercase tracking-wider">Step Complete</div>;
+            return <div className="text-[11px] font-bold uppercase tracking-widest text-primary/60 mt-1 flex items-center gap-1.5"><CheckCircle2 size={10} /> Processed</div>;
         case "ToolCallStarted":
             return (
-                <div className="flex flex-col gap-1">
-                    <div className="text-orange-400 font-medium flex items-center gap-1.5">
-                        <span>🛠</span> Calling: {ev.toolName}
+                <div className="flex flex-col gap-2">
+                    <div className="text-foreground font-bold flex items-center gap-2 tracking-tight">
+                        <span className="text-primary"><Wrench size={10} /></span> Invoking {ev.toolName}
                     </div>
                     {ev.arguments && (
-                        <div className="text-[10px] bg-white/5 border border-white/5 rounded p-1.5 font-mono text-muted-foreground break-all whitespace-pre-wrap">
+                        <div className="text-[12px] bg-secondary border border-border rounded-2xl p-4 font-mono text-muted-foreground/60 break-all whitespace-pre-wrap leading-relaxed">
                             {ev.arguments}
                         </div>
                     )}
@@ -91,21 +91,20 @@ function renderEvent(ev: AgentEvent) {
             );
         case "ToolResult":
             return (
-                <div className="mt-2 text-xs bg-white/5 border border-white/5 rounded-lg p-2 font-mono text-emerald-400/90 overflow-hidden">
-                    <div className="text-[10px] text-muted-foreground mb-1 uppercase tracking-wider">Output</div>
-                    {ev.content}
+                <div className="mt-3 flex flex-col gap-2">
+                    <div className="text-[11px] font-bold uppercase tracking-widest text-muted-foreground/80 px-1 flex items-center gap-1.5">
+                        <Terminal size={10} /> {ev.toolName} Result
+                    </div>
+                    <div className="text-[12px] bg-secondary border border-border rounded-[20px] p-4 font-mono text-foreground/80 overflow-hidden leading-relaxed max-h-40 overflow-y-auto custom-scrollbar">
+                        {ev.content}
+                    </div>
                 </div>
             );
-        case "ToolCallEnded":
-        case "AssistantTextDelta":
-        case "AssistantTextFinal":
-            return null;
-
         case "ErrorEvent":
-            return <span className="text-red-500 font-bold bg-red-500/10 px-2 py-1 rounded">Error: {ev.error}</span>;
+            return <span className="text-red-400 font-semibold bg-red-400/5 px-3 py-1.5 rounded-xl border border-red-400/10">Fault: {ev.error}</span>;
         case "StreamEnd":
-            return <div className="h-px bg-white/10 w-full my-2" />;
+            return <div className="h-px bg-border w-full my-4" />;
         default:
-            return <span className="text-muted-foreground/30 text-[10px]">{(ev as any).type}</span>;
+            return null;
     }
 }

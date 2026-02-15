@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useRef, useEffect } from "react";
+import { ArrowUp, Square } from "lucide-react";
 
 export default function MessageInput({
     onSend,
@@ -39,44 +40,35 @@ export default function MessageInput({
     };
 
     return (
-        <div className="absolute bottom-6 left-0 right-0 px-6 pointer-events-none z-30">
-            <div className="max-w-3xl mx-auto pointer-events-auto relative">
-                <div className="relative group">
-                    <div className="absolute -inset-0.5 bg-gradient-to-r from-primary/20 to-blue-600/20 rounded-[32px] blur opacity-75 group-hover:opacity-100 transition duration-1000"></div>
-                    <div className="relative flex items-end gap-2 bg-[#1C1C1E]/90 backdrop-blur-xl border border-white/10 rounded-[32px] p-2 pr-2 shadow-2xl">
-                        <textarea
-                            ref={textareaRef}
-                            className="w-full bg-transparent pl-5 py-3.5 max-h-[120px] text-[15px] placeholder:text-muted-foreground/50 focus:outline-none resize-none text-foreground leading-relaxed"
-                            placeholder="Message Agent..."
-                            value={text}
-                            onChange={(e) => setText(e.target.value)}
-                            onKeyDown={handleKeyDown}
-                            rows={1}
-                        />
+        <div className="absolute bottom-10 left-0 right-0 px-10 pointer-events-none z-30">
+            <div className="max-w-[800px] mx-auto pointer-events-auto">
+                <div className="relative flex items-end gap-3 bg-background/80 backdrop-blur-3xl border border-border rounded-[32px] p-2 pr-4 shadow-[0_32px_64px_-16px_rgba(0,0,0,0.1)] dark:shadow-[0_32px_64px_-16px_rgba(0,0,0,0.6)] group transition-all duration-500 hover:border-primary/20">
+                    <textarea
+                        ref={textareaRef}
+                        className="w-full bg-transparent pl-6 py-4 max-h-[160px] text-[16px] placeholder:text-muted-foreground/60 focus:outline-none resize-none text-foreground leading-relaxed custom-scrollbar"
+                        placeholder="Describe your request..."
+                        value={text}
+                        onChange={(e) => setText(e.target.value)}
+                        onKeyDown={handleKeyDown}
+                        rows={1}
+                    />
 
-                        {isStreaming ? (
-                            <button
-                                onClick={onStop}
-                                className="w-10 h-10 mb-1 rounded-full bg-red-500/10 text-red-500 hover:bg-red-500 hover:text-white flex items-center justify-center transition-all duration-200"
-                            >
-                                <div className="w-3 h-3 bg-current rounded-[2px]" />
-                            </button>
-                        ) : (
-                            <button
-                                onClick={handleSend}
-                                disabled={!text.trim()}
-                                className="w-10 h-10 mb-1 rounded-full bg-primary text-white flex items-center justify-center hover:scale-105 active:scale-95 transition-all duration-200 shadow-lg shadow-primary/20 disabled:opacity-50 disabled:shadow-none disabled:hover:scale-100"
-                            >
-                                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-                                    <path d="M12 19V5" />
-                                    <path d="M5 12l7-7 7 7" />
-                                </svg>
-                            </button>
-                        )}
-                    </div>
-                </div>
-                <div className="text-center mt-2 text-[10px] text-muted-foreground font-medium opacity-50">
-                    Agent can make mistakes. Check important info.
+                    {isStreaming ? (
+                        <button
+                            onClick={onStop}
+                            className="w-12 h-12 mb-1 rounded-[20px] bg-red-400/10 text-red-400 hover:bg-red-400 hover:text-white flex items-center justify-center transition-all duration-500 active:scale-90"
+                        >
+                            <Square size={14} fill="currentColor" strokeWidth={0} />
+                        </button>
+                    ) : (
+                        <button
+                            onClick={handleSend}
+                            disabled={!text.trim()}
+                            className="w-12 h-12 mb-1 rounded-[22px] bg-primary text-white flex items-center justify-center hover:scale-105 active:scale-90 transition-all duration-500 shadow-2xl shadow-primary/20 disabled:opacity-10 disabled:grayscale disabled:scale-100 disabled:hover:scale-100"
+                        >
+                            <ArrowUp size={24} strokeWidth={2.5} />
+                        </button>
+                    )}
                 </div>
             </div>
         </div>

@@ -29,7 +29,7 @@ export function translateAguiEvent(raw: AguiRawEvent): AgentEvent[] {
             });
             break;
 
-        case "TEXT_MESSAGE_CONTENT":
+        case "TEXT_MESSAGE_CHUNK":
             events.push({
                 type: "AssistantTextDelta",
                 content: raw.delta || "",
@@ -58,10 +58,10 @@ export function translateAguiEvent(raw: AguiRawEvent): AgentEvent[] {
             });
             break;
 
-        case "TOOL_CALL_STARTED":
+        case "TOOL_CALL_START":
             events.push({
                 type: "ToolCallStarted",
-                toolName: raw.toolCallName || raw.tool_call_name || "unknown",
+                toolName: raw.toolCallName || raw.tool_call_name || raw.step_name || raw.stepName || "Tool Call",
                 toolCallId: raw.toolCallId || raw.tool_call_id,
                 arguments: "" // Initialize empty
             });
@@ -78,7 +78,7 @@ export function translateAguiEvent(raw: AguiRawEvent): AgentEvent[] {
         case "TOOL_CALL_RESULT":
             events.push({
                 type: "ToolResult",
-                toolName: "unknown", // Logic to find name by ID can be added in state
+                toolName: raw.toolCallName || raw.tool_call_name || "Tool",
                 content: raw.content || "",
                 toolCallId: raw.toolCallId || raw.tool_call_id,
             });

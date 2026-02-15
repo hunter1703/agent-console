@@ -148,18 +148,18 @@ function LookupField({ value, onChange, layout, className, label, disabled, help
         <div className="relative w-full" ref={containerRef}>
             <button
                 type="button"
-                className={`${className} flex justify-between items-center text-left min-h-[46px] group`}
+                className={`${className} flex justify-between items-center text-left min-h-[48px] group px-4 rounded-2xl bg-white/[0.03] border border-white/5 hover:border-white/10 transition-all duration-300`}
                 onClick={() => !disabled && setIsOpen(!isOpen)}
                 disabled={disabled}
             >
                 <div className="flex flex-col">
-                    <span className={!value ? "text-muted-foreground italic text-xs" : "text-white font-medium"}>
+                    <span className={!value ? "text-muted-foreground/50 text-[15px] italic" : "text-white/90 font-medium text-[15px] tracking-tight"}>
                         {selectedOption?.name || value || helpText || `-- Select ${label} --`}
                     </span>
                 </div>
-                <div className={`transition-all duration-300 transform ${isOpen ? "rotate-180 text-primary" : "text-muted group-hover:text-white"}`}>
-                    <svg width="12" height="12" viewBox="0 0 12 12" fill="none" xmlns="http://www.w3.org/2000/svg">
-                        <path d="M2 4L6 8L10 4" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+                <div className={`transition-all duration-500 transform ${isOpen ? "rotate-90 text-primary" : "text-muted-foreground/30 group-hover:text-white/50"}`}>
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                        <path d="M9 18l6-6-6-6" />
                     </svg>
                 </div>
             </button>
@@ -238,12 +238,30 @@ export default function JsonForm({ schema, data, onChange, className = "", rootS
         if (prop.$ref) {
             const resolved = resolveRef(prop.$ref);
             if (resolved) {
-                // Merge resolved with original to keep local title/description/help if present
-                return { ...resolved, ...prop };
+                // Deep merge resolved with original to preserve metadata
+                return {
+                    ...resolved,
+                    ...prop,
+                    properties: resolved.properties || prop.properties ? { ...(resolved.properties || {}), ...(prop.properties || {}) } : undefined,
+                    required: Array.from(new Set([...(resolved.required || []), ...(prop.required || [])]))
+                };
             }
         }
         return prop;
     }, [resolveRef]);
+
+    const mergeProps = useCallback((base: { [key: string]: JsonSchemaProperty }, extension: { [key: string]: JsonSchemaProperty }) => {
+        const result = { ...base };
+        Object.entries(extension).forEach(([key, prop]) => {
+            if (result[key]) {
+                // Merge individual property metadata (like enum and const)
+                result[key] = { ...result[key], ...prop };
+            } else {
+                result[key] = prop;
+            }
+        });
+        return result;
+    }, []);
 
     const evaluateSchema = useCallback((currentSchema: JsonSchema, currentData: any) => {
         const baseProps = currentSchema.properties || {};
@@ -285,7 +303,7 @@ export default function JsonForm({ schema, data, onChange, className = "", rootS
                 if (branch) {
                     const resolvedBranch = branch.$ref ? resolveRef(branch.$ref) : branch;
                     if (resolvedBranch?.properties) {
-                        resolvedProps = { ...resolvedProps, ...resolvedBranch.properties };
+                        resolvedProps = mergeProps(resolvedProps, resolvedBranch.properties);
                     }
                 }
             }
@@ -297,7 +315,7 @@ export default function JsonForm({ schema, data, onChange, className = "", rootS
                 // Static merges (no if/then)
                 const innerProps = branch.properties || (branch.$ref ? resolveRef(branch.$ref)?.properties : null);
                 if (innerProps && !branch.if) {
-                    resolvedProps = { ...resolvedProps, ...innerProps };
+                    resolvedProps = mergeProps(resolvedProps, innerProps);
                 }
 
                 if (!branch.if || !branch.if.properties) return;
@@ -319,7 +337,7 @@ export default function JsonForm({ schema, data, onChange, className = "", rootS
                 if (isMatch && branch.then) {
                     const thenProps = branch.then.properties || (branch.then.$ref ? resolveRef(branch.then.$ref)?.properties : null);
                     if (thenProps) {
-                        resolvedProps = { ...resolvedProps, ...thenProps };
+                        resolvedProps = mergeProps(resolvedProps, thenProps);
                     }
                 }
             });
@@ -347,12 +365,16 @@ export default function JsonForm({ schema, data, onChange, className = "", rootS
         const description = property.description;
         const helpText = property.help;
         const isRequired = schema.required?.includes(key);
-        const isReadOnly = (key === 'id' && !isNew) || !!property.readOnly;
+        // Only read-only if it's a const AND doesn't have an enum (which means it's a discriminator or toggle)
+        const isReadOnly = (key === 'id' && !isNew) || !!property.readOnly || (property.const !== undefined && !property.enum);
 
         const fieldLayout = layout?.[key];
         const widget = fieldLayout?.widget;
 
-        const commonClass = `bg-white/5 border border-white/10 rounded-xl p-3 text-sm text-white focus:outline-none transition-all w-full ${isReadOnly ? "opacity-60 cursor-not-allowed bg-black/20" : "focus:border-primary focus:ring-1 focus:ring-primary"
+        const commonClass = `bg-white/[0.03] border border-white/5 rounded-2xl p-4 text-[15px] text-white/90 placeholder:text-white/20 focus:outline-none transition-all w-full leading-relaxed ${isReadOnly ? "opacity-40 cursor-default bg-black/10 select-none" : "focus:border-primary/50 focus:ring-4 focus:ring-primary/5 hover:border-white/10 cursor-text"
+            }`;
+
+        const dropdownClass = `bg-white/[0.03] border border-white/5 rounded-2xl p-4 text-[15px] text-white/90 placeholder:text-white/20 focus:outline-none transition-all w-full leading-relaxed cursor-pointer appearance-none ${isReadOnly ? "opacity-40 cursor-default bg-black/10 select-none" : "focus:border-primary/50 focus:ring-4 focus:ring-primary/5 hover:border-white/10"
             }`;
 
         // Handle nested objects
@@ -395,18 +417,33 @@ export default function JsonForm({ schema, data, onChange, className = "", rootS
                 />
             );
         } else if (property.enum) {
+            const currentValue = value || property.default || "";
+
             inputElement = (
-                <select
-                    value={value || property.default || ""}
-                    onChange={(e) => handleFieldChange(key, e.target.value)}
-                    className={commonClass}
-                    disabled={isReadOnly}
-                >
-                    <option value="" className="text-muted-foreground italic">{helpText ? helpText : `-- Select ${label} --`}</option>
-                    {property.enum.map((option: string) => (
-                        <option key={option} value={option}>{option}</option>
-                    ))}
-                </select>
+                <div className="relative group">
+                    <select
+                        value={currentValue}
+                        onChange={(e) => handleFieldChange(key, e.target.value)}
+                        className={dropdownClass}
+                        disabled={isReadOnly}
+                    >
+                        <option value="" className="text-muted-foreground italic">{helpText ? helpText : `-- Select ${label} --`}</option>
+                        {property.enum.map((option: string) => (
+                            <option key={option} value={option}>{option}</option>
+                        ))}
+                    </select>
+                    <div className="absolute right-4 top-1/2 -translate-y-1/2 pointer-events-none text-muted-foreground/30 group-hover:text-white/50 transition-colors">
+                        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
+                            <path d="M6 9l6 6 6-6" />
+                        </svg>
+                    </div>
+                </div>
+            );
+        } else if (property.const !== undefined && !property.enum) {
+            inputElement = (
+                <div className={commonClass}>
+                    {property.const}
+                </div>
             );
         } else if (property.type === 'boolean') {
             inputElement = (
@@ -461,13 +498,13 @@ export default function JsonForm({ schema, data, onChange, className = "", rootS
         }
 
         return (
-            <div key={key} className="flex flex-col gap-2">
+            <div key={key} className="flex flex-col gap-2.5">
                 {property.type !== 'boolean' && (
-                    <div className="flex flex-col gap-1">
-                        <label className="text-[10px] text-muted-foreground font-bold uppercase tracking-widest px-1">
-                            {label} {isRequired && <span className="text-primary">*</span>}
+                    <div className="flex flex-col gap-1.5 px-1">
+                        <label className="text-[13px] text-muted-foreground font-semibold tracking-tight">
+                            {label} {isRequired && <span className="text-primary/70 ml-0.5">*</span>}
                         </label>
-                        {description && <p className="text-[10px] text-muted-foreground/70 px-1 mb-1">{description}</p>}
+                        {description && <p className="text-[13px] text-muted-foreground/40 leading-relaxed font-normal">{description}</p>}
                     </div>
                 )}
                 {inputElement}

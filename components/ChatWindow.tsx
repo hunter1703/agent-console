@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef } from "react";
+import { Sparkles, Bot } from "lucide-react";
 
 export interface Message {
     id: string;
@@ -12,46 +13,53 @@ export default function ChatWindow({ messages, agentAvatar }: { messages: Messag
     const bottomRef = useRef<HTMLDivElement>(null);
 
     useEffect(() => {
-        bottomRef.current?.scrollIntoView({ behavior: "smooth" });
+        if (bottomRef.current?.parentElement) {
+            bottomRef.current.parentElement.scrollTop = bottomRef.current.parentElement.scrollHeight;
+        }
     }, [messages]);
 
     return (
-        <div className="flex-1 overflow-y-auto p-6 flex flex-col gap-6 scroll-smooth">
-            <div className="max-w-3xl mx-auto w-full flex flex-col gap-6 pb-24">
+        <div className="flex-1 overflow-y-auto px-10 pt-10 pb-40 scroll-smooth custom-scrollbar">
+            <div className="max-w-[800px] mx-auto w-full flex flex-col gap-12">
                 {messages.length === 0 && (
-                    <div className="mt-32 text-center text-muted-foreground animate-in fade-in duration-700">
-                        <div className="w-16 h-16 bg-white/5 rounded-2xl mx-auto flex items-center justify-center mb-6 backdrop-blur-sm">
-                            <span className="text-3xl grayscale opacity-50">💬</span>
+                    <div className="mt-40 text-center flex flex-col items-center gap-8 animate-in fade-in slide-in-from-bottom-8 duration-1000">
+                        <div className="w-20 h-20 rounded-[40px] bg-secondary border border-border flex items-center justify-center shadow-2xl shadow-black/5 dark:shadow-black/20">
+                            <Sparkles size={40} strokeWidth={1} className="text-muted-foreground/40" />
                         </div>
-                        <p className="text-sm font-medium">No messages yet.</p>
-                        <p className="text-xs opacity-50 mt-1">Start a conversation to begin.</p>
+                        <div className="flex flex-col gap-2">
+                            <p className="text-[17px] font-semibold text-foreground/80 tracking-tight">System Ready</p>
+                            <p className="text-[15px] text-muted-foreground/60 font-medium">Initialize the session with a message.</p>
+                        </div>
                     </div>
                 )}
 
                 {messages.map((m) => (
                     <div
                         key={m.id}
-                        className={`flex gap-3 max-w-[85%] animate-slide-up ${m.role === "user" ? "self-end flex-row-reverse" : "self-start"
+                        className={`flex flex-col gap-4 animate-in fade-in slide-in-from-bottom-2 duration-500 ${m.role === "user" ? "items-end" : "items-start"
                             }`}
                     >
-                        {/* Avatar */}
-                        <div className={`w-8 h-8 rounded-full flex-shrink-0 flex items-center justify-center text-xs shadow-sm overflow-hidden ${m.role === "user"
-                            ? "bg-primary text-white"
-                            : "bg-gradient-to-br from-gray-700 to-gray-600 text-white"
-                            }`}>
-                            {m.role === "assistant" && agentAvatar ? (
-                                <img src={agentAvatar} alt="Agent" className="w-full h-full object-cover" />
-                            ) : (
-                                m.role === "user" ? "U" : "A"
+                        {/* Typographic Message (No Bubbles for Assistant) */}
+                        <div className={`flex flex-col gap-3 max-w-[90%] w-full ${m.role === "user" ? "items-end" : "items-start"}`}>
+                            {m.role === "assistant" && (
+                                <div className="flex items-center gap-3 mb-1">
+                                    <div className="w-6 h-6 rounded-lg bg-secondary border border-border flex items-center justify-center overflow-hidden">
+                                        {agentAvatar ? <img src={agentAvatar} className="w-full h-full object-cover" /> : <Bot size={14} className="text-muted-foreground/60" />}
+                                    </div>
+                                    <span className="text-[12px] font-bold uppercase tracking-[0.2em] text-muted-foreground/70">Assistant</span>
+                                </div>
                             )}
-                        </div>
 
-                        {/* Bubble */}
-                        <div className={`px-5 py-3 rounded-2xl text-[15px] leading-relaxed shadow-sm backdrop-blur-sm border ${m.role === "user"
-                            ? "bg-primary text-white border-primary rounded-tr-sm"
-                            : "bg-secondary/80 text-foreground border-white/5 rounded-tl-sm"
-                            }`}>
-                            <p className="whitespace-pre-wrap">{m.content}</p>
+                            <div className={`${m.role === "user"
+                                ? "bg-secondary px-6 py-4 rounded-[24px] rounded-tr-none border border-border text-foreground/90"
+                                : "text-foreground/95 leading-[1.65] text-[17px] font-normal"
+                                }`}>
+                                <p className="whitespace-pre-wrap tracking-[-0.01em]">{m.content}</p>
+                            </div>
+
+                            {m.role === "user" && (
+                                <span className="text-[11px] font-bold uppercase tracking-[0.1em] text-muted-foreground/50 mr-2 mt-1">You</span>
+                            )}
                         </div>
                     </div>
                 ))}

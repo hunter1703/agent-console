@@ -12,6 +12,7 @@ import ChatWindow, { Message } from "@/components/ChatWindow";
 import EventTimeline from "@/components/EventTimeline";
 import MessageInput from "@/components/MessageInput";
 import { ChatSession } from "@/models/Session";
+import { Bot, RefreshCcw, Sparkles } from "lucide-react";
 
 export default function AgentChatPage() {
     const { id } = useParams();
@@ -71,6 +72,7 @@ export default function AgentChatPage() {
                 try {
                     const session: ChatSession = JSON.parse(stored);
                     setMessages(session.messages);
+                    setThreadId(session.threadId || null);
                 } catch (e) {
                     console.error("Failed to parse session", e);
                 }
@@ -91,11 +93,12 @@ export default function AgentChatPage() {
                 title: messages.length > 0 ? messages[0].content.slice(0, 40) + (messages[0].content.length > 40 ? "..." : "") : "New Chat",
                 createdAt: parseInt(sessionId) || Date.now(), // approximation if using Date.now() as ID
                 lastActiveAt: Date.now(),
-                messages: messages
+                messages: messages,
+                threadId: threadId || undefined
             };
             localStorage.setItem(`session_${sessionId}`, JSON.stringify(sessionData));
         }
-    }, [messages, sessionId, agent]);
+    }, [messages, sessionId, agent, threadId]);
 
     const handleAgentEvent = useCallback((ev: AgentEvent) => {
         if (ev.type === "ToolArgsUpdate") {
@@ -111,6 +114,10 @@ export default function AgentChatPage() {
         setEvents((prev) => [...prev, { ...ev, timestamp: Date.now() }]);
 
         if (ev.type === "SessionAssigned") {
+            setThreadId(ev.threadId);
+        }
+
+        if (ev.type === "RunStarted" && ev.threadId) {
             setThreadId(ev.threadId);
         }
 
@@ -200,39 +207,57 @@ export default function AgentChatPage() {
 
     if (!agent) return <div className="p-8 text-center text-muted">Loading agent console...</div>;
 
+    // Force height to match viewport minus layout overhead to prevent main scrollbar
     return (
-        <div className="flex-1 flex overflow-hidden">
-            {/* Main Chat Area */}
+        <div className="h-[calc(100vh)] flex overflow-hidden bg-background absolute inset-0">
+            {/* Cinematic Chat Area */}
             <div className="flex-1 flex flex-col min-w-0 relative">
-                <header className="p-4 border-b border-border flex justify-between items-center bg-background">
-                    <div className="flex flex-col">
-                        <h2 className="font-bold text-lg">{agent.name}</h2>
-                        <div className="text-[10px] text-muted font-mono flex items-center gap-2">
-                            SESSION: {threadId || "NEW"}
-                            <button onClick={resetSession} className="text-accent hover:underline px-1 bg-accent/10 rounded ml-2">
-                                NEW CHAT
-                            </button>
+                <header className="h-20 px-10 border-b border-border flex justify-between items-center bg-background/80 backdrop-blur-xl z-20">
+                    <div className="flex items-center gap-4">
+                        <div className="w-10 h-10 rounded-2xl bg-secondary border border-border flex items-center justify-center text-xl shadow-sm">
+                            {agent.avatar ? (
+                                <img src={agent.avatar} alt={agent.name} className="w-full h-full object-cover rounded-2xl" />
+                            ) : (
+                                <Bot size={20} className="text-muted-foreground/60" />
+                            )}
+                        </div>
+                        <div className="flex flex-col gap-0.5">
+                            <h2 className="text-[17px] font-semibold text-foreground tracking-tight leading-none">{agent.name}</h2>
+                            <div className="flex items-center gap-2">
+                                <span className="w-1.5 h-1.5 rounded-full bg-primary shadow-[0_0_8px_rgba(0,113,227,0.5)]"></span>
+                                <span className="text-[11px] font-bold uppercase tracking-[0.1em] text-muted-foreground/40 mt-0.5">Active Session</span>
+                            </div>
                         </div>
                     </div>
-                    <div className="flex items-center gap-4">
-                        <label className="flex items-center gap-2 text-xs text-muted cursor-pointer hover:text-foreground transition-colors">
+
+                    <div className="flex items-center gap-6">
+                        <label className="flex items-center gap-2.5 text-[13px] font-medium text-muted-foreground/60 cursor-pointer hover:text-foreground transition-all group">
                             <input
                                 type="checkbox"
                                 checked={showThoughts}
                                 onChange={(e) => setShowThoughts(e.target.checked)}
-                                className="accent-primary"
+                                className="w-4 h-4 rounded-md border-border bg-secondary checked:bg-primary checked:border-primary transition-all cursor-pointer"
                             />
-                            Show Thoughts
+                            Insights
                         </label>
+                        <button
+                            onClick={resetSession}
+                            className="text-[13px] font-semibold text-primary/80 hover:text-primary px-4 py-2 bg-primary/5 hover:bg-primary/10 rounded-2xl transition-all flex items-center gap-2"
+                        >
+                            <RefreshCcw size={14} />
+                            Reset
+                        </button>
                     </div>
                 </header>
 
-                <ChatWindow messages={messages} agentAvatar={agent.avatar} />
-                <MessageInput onSend={handleSend} onStop={handleStop} isStreaming={isStreaming} />
+                <div className="flex-1 relative overflow-hidden flex flex-col">
+                    <ChatWindow messages={messages} agentAvatar={agent.avatar} />
+                    <MessageInput onSend={handleSend} onStop={handleStop} isStreaming={isStreaming} />
+                </div>
             </div>
 
-            {/* Sidebar Timeline */}
-            <div className="w-80 hidden lg:flex flex-col border-l border-border">
+            {/* Sidebar Timeline - Minimalist Layer */}
+            <div className="w-[380px] hidden xl:flex flex-col border-l border-border bg-background/40 backdrop-blur-3xl">
                 <EventTimeline events={events} showThoughts={showThoughts} />
             </div>
         </div>
