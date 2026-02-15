@@ -163,7 +163,7 @@ export default function ModelAdminPage() {
                       </div>
                     </div>
                   </div>
-                  <div className="flex gap-3 opacity-0 group-hover:opacity-100 transition-all duration-500 translate-x-2 group-hover:translate-x-0">
+                  <div className="flex gap-3 opacity-0 group-hover:opacity-100 transition-all duration-200 translate-x-2 group-hover:translate-x-0">
                     <button
                       onClick={() => handleEdit(model)}
                       className="h-11 px-5 text-[14px] font-semibold bg-white/[0.03] hover:bg-white/[0.06] text-white/70 hover:text-white rounded-2xl border border-white/5 transition-all flex items-center gap-2"

@@ -10,16 +10,16 @@ export interface Message {
 }
 
 export default function ChatWindow({ messages, agentAvatar }: { messages: Message[], agentAvatar?: string }) {
-    const bottomRef = useRef<HTMLDivElement>(null);
+    const scrollRef = useRef<HTMLDivElement>(null);
 
     useEffect(() => {
-        if (bottomRef.current?.parentElement) {
-            bottomRef.current.parentElement.scrollTop = bottomRef.current.parentElement.scrollHeight;
+        if (scrollRef.current) {
+            scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
         }
     }, [messages]);
 
     return (
-        <div className="flex-1 overflow-y-auto px-10 pt-10 pb-40 scroll-smooth custom-scrollbar">
+        <div ref={scrollRef} className="flex-1 overflow-y-auto px-10 pt-10 pb-40 scroll-smooth custom-scrollbar">
             <div className="max-w-[800px] mx-auto w-full flex flex-col gap-12">
                 {messages.length === 0 && (
                     <div className="mt-40 text-center flex flex-col items-center gap-8 animate-in fade-in slide-in-from-bottom-8 duration-1000">
@@ -63,7 +63,6 @@ export default function ChatWindow({ messages, agentAvatar }: { messages: Messag
                         </div>
                     </div>
                 ))}
-                <div ref={bottomRef} className="h-4" />
             </div>
         </div>
     );
