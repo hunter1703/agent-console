@@ -67,85 +67,13 @@ export default function AdminPage() {
         }
     };
 
-    const validateAgentConfig = (): string | null => {
-        if (!editingAgent) return "No agent configuration to validate";
-
-        // Validate required fields
-        if (!isCreating && editingAgent.id && editingAgent.id.length > 255) {
-            return "Agent ID must be 255 characters or less";
-        }
-
-        // Model ID is required for both new and existing agents
-        if (!editingAgent.model || !editingAgent.model.modelId || editingAgent.model.modelId.trim() === "") {
-            return "Model ID is required";
-        }
-        if (editingAgent.model.modelId.length > 255) {
-            return "Model ID must be 255 characters or less";
-        }
-
-        if (!editingAgent.model.systemPrompt || editingAgent.model.systemPrompt.trim() === "") {
-            return "System Prompt is required";
-        }
-        if (editingAgent.model.systemPrompt.length < 1) {
-            return "System Prompt must be at least 1 character";
-        }
-
-        // Validate name length
-        // Validate name length
-        if (editingAgent.name && editingAgent.name.length > 255) {
-            return "Name must be 255 characters or less";
-        }
-
-        // Validate description length
-        if (editingAgent.description && editingAgent.description.length > 1000) {
-            return "Description must be 1000 characters or less";
-        }
-
-        // Validate avatar length
-        if (editingAgent.avatar && editingAgent.avatar.length > 500) {
-            return "Avatar URL must be 500 characters or less";
-        }
-
-        // Validate role length
-        if (editingAgent.model?.role && editingAgent.model.role.length > 255) {
-            return "Role must be 255 characters or less";
-        }
-
-        // Validate context manager config
-        if (editingAgent.model?.contextManagerConfig?.type === "last_n") {
-            const keepLast = editingAgent.model.contextManagerConfig['keepLast'];
-            if (keepLast !== undefined && (isNaN(keepLast) || keepLast < 1 || keepLast > 1000)) {
-                return "Keep Last N Interactions must be between 1 and 1000";
-            }
-        }
-
-        // Validate enabled tools
-        if (editingAgent.model?.tools?.enabled) {
-            for (const toolId of editingAgent.model.tools.enabled) {
-                if (toolId.length < 1 || toolId.length > 255) {
-                    return "Each enabled tool ID must be between 1 and 255 characters";
-                }
-            }
-        }
-
-        // Validate standard tools
-        if (editingAgent.model?.tools?.standardTools) {
-            for (const toolId of editingAgent.model.tools.standardTools) {
-                if (toolId.length < 1 || toolId.length > 255) {
-                    return "Each standard tool ID must be between 1 and 255 characters";
-                }
-            }
-        }
-
-        return null;
-    };
+    const [formErrors, setFormErrors] = useState<{ [key: string]: string }>({});
 
     const handleSave = async () => {
         if (!editingAgent) return;
 
-        const validationError = validateAgentConfig();
-        if (validationError) {
-            alert(validationError);
+        if (Object.keys(formErrors).length > 0) {
+            alert("Please fix the errors before saving.");
             return;
         }
 
@@ -316,6 +244,7 @@ export default function AdminPage() {
                                         onChange={setEditingAgent}
                                         isNew={isCreating}
                                         layout={agentLayout}
+                                        onErrorsChange={setFormErrors}
                                     />
                                 )}
                             </div>
@@ -329,7 +258,8 @@ export default function AdminPage() {
                                 </button>
                                 <button
                                     onClick={handleSave}
-                                    className="px-10 py-3.5 bg-primary text-white text-[15px] font-semibold rounded-2xl hover:bg-primary/90 transition-all shadow-2xl shadow-primary/20 active:scale-[0.98]"
+                                    disabled={Object.keys(formErrors).length > 0}
+                                    className={`px-10 py-3.5 bg-primary text-white text-[15px] font-semibold rounded-2xl hover:bg-primary/90 transition-all shadow-2xl shadow-primary/20 active:scale-[0.98] ${Object.keys(formErrors).length > 0 ? "opacity-30 cursor-not-allowed grayscale" : ""}`}
                                 >
                                     {isCreating ? "Create Agent" : "Save Changes"}
                                 </button>

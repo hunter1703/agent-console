@@ -6,10 +6,8 @@ import { Terminal, Wrench, Play, Brain, CheckCircle2 } from "lucide-react";
 
 export default function EventTimeline({
     events,
-    showThoughts,
 }: {
     events: AgentEvent[];
-    showThoughts: boolean;
 }) {
     const listRef = useRef<HTMLDivElement>(null);
 
@@ -18,7 +16,7 @@ export default function EventTimeline({
     }, [events]);
 
     const filteredEvents = events.filter((ev) => {
-        if (!showThoughts && ev.type.startsWith("Thinking")) return false;
+        if (ev.type === "ThinkingEnd") return false;
         if (ev.type === "ToolCallEnded") return false;
         if (ev.type === "AssistantTextDelta") return false;
         if (ev.type === "AssistantTextFinal") return false;

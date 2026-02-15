@@ -26,7 +26,6 @@ export default function AgentChatPage() {
     const [sessionId, setSessionId] = useState<string | null>(null); // Local unique ID for storage
     const [threadId, setThreadId] = useState<string | null>(null);   // Backend thread ID
     const [isStreaming, setIsStreaming] = useState(false);
-    const [showThoughts, setShowThoughts] = useState(true);
     const [abortController, setAbortController] = useState<AbortController | null>(null);
 
     // Initialize Session
@@ -231,15 +230,6 @@ export default function AgentChatPage() {
                     </div>
 
                     <div className="flex items-center gap-6">
-                        <label className="flex items-center gap-2.5 text-[13px] font-medium text-muted-foreground/60 cursor-pointer hover:text-foreground transition-all group">
-                            <input
-                                type="checkbox"
-                                checked={showThoughts}
-                                onChange={(e) => setShowThoughts(e.target.checked)}
-                                className="w-4 h-4 rounded-md border-border bg-secondary checked:bg-primary checked:border-primary transition-all cursor-pointer"
-                            />
-                            Insights
-                        </label>
                         <button
                             onClick={resetSession}
                             className="text-[13px] font-semibold text-primary/80 hover:text-primary px-4 py-2 bg-primary/5 hover:bg-primary/10 rounded-2xl transition-all flex items-center gap-2"
@@ -258,7 +248,7 @@ export default function AgentChatPage() {
 
             {/* Sidebar Timeline - Minimalist Layer */}
             <div className="w-[380px] hidden xl:flex flex-col border-l border-border bg-background/40 backdrop-blur-3xl">
-                <EventTimeline events={events} showThoughts={showThoughts} />
+                <EventTimeline events={events} />
             </div>
         </div>
     );

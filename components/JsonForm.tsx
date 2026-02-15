@@ -11,6 +11,9 @@ interface JsonSchemaProperty {
     enum?: any[];
     minimum?: number;
     maximum?: number;
+    minLength?: number;
+    maxLength?: number;
+    pattern?: string;
     format?: string;
     items?: JsonSchemaProperty;
     properties?: { [key: string]: JsonSchemaProperty };
@@ -34,6 +37,7 @@ interface JsonFormProps {
     rootSchema?: JsonSchema; // Optional, defaults to schema
     isNew?: boolean;
     layout?: any;
+    onErrorsChange?: (errors: { [key: string]: string }) => void;
 }
 
 interface LookupFieldProps {
@@ -217,8 +221,57 @@ function LookupField({ value, onChange, layout, className, label, disabled, help
     );
 }
 
-export default function JsonForm({ schema, data, onChange, className = "", rootSchema, isNew, layout }: JsonFormProps) {
+export default function JsonForm({ schema, data, onChange, className = "", rootSchema, isNew, layout, onErrorsChange }: JsonFormProps) {
+    const [fieldErrors, setFieldErrors] = useState<{ [key: string]: string }>({});
+    const lastReportedErrors = useRef<string>("");
+
+    useEffect(() => {
+        const errorsStr = JSON.stringify(fieldErrors);
+        if (onErrorsChange && lastReportedErrors.current !== errorsStr) {
+            lastReportedErrors.current = errorsStr;
+            onErrorsChange(fieldErrors);
+        }
+    }, [fieldErrors, onErrorsChange]);
+
     const effectiveRootSchema = rootSchema || schema;
+
+    const validateField = useCallback((key: string, value: any, property: JsonSchemaProperty): string | null => {
+        const isRequired = schema.required?.includes(key);
+
+        if (isRequired && (value === undefined || value === null || value === "")) {
+            return `${property.title || key} is required`;
+        }
+
+        if (value === undefined || value === null || value === "") {
+            return null;
+        }
+
+        if (property.type === 'integer' || property.type === 'number') {
+            if (property.minimum !== undefined && value < property.minimum) {
+                return `${property.title || key} must be at least ${property.minimum}`;
+            }
+            if (property.maximum !== undefined && value > property.maximum) {
+                return `${property.title || key} must be at most ${property.maximum}`;
+            }
+        }
+
+        if (property.type === 'string') {
+            if (property.minLength !== undefined && value.length < property.minLength) {
+                return `${property.title || key} must be at least ${property.minLength} characters`;
+            }
+            if (property.maxLength !== undefined && value.length > property.maxLength) {
+                return `${property.title || key} must be at most ${property.maxLength} characters`;
+            }
+            if (property.pattern) {
+                const regex = new RegExp(property.pattern);
+                if (!regex.test(value)) {
+                    return `${property.title || key} format is invalid`;
+                }
+            }
+        }
+
+        return null;
+    }, [schema.required]);
 
     const resolveRef = useCallback((ref: string): JsonSchemaProperty | null => {
         if (!ref.startsWith('#/')) return null;
@@ -350,7 +403,14 @@ export default function JsonForm({ schema, data, onChange, className = "", rootS
         return evaluateSchema(schema, data);
     }, [schema, data, evaluateSchema]);
 
-    const handleFieldChange = (key: string, value: any) => {
+    const handleFieldChange = (key: string, value: any, property: JsonSchemaProperty) => {
+        const error = validateField(key, value, property);
+        setFieldErrors(prev => {
+            const newErrors = { ...prev };
+            if (error) newErrors[key] = error;
+            else delete newErrors[key];
+            return newErrors;
+        });
         onChange({ ...data, [key]: value });
     };
 
@@ -371,10 +431,12 @@ export default function JsonForm({ schema, data, onChange, className = "", rootS
         const fieldLayout = layout?.[key];
         const widget = fieldLayout?.widget;
 
-        const commonClass = `bg-white/[0.03] border border-white/5 rounded-2xl p-4 text-[15px] text-white/90 placeholder:text-white/20 focus:outline-none transition-all w-full leading-relaxed ${isReadOnly ? "opacity-40 cursor-default bg-black/10 select-none" : "focus:border-primary/50 focus:ring-4 focus:ring-primary/5 hover:border-white/10 cursor-text"
+        const fieldError = fieldErrors[key];
+
+        const commonClass = `bg-white/[0.03] border ${fieldError ? 'border-red-500/40 focus:border-red-500/60' : 'border-white/5 focus:border-primary/50'} rounded-2xl p-4 text-[15px] text-white/90 placeholder:text-white/20 focus:outline-none transition-all w-full leading-relaxed ${isReadOnly ? "opacity-40 cursor-default bg-black/10 select-none" : "focus:ring-4 focus:ring-primary/5 hover:border-white/10 cursor-text"
             }`;
 
-        const dropdownClass = `bg-white/[0.03] border border-white/5 rounded-2xl p-4 text-[15px] text-white/90 placeholder:text-white/20 focus:outline-none transition-all w-full leading-relaxed cursor-pointer appearance-none ${isReadOnly ? "opacity-40 cursor-default bg-black/10 select-none" : "focus:border-primary/50 focus:ring-4 focus:ring-primary/5 hover:border-white/10"
+        const dropdownClass = `bg-white/[0.03] border ${fieldError ? 'border-red-500/40 focus:border-red-500/60' : 'border-white/5 focus:border-primary/50'} rounded-2xl p-4 text-[15px] text-white/90 placeholder:text-white/20 focus:outline-none transition-all w-full leading-relaxed cursor-pointer appearance-none ${isReadOnly ? "opacity-40 cursor-default bg-black/10 select-none" : "focus:ring-4 focus:ring-primary/5 hover:border-white/10"
             }`;
 
         // Handle nested objects
@@ -392,10 +454,38 @@ export default function JsonForm({ schema, data, onChange, className = "", rootS
                         <JsonForm
                             schema={property}
                             data={value || {}}
-                            onChange={(nestedData) => handleFieldChange(key, nestedData)}
+                            onChange={(nestedData) => handleFieldChange(key, nestedData, property)}
                             rootSchema={effectiveRootSchema}
                             isNew={isNew}
                             layout={fieldLayout}
+                            onErrorsChange={(nestedErrors) => {
+                                setFieldErrors(prev => {
+                                    const newErrors = { ...prev };
+                                    let changed = false;
+
+                                    // Check for new or changed errors
+                                    Object.entries(nestedErrors).forEach(([k, v]) => {
+                                        const keyPath = `${key}.${k}`;
+                                        if (newErrors[keyPath] !== v) {
+                                            newErrors[keyPath] = v;
+                                            changed = true;
+                                        }
+                                    });
+
+                                    // Check for removed errors
+                                    Object.keys(prev).forEach(k => {
+                                        if (k.startsWith(`${key}.`)) {
+                                            const subKey = k.slice(key.length + 1);
+                                            if (!(subKey in nestedErrors)) {
+                                                delete newErrors[k];
+                                                changed = true;
+                                            }
+                                        }
+                                    });
+
+                                    return changed ? newErrors : prev;
+                                });
+                            }}
                         />
                     </div>
                 );
@@ -408,7 +498,7 @@ export default function JsonForm({ schema, data, onChange, className = "", rootS
             inputElement = (
                 <LookupField
                     value={value}
-                    onChange={(val) => handleFieldChange(key, val)}
+                    onChange={(val) => handleFieldChange(key, val, property)}
                     layout={fieldLayout}
                     className={commonClass}
                     label={label}
@@ -423,7 +513,7 @@ export default function JsonForm({ schema, data, onChange, className = "", rootS
                 <div className="relative group">
                     <select
                         value={currentValue}
-                        onChange={(e) => handleFieldChange(key, e.target.value)}
+                        onChange={(e) => handleFieldChange(key, e.target.value, property)}
                         className={dropdownClass}
                         disabled={isReadOnly}
                     >
@@ -453,7 +543,7 @@ export default function JsonForm({ schema, data, onChange, className = "", rootS
                         id={`field-${key}`}
                         className="w-4 h-4 accent-primary"
                         checked={!!(value ?? property.default)}
-                        onChange={(e) => handleFieldChange(key, e.target.checked)}
+                        onChange={(e) => handleFieldChange(key, e.target.checked, property)}
                         disabled={isReadOnly}
                     />
                     <label htmlFor={`field-${key}`} className="text-sm text-white">{description || label}</label>
@@ -469,7 +559,7 @@ export default function JsonForm({ schema, data, onChange, className = "", rootS
                     className={commonClass}
                     value={value ?? property.default ?? ""}
                     placeholder={helpText || property.default?.toString() || description}
-                    onChange={(e) => handleFieldChange(key, e.target.value ? (property.type === 'integer' ? parseInt(e.target.value) : parseFloat(e.target.value)) : undefined)}
+                    onChange={(e) => handleFieldChange(key, e.target.value ? (property.type === 'integer' ? parseInt(e.target.value) : parseFloat(e.target.value)) : undefined, property)}
                     disabled={isReadOnly}
                 />
             );
@@ -479,7 +569,7 @@ export default function JsonForm({ schema, data, onChange, className = "", rootS
                     className={commonClass}
                     placeholder={helpText || "Comma-separated values"}
                     value={Array.isArray(value) ? value.join(', ') : (property.default ? property.default.join(', ') : "")}
-                    onChange={(e) => handleFieldChange(key, e.target.value.split(',').map((s) => s.trim()).filter(Boolean))}
+                    onChange={(e) => handleFieldChange(key, e.target.value.split(',').map((s) => s.trim()).filter(Boolean), property)}
                     disabled={isReadOnly}
                 />
             );
@@ -491,7 +581,7 @@ export default function JsonForm({ schema, data, onChange, className = "", rootS
                     className={commonClass}
                     value={value || property.default || ""}
                     placeholder={helpText || description || `Enter ${label}...`}
-                    onChange={(e) => handleFieldChange(key, e.target.value)}
+                    onChange={(e) => handleFieldChange(key, e.target.value, property)}
                     disabled={isReadOnly}
                 />
             );
@@ -508,6 +598,9 @@ export default function JsonForm({ schema, data, onChange, className = "", rootS
                     </div>
                 )}
                 {inputElement}
+                {fieldError && (
+                    <p className="text-[11px] text-red-400/80 px-1 animate-in fade-in slide-in-from-top-1 duration-200">{fieldError}</p>
+                )}
             </div>
         );
     };

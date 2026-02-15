@@ -54,8 +54,16 @@ export default function ModelAdminPage() {
     }
   };
 
+  const [formErrors, setFormErrors] = useState<{ [key: string]: string }>({});
+
   const handleSave = async () => {
     if (!editingModel) return;
+
+    if (Object.keys(formErrors).length > 0) {
+      alert("Please fix the errors before saving.");
+      return;
+    }
+
     try {
       if (isCreating) {
         const created = await createModel(editingModel);
@@ -215,6 +223,7 @@ export default function ModelAdminPage() {
                     onChange={setEditingModel}
                     isNew={isCreating}
                     layout={modelLayout}
+                    onErrorsChange={setFormErrors}
                   />
                 )}
               </div>
@@ -228,7 +237,8 @@ export default function ModelAdminPage() {
                 </button>
                 <button
                   onClick={handleSave}
-                  className="px-10 py-3.5 bg-primary text-white text-[15px] font-semibold rounded-2xl hover:bg-primary/90 transition-all shadow-2xl shadow-primary/20 active:scale-[0.98]"
+                  disabled={Object.keys(formErrors).length > 0}
+                  className={`px-10 py-3.5 bg-primary text-white text-[15px] font-semibold rounded-2xl hover:bg-primary/90 transition-all shadow-2xl shadow-primary/20 active:scale-[0.98] ${Object.keys(formErrors).length > 0 ? "opacity-30 cursor-not-allowed grayscale" : ""}`}
                 >
                   {isCreating ? "Register Model" : "Save Changes"}
                 </button>
