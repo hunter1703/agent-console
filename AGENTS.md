@@ -1,36 +1,53 @@
-# Dropdown Implementation Guidelines
+# Agent Console: Design & Implementation Standards
 
-## Concept
+This document defines the core philosophies and technical patterns that govern the Agent Console. It synthesizes premium design principles with rigorous implementation standards to ensure a consistent, "Apple-like" studio experience.
 
-Across the entire project, dropdowns follow this consistent pattern:
+## 1. Design Philosophy
 
-1. **Use catalog list API** to get list of id and names for entities
-2. **Display `name`** in dropdowns and field selection for user-friendly experience
-3. **Store `id`** in the model and when making API requests for proper identification
-4. The UI shows user-friendly names, but the underlying data uses IDs
+The Agent Console is built on the principle of **Aesthetic Integrity**. Every UI element must clearly reflect its function, prioritizing simplicity and immediate feedback.
 
-## Implementation Details
+### Core Tenets
 
-### Agent Form
-- Model selection uses a dropdown populated from the catalog list API
-- Shows model names to users for easy identification
-- Stores model IDs internally when making API requests
-- No manual ID entry fields needed - everything is handled through selection
+- **Minimalism**: Strip away unnecessary elements. Focus on essential functionality to reduce cognitive load and user frustration.
+- **Immediate Feedback**: Provide subtle but clear feedback for every action (e.g., the "Thinking..." state, pulse animations, and interactive hover effects).
+- **Direct Manipulation**: Allow users to interact directly with content. The interface should feel alive and responsive, using familiar metaphors to bridge the gap between real-world concepts and digital tools.
+- **Hierarchy & Consistency**: Information is organized into clear, structured layouts. Standard UI elements are used predictably across the platform to ensure a seamless "magical" experience.
 
-### Model Form  
-- Similar approach for any entity relationships
-- Always prioritize user-friendly display names in UI
-- Always use IDs for data storage and API communication
+---
 
-## Benefits
+## 2. Entity Management & Interface Patterns
 
-- **User Experience**: Users see meaningful names instead of opaque IDs
-- **Data Integrity**: IDs ensure accurate entity references in the backend
-- **Consistency**: Same pattern applied across all dropdowns in the application
-- **Maintainability**: Centralized approach using catalog APIs
+To maintain data integrity while providing a user-friendly experience, all entity relationships (Agents, Models, tools) follow a standardized binding pattern.
 
-## API Integration
+### The "ID-Name" Protocol
 
-- `/v1/catalog/list` endpoint provides paginated lists of entities
-- Each entity includes both `id` and `name` fields
-- Frontend components use the `name` for display and `id` for data operations
+Across the platform, selection fields and dropdowns adhere to a strict separation of display and storage:
+
+1. **Display `name`**: Users always interact with human-readable names (e.g., "Gemini-3-Flash") in dropdowns and forms.
+2. **Store `id`**: The system internally stores and transmits UUIDs or identifiers (e.g., `gemini-3-flash`) for all API requests and model definitions.
+3. **Automated Discovery**: Dropdowns are dynamically populated using the `/v1/catalog/list` API, ensuring that only currently available entities are selectable.
+
+### Implementation Specifics
+
+- **Agent Form**: Model selection is handled via a dynamic dropdown. Users see the friendly model name; the system binds the selection to the backend-required Model ID.
+- **Model Form**: All relationships between models, providers, and parameters are handled through these selection patterns, removing the need for manual, error-prone ID entry.
+
+---
+
+## 3. Data Integrity & API Sync
+
+- **Catalog Integration**: The frontend acts as a thin, intelligent layer over the `/v1/catalog` endpoints.
+- **Consistency**: Centralized implementation ensures that the same lookup logic applies to Agents, Models, and Tool configurations.
+- **Maintainability**: By using IDs for logic and Names for display, we ensure that backend migrations or renames do not break existing UI bindings.
+
+---
+
+## 4. Maintenance & QA Policy
+
+To ensure the long-term integrity of the Agent Console, all code changes must be reflected in the [QA_CERTIFICATION.md](file:///Users/rhp/Projects/agent-console/QA_CERTIFICATION.md).
+
+### **Bug Fix Protocol**
+
+1. **New Tests**: If a bug is found and fixed, a corresponding test case MUST be added to the `QA_CERTIFICATION.md` if it is not already present.
+2. **Strengthen Checks**: If a bug was already "covered" by a test case but still passed under the radar, the existing check must be strengthened with more granular verification steps (e.g., lower-level UI steps or race-condition audits).
+3. **Continuous Certification**: The QA document is a living record. Every feature addition or architectural shift must update the relevant sections of the certification roadmap.

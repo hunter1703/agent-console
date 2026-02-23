@@ -1,10 +1,10 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import { useParams, useRouter, useSearchParams } from "next/navigation";
 import { AgentConfig } from "@/models/Agent";
 import { AgentEvent } from "@/models/Events";
-import { fetchAgentConfig } from "@/lib/api";
+import { fetchAgentConfig, getResourceById } from "@/lib/api";
 import { mockStreamResponse } from "@/lib/mock";
 import { fetchSseStream } from "@/lib/stream";
 import { translateAguiEvent } from "@/adapters/aguiAdapter";
@@ -12,6 +12,7 @@ import ChatWindow, { Message } from "@/components/ChatWindow";
 import EventTimeline from "@/components/EventTimeline";
 import MessageInput from "@/components/MessageInput";
 import { ChatSession } from "@/models/Session";
+import { AgentSessionDTO } from "@/models/ApiSchemas";
 import { Bot, RefreshCcw, Sparkles } from "lucide-react";
 
 export default function AgentChatPage() {
@@ -27,75 +28,114 @@ export default function AgentChatPage() {
     const [threadId, setThreadId] = useState<string | null>(null);   // Backend thread ID
     const [isStreaming, setIsStreaming] = useState(false);
     const [abortController, setAbortController] = useState<AbortController | null>(null);
+    const currentRunId = useRef<string | null>(null);
 
-    // Initialize Session
+    // 1. Fetch Agent Metadata - Always needed for the shell UI
     useEffect(() => {
         if (!id) return;
-
-        const initSession = async () => {
-            // 1. Load Agent Config
+        const loadAgent = async () => {
             try {
                 const config = await fetchAgentConfig(id as string);
                 setAgent(config);
             } catch (e) {
                 console.error("Failed to load agent", e);
+            }
+        };
+        loadAgent();
+    }, [id]);
+
+    // 2. Initialize Session State
+    useEffect(() => {
+        if (!id) return;
+
+        const initSession = async () => {
+            const newSessionRequested = searchParams.get("newSession") === "true";
+            const currentSid = searchParams.get("sessionId");
+
+            // Handle Reset Navigation
+            if (newSessionRequested) {
+                setSessionId(null);
+                setMessages([]);
+                setThreadId(null);
+                setEvents([]);
+                router.replace(`/agents/${id}`);
                 return;
             }
 
-            // 2. Determine Session ID
-            const newSessionRequested = searchParams.get("newSession") === "true";
-            let currentSid = searchParams.get("sessionId");
-
-            if (newSessionRequested || !currentSid) {
-                // Generate new session if requested OR if no session provided
-                // If it's a "fresh" visit without params, we might want to load last session?
-                // For now, let's honor the user request: "Start Chat" -> new session.
-
-                if (newSessionRequested) {
-                    currentSid = Date.now().toString();
-                    // Clean URL
-                    router.replace(`/agents/${id}?sessionId=${currentSid}`);
-                } else {
-                    // If simply navigating to /agents/id, generate new session for now (simplest "Start Chat" behavior)
-                    // unless a specific sessionId is in URL.
-                    currentSid = Date.now().toString();
-                    // router.replace(`/agents/${id}?sessionId=${currentSid}`); // strict mode
-                }
+            // Handle Fresh Navigation (No Session)
+            if (!currentSid) {
+                setSessionId(null);
+                setMessages([]);
+                setThreadId(null);
+                setEvents([]);
+                return;
             }
+
+            // Avoid re-initialization if already on this session
+            if (currentSid === sessionId) return;
 
             setSessionId(currentSid);
 
-            // 3. Load Session Data
-            const stored = localStorage.getItem(`session_${currentSid}`);
-            if (stored) {
+            // Load Session Data
+            let backendThreadId = null;
+            try {
+                const stored = localStorage.getItem(`session_${currentSid}`);
+                if (stored) {
+                    try {
+                        const session: ChatSession = JSON.parse(stored);
+                        setMessages(session.messages);
+                        backendThreadId = session.threadId || null;
+                        setThreadId(backendThreadId);
+                    } catch (e) {
+                        console.error("Failed to parse session", e);
+                    }
+                } else {
+                    setMessages([]);
+                    setThreadId(null);
+                }
+            } catch (e) {
+                console.error("localStorage not available", e);
+                setMessages([]);
+                setThreadId(null);
+            }
+
+            // Fetch Historic Events
+            if (backendThreadId) {
                 try {
-                    const session: ChatSession = JSON.parse(stored);
-                    setMessages(session.messages);
-                    setThreadId(session.threadId || null);
+                    const sessionDto: AgentSessionDTO = await getResourceById('session', backendThreadId, { includeEvents: true });
+                    if (sessionDto.events && Array.isArray(sessionDto.events)) {
+                        const translatedEvents = sessionDto.events.flatMap(ev => translateAguiEvent(ev));
+                        setEvents(translatedEvents);
+                    }
                 } catch (e) {
-                    console.error("Failed to parse session", e);
+                    console.error("Failed to fetch historic events", e);
                 }
             } else {
-                setMessages([]);
+                setEvents([]);
             }
         };
 
-        if (id) initSession();
-    }, [id, searchParams, router]);
+        initSession();
+    }, [id, searchParams, router, sessionId]);
 
     // Persist Session
     useEffect(() => {
         if (sessionId && agent) {
+            const sidToStore = threadId || sessionId;
             const sessionData: ChatSession = {
-                id: sessionId,
+                id: sidToStore,
                 agentId: agent.id,
                 title: messages.length > 0 ? messages[0].content.slice(0, 40) + (messages[0].content.length > 40 ? "..." : "") : "New Chat",
-                createdAt: parseInt(sessionId) || Date.now(), // approximation if using Date.now() as ID
+                createdAt: parseInt(sidToStore) || Date.now(),
                 lastActiveAt: Date.now(),
                 messages: messages,
                 threadId: threadId || undefined
             };
-            localStorage.setItem(`session_${sessionId}`, JSON.stringify(sessionData));
+            try {
+                localStorage.setItem(`session_${sidToStore}`, JSON.stringify(sessionData));
+            } catch (e) {
+                console.error("Failed to persist session (storage may be full)", e);
+            }
         }
     }, [messages, sessionId, agent, threadId]);
 
@@ -110,7 +150,55 @@ export default function AgentChatPage() {
             return;
         }
 
-        setEvents((prev) => [...prev, { ...ev, timestamp: Date.now() }]);
+        const eventWithRunId = {
+            ...ev,
+            timestamp: ev.timestamp || Date.now(),
+            runId: ev.runId || currentRunId.current || undefined
+        };
+
+        setEvents((prev) => {
+            let nextPrev = prev;
+
+            // 1. Remap if this is RunStarted
+            // We search the entire list for ANY "pending_" IDs to remap them to the real one.
+            // This is safer than relying on currentRunId.current which might have changed or stayed behind.
+            if (ev.type === "RunStarted" && ev.runId) {
+                const hasPending = nextPrev.some(e => e.runId?.toString().startsWith("pending_"));
+                if (hasPending) {
+                    nextPrev = nextPrev.map(e => (e.runId?.toString().startsWith("pending_")) ? { ...e, runId: ev.runId } : e);
+                }
+            }
+
+            // 2. Identify placeholders for merging
+            const runIdToCheck = eventWithRunId.runId;
+            let lastPlaceholder = nextPrev.filter(e => 
+                e.runId === runIdToCheck && 
+                e.type === "ThinkingStart" && 
+                (e as any).isPlaceholder
+            ).pop();
+
+            // Fallback: If no exact runId match (maybe remapping hasn't happened yet in this state view),
+            // look for the most recent pending placeholder.
+            if (!lastPlaceholder && ev.type === "ThinkingStart" && !(ev as any).isPlaceholder) {
+                lastPlaceholder = nextPrev.filter(e => 
+                    e.runId?.toString().startsWith("pending_") && 
+                    e.type === "ThinkingStart" && 
+                    (e as any).isPlaceholder
+                ).pop();
+            }
+
+            // 3. Deduplicate: if we have a placeholder and the server sends a real one, merge them.
+            if (ev.type === "ThinkingStart" && !(ev as any).isPlaceholder && lastPlaceholder) {
+                const globalIndex = nextPrev.lastIndexOf(lastPlaceholder);
+                if (globalIndex !== -1) {
+                    const result = [...nextPrev];
+                    result[globalIndex] = eventWithRunId as AgentEvent;
+                    return result;
+                }
+            }
+
+            return [...nextPrev, eventWithRunId as AgentEvent];
+        });
 
         if (ev.type === "SessionAssigned") {
             setThreadId(ev.threadId);
@@ -118,6 +206,14 @@ export default function AgentChatPage() {
 
         if (ev.type === "RunStarted" && ev.threadId) {
             setThreadId(ev.threadId);
+            currentRunId.current = ev.runId || null;
+
+            // If we don't have a sessionId yet, this must be the first response of a new chat
+            if (!sessionId) {
+                setSessionId(ev.threadId);
+                // Update URL to reflect server-generated session ID without page reload
+                window.history.replaceState(null, "", `/agents/${id}?sessionId=${ev.threadId}`);
+            }
         }
 
         if (ev.type === "AssistantTextDelta") {
@@ -137,20 +233,47 @@ export default function AgentChatPage() {
             });
         }
 
+        if (ev.type === "ToolResult") {
+            // After a tool result, the agent is thinking about the next step
+            setEvents(prev => [...prev, {
+                type: "ThinkingStart",
+                timestamp: Date.now() + 1, // Slightly after the result
+                runId: eventWithRunId.runId,
+                isPlaceholder: true
+            } as any]);
+        }
+
         if (ev.type === "ErrorEvent") setIsStreaming(false);
         if (ev.type === "StreamEnd") setIsStreaming(false);
     }, []);
 
 
     const handleSend = async (text: string) => {
-        const userMessage: Message = { id: Date.now().toString(), role: "user", content: text };
-        setMessages((prev) => [...prev, userMessage]);
-        setIsStreaming(true);
+        if (!text.trim() || isStreaming) return;
 
+        setIsStreaming(true);
+        currentRunId.current = `pending_${Date.now()}`;
         const controller = new AbortController();
         setAbortController(controller);
 
         try {
+            // 1. Add user message locally
+            const userMsg: Message = { id: Date.now().toString(), role: "user", content: text };
+            setMessages((prev) => [...prev, userMsg]);
+
+            // 2. Add immediate thinking state in timeline
+            const pendingRunId = currentRunId.current;
+            setEvents(prev => [...prev, {
+                type: "ThinkingStart",
+                timestamp: Date.now(),
+                runId: pendingRunId || undefined,
+                isPlaceholder: true
+            } as any]);
+
+            // 3. We no longer generate a sessionId on the client.
+            // We rely on the server to return a threadId/sessionId in the first response.
+            let currentSid = sessionId;
+
             if (process.env.NEXT_PUBLIC_MOCK_MODE === "true") {
                 const mockStream = mockStreamResponse(text);
                 for await (const ev of mockStream) {
@@ -158,13 +281,15 @@ export default function AgentChatPage() {
                     handleAgentEvent(ev);
                 }
             } else {
+                // 3. Start SSE stream
                 const API_BASE = process.env.NEXT_PUBLIC_API_BASE_URL || "/api";
                 const url = `${API_BASE}/v1/events`;
-                // Use backend threadId if we have one for this session, otherwise undefined (new thread)
+                
+                // Use threadId as sessionId. If missing (first message), the server generates it.
                 const body = {
                     type: "agent",
                     agentId: id,
-                    sessionId: threadId,
+                    sessionId: threadId || undefined, 
                     message: text,
                 };
 
@@ -173,7 +298,7 @@ export default function AgentChatPage() {
                     body: JSON.stringify(body),
                     signal: controller.signal,
                     headers: { "Content-Type": "application/json" }
-                });
+                });    
 
                 for await (const sse of stream) {
                     const rawEvents = translateAguiEvent(JSON.parse(sse.data));
@@ -196,11 +321,21 @@ export default function AgentChatPage() {
     };
 
     const resetSession = () => {
-        // Clear session to start fresh. ID will be assigned by server on first message.
+        // Stop any active AI runs
+        if (abortController) {
+            abortController.abort();
+            setAbortController(null);
+        }
+        setIsStreaming(false);
+
+        // Immediate State Clear
         setSessionId(null);
         setThreadId(null);
         setMessages([]);
         setEvents([]);
+        currentRunId.current = null;
+        
+        // Finalize state via navigation which triggers clean initSession
         router.replace(`/agents/${id}`);
     };
 

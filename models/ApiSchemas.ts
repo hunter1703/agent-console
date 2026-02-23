@@ -36,6 +36,7 @@ export interface AssetRequest {
   assetType?: string;
   keys?: string[];
   query?: Query;
+  options?: { [key: string]: any };
 }
 
 export interface ContextManagerConfig {
@@ -75,6 +76,17 @@ export interface Query {
 
 export interface SessionServiceConfig {
   type?: string;
+}
+
+export interface AgentSessionDTO {
+  id?: string;
+  agentId?: string;
+  title?: string;
+  createdAt?: number;
+  lastActiveAt?: number;
+  messages?: any[];
+  threadId?: string;
+  events?: any[];
 }
 
 export interface InMemorySessionServiceConfig extends SessionServiceConfig {

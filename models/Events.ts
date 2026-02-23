@@ -16,6 +16,7 @@ export type EventType =
 export interface BaseAgentEvent {
     type: EventType;
     timestamp?: number;
+    runId?: string;
 }
 
 export interface SessionAssignedEvent extends BaseAgentEvent {
@@ -25,7 +26,7 @@ export interface SessionAssignedEvent extends BaseAgentEvent {
 
 export interface RunStartedEvent extends BaseAgentEvent {
     type: "RunStarted";
-    runId: string;
+    runId?: string;
     threadId?: string;
 }
 

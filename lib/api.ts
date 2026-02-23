@@ -1,6 +1,7 @@
 import { AgentConfig } from "@/models/Agent";
 import { MOCK_AGENTS } from "./mock";
-import { createAgent as createAgentV1, updateAgent as updateAgentV1, deleteAgent as deleteAgentV1 } from './api-v1';
+import { createAgent as createAgentV1, updateAgent as updateAgentV1, deleteAgent as deleteAgentV1, getResourceById } from './api-v1';
+export { getResourceById };
 import { API_CONFIG } from './config';
 
 const API_BASE = API_CONFIG.BASE_URL;
@@ -56,6 +57,19 @@ export async function fetchCatalogList(assetType: string): Promise<CatalogItem[]
     } catch (error) {
         console.error(`Error fetching catalog list for ${assetType}:`, error);
         return [];
+    }
+}
+
+/**
+ * Checks the system health status.
+ */
+export async function checkHealth(): Promise<boolean> {
+    if (IS_MOCK) return true;
+    try {
+        const response = await fetch(`${API_BASE}/health`, { method: "GET", cache: "no-store" });
+        return response.ok;
+    } catch (error) {
+        return false;
     }
 }
 
@@ -185,11 +199,10 @@ export async function createAgent(config: Partial<AgentConfig>): Promise<AgentCo
         return Promise.resolve(newAgent);
     }
 
-    // Per OpenAPI spec: DO NOT include 'id' field when creating - server generates it
-    const { id, ...configWithoutId } = config;
-
+    // Per updated instruction: Client MUST NEVER send IDs for creation.
+    // The server will generate the ID and return it.
+    const { id: _ignored, ...configWithoutId } = config;
     const newAgentConfig = {
-        // No id field - server will generate it
         type: configWithoutId.type,
         name: configWithoutId.name,
         description: configWithoutId.description,

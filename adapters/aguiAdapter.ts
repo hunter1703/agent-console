@@ -13,19 +13,26 @@ export interface AguiRawEvent {
     tool_call_name?: string;
     error?: string;
     message?: string;
+    timestamp?: number; // Added
+    created_at?: number; // Added
+    name?: string; // Added for CUSTOM type
+    value?: string; // Added for CUSTOM type
     [key: string]: any;
 }
 
 export function translateAguiEvent(raw: AguiRawEvent): AgentEvent[] {
     const events: AgentEvent[] = [];
     const type = raw.type;
+    const timestamp = raw.timestamp || raw.created_at || Date.now();
+    const runId = raw.runId || raw.run_id || raw.threadId || raw.thread_id; // Fallback to thread if run is missing
 
     switch (type) {
         case "RUN_STARTED":
             events.push({
                 type: "RunStarted",
-                runId: raw.runId || raw.run_id || "unknown",
-                threadId: raw.threadId || raw.thread_id
+                runId: runId || "unknown",
+                threadId: raw.threadId || raw.thread_id,
+                timestamp
             });
             break;
 
@@ -34,6 +41,8 @@ export function translateAguiEvent(raw: AguiRawEvent): AgentEvent[] {
                 type: "AssistantTextDelta",
                 content: raw.delta || "",
                 messageId: raw.messageId || raw.message_id,
+                runId,
+                timestamp
             });
             break;
 
@@ -41,6 +50,8 @@ export function translateAguiEvent(raw: AguiRawEvent): AgentEvent[] {
             events.push({
                 type: "AssistantTextFinal",
                 messageId: raw.messageId || raw.message_id,
+                runId,
+                timestamp
             });
             break;
 
@@ -48,6 +59,8 @@ export function translateAguiEvent(raw: AguiRawEvent): AgentEvent[] {
             events.push({
                 type: "ThinkingStart",
                 stepName: raw.stepName || raw.step_name || "Thought",
+                runId,
+                timestamp
             });
             break;
 
@@ -55,6 +68,8 @@ export function translateAguiEvent(raw: AguiRawEvent): AgentEvent[] {
             events.push({
                 type: "ThinkingEnd",
                 stepName: raw.stepName || raw.step_name || "Thought",
+                runId,
+                timestamp
             });
             break;
 
@@ -63,7 +78,9 @@ export function translateAguiEvent(raw: AguiRawEvent): AgentEvent[] {
                 type: "ToolCallStarted",
                 toolName: raw.toolCallName || raw.tool_call_name || raw.step_name || raw.stepName || "Tool Call",
                 toolCallId: raw.toolCallId || raw.tool_call_id,
-                arguments: "" // Initialize empty
+                arguments: "", // Initialize empty
+                runId,
+                timestamp
             });
             break;
 
@@ -71,7 +88,9 @@ export function translateAguiEvent(raw: AguiRawEvent): AgentEvent[] {
             events.push({
                 type: "ToolArgsUpdate",
                 toolCallId: raw.toolCallId || raw.tool_call_id || "",
-                argumentsDelta: raw.delta || ""
+                argumentsDelta: raw.delta || "",
+                runId,
+                timestamp
             });
             break;
 
@@ -81,6 +100,8 @@ export function translateAguiEvent(raw: AguiRawEvent): AgentEvent[] {
                 toolName: raw.toolCallName || raw.tool_call_name || "Tool",
                 content: raw.content || "",
                 toolCallId: raw.toolCallId || raw.tool_call_id,
+                runId,
+                timestamp
             });
             break;
 
@@ -89,17 +110,21 @@ export function translateAguiEvent(raw: AguiRawEvent): AgentEvent[] {
                 type: "ToolCallEnded",
                 toolName: "unknown",
                 toolCallId: raw.toolCallId || raw.tool_call_id,
+                runId,
+                timestamp
             });
             break;
 
         case "RUN_FINISHED":
-            events.push({ type: "StreamEnd" });
+            events.push({ type: "StreamEnd", runId, timestamp });
             break;
 
         case "RUN_ERROR":
             events.push({
                 type: "ErrorEvent",
                 error: raw.message || raw.error || "Unknown agent error",
+                runId,
+                timestamp
             });
             break;
 
@@ -108,7 +133,9 @@ export function translateAguiEvent(raw: AguiRawEvent): AgentEvent[] {
             if (raw.name === "THINK_DELTA") {
                 events.push({
                     type: "ThinkingUpdate",
-                    content: raw.value
+                    content: raw.value,
+                    runId,
+                    timestamp
                 });
             }
             break;

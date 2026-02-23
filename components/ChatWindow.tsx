@@ -1,7 +1,8 @@
 "use client";
 
-import { useEffect, useRef } from "react";
-import { Sparkles, Bot } from "lucide-react";
+import { useEffect, useRef, useState } from "react";
+import { Sparkles, Bot, Code, Eye } from "lucide-react";
+import MarkdownRenderer from "./MarkdownRenderer";
 
 export interface Message {
     id: string;
@@ -11,58 +12,107 @@ export interface Message {
 
 export default function ChatWindow({ messages, agentAvatar }: { messages: Message[], agentAvatar?: string }) {
     const scrollRef = useRef<HTMLDivElement>(null);
+    const [viewModes, setViewModes] = useState<Record<string, "rendered" | "raw">>({});
+    const isAutoScroll = useRef(true);
+
+    const handleScroll = () => {
+        if (!scrollRef.current) return;
+        const { scrollTop, scrollHeight, clientHeight } = scrollRef.current;
+        // If user is within 50px of the bottom, keep auto-scrolling
+        const distanceToBottom = scrollHeight - scrollTop - clientHeight;
+        isAutoScroll.current = distanceToBottom <= 50;
+    };
 
     useEffect(() => {
-        if (scrollRef.current) {
+        if (scrollRef.current && isAutoScroll.current) {
             scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
         }
     }, [messages]);
 
+    const toggleViewMode = (messageId: string) => {
+        setViewModes(prev => ({
+            ...prev,
+            [messageId]: prev[messageId] === "raw" ? "rendered" : "raw"
+        }));
+    };
+
     return (
-        <div ref={scrollRef} className="flex-1 overflow-y-auto px-10 pt-10 pb-40 scroll-smooth custom-scrollbar">
-            <div className="max-w-[800px] mx-auto w-full flex flex-col gap-12">
+        <div 
+            ref={scrollRef} 
+            onScroll={handleScroll}
+            className="flex-1 overflow-y-auto px-6 md:px-10 pt-10 pb-8 scroll-smooth custom-scrollbar"
+        >
+            <div className="max-w-[800px] mx-auto w-full flex flex-col gap-10">
                 {messages.length === 0 && (
-                    <div className="mt-40 text-center flex flex-col items-center gap-8 animate-in fade-in slide-in-from-bottom-8 duration-1000">
-                        <div className="w-20 h-20 rounded-[40px] bg-secondary border border-border flex items-center justify-center shadow-2xl shadow-black/5 dark:shadow-black/20">
-                            <Sparkles size={40} strokeWidth={1} className="text-muted-foreground/40" />
+                    <div className="mt-40 text-center flex flex-col items-center gap-6 animate-in fade-in slide-in-from-bottom-8 duration-1000">
+                        <div className="w-20 h-20 rounded-full bg-surface border border-border flex items-center justify-center shadow-lg">
+                            <Sparkles size={36} strokeWidth={1.5} className="text-primary" />
                         </div>
                         <div className="flex flex-col gap-2">
-                            <p className="text-[17px] font-semibold text-foreground/80 tracking-tight">System Ready</p>
-                            <p className="text-[15px] text-muted-foreground/60 font-medium">Initialize the session with a message.</p>
+                            <p className="text-[18px] font-bold text-foreground tracking-tight">Ready</p>
+                            <p className="text-[14px] text-muted-foreground font-medium">Send a message to begin.</p>
                         </div>
                     </div>
                 )}
 
-                {messages.map((m) => (
-                    <div
-                        key={m.id}
-                        className={`flex flex-col gap-4 animate-in fade-in slide-in-from-bottom-2 duration-500 ${m.role === "user" ? "items-end" : "items-start"
+                {messages.map((m) => {
+                    const mode = viewModes[m.id] || "rendered";
+                    
+                    return (
+                        <div
+                            key={m.id}
+                            className={`flex flex-col group ${
+                                m.role === "user" ? "items-end spring-bounce-user" : "items-start spring-bounce-assistant"
                             }`}
-                    >
-                        {/* Typographic Message (No Bubbles for Assistant) */}
-                        <div className={`flex flex-col gap-3 max-w-[90%] w-full ${m.role === "user" ? "items-end" : "items-start"}`}>
-                            {m.role === "assistant" && (
-                                <div className="flex items-center gap-3 mb-1">
-                                    <div className="w-6 h-6 rounded-lg bg-secondary border border-border flex items-center justify-center overflow-hidden">
-                                        {agentAvatar ? <img src={agentAvatar} className="w-full h-full object-cover" /> : <Bot size={14} className="text-muted-foreground/60" />}
+                        >
+                            <div className={`flex flex-col max-w-[85%] min-w-[120px] w-fit ${m.role === "user" ? "items-end" : "items-start"}`}>
+                                {m.role === "assistant" && (
+                                    <div className="flex items-center justify-between w-full mb-2 px-1">
+                                        <div className="flex items-center gap-3">
+                                            <div className="w-7 h-7 rounded-full bg-surface border border-border flex items-center justify-center overflow-hidden shadow-sm">
+                                                {agentAvatar ? <img src={agentAvatar} className="w-full h-full object-cover" /> : <Bot size={16} className="text-primary" />}
+                                            </div>
+                                            <span className="text-[12px] font-bold uppercase tracking-[0.15em] text-muted-foreground/80">Assistant</span>
+                                        </div>
+                                        
+                                        <button
+                                            onClick={() => toggleViewMode(m.id)}
+                                            className="opacity-0 group-hover:opacity-100 transition-opacity flex items-center gap-1.5 px-2 py-1 rounded-md bg-surface border border-border/40 text-[10px] font-bold tracking-widest uppercase text-muted-foreground/70 hover:text-primary hover:border-primary/30"
+                                        >
+                                            {mode === "rendered" ? (
+                                                <><Code size={11} /> Raw</>
+                                            ) : (
+                                                <><Eye size={11} /> Preview</>
+                                            )}
+                                        </button>
                                     </div>
-                                    <span className="text-[12px] font-bold uppercase tracking-[0.2em] text-muted-foreground/70">Assistant</span>
+                                )}
+
+                                {/* Bubble Design Map */}
+                                <div className={`${
+                                    m.role === "user"
+                                        ? "bg-primary text-primary-foreground px-5 py-3.5 rounded-3xl rounded-tr-lg shadow-md"
+                                        : "bg-surface text-foreground px-6 py-4 rounded-3xl rounded-tl-lg shadow-sm border border-border/50 backdrop-blur-md w-full"
+                                    }`}
+                                >
+                                    {m.role === "user" ? (
+                                        <p className="whitespace-pre-wrap leading-relaxed text-[15px] font-medium">
+                                            {m.content}
+                                        </p>
+                                    ) : (
+                                        <div className={mode === "raw" ? "font-mono text-[13px] text-muted-foreground whitespace-pre-wrap bg-primary/5 p-4 rounded-xl border border-primary/10" : ""}>
+                                            {mode === "rendered" ? (
+                                                <MarkdownRenderer content={m.content} />
+                                            ) : (
+                                                m.content
+                                            )}
+                                        </div>
+                                    )}
                                 </div>
-                            )}
-
-                            <div className={`${m.role === "user"
-                                ? "bg-secondary px-6 py-4 rounded-[24px] rounded-tr-none border border-border text-foreground/90"
-                                : "text-foreground/95 leading-[1.65] text-[17px] font-normal"
-                                }`}>
-                                <p className="whitespace-pre-wrap tracking-[-0.01em]">{m.content}</p>
                             </div>
-
-                            {m.role === "user" && (
-                                <span className="text-[11px] font-bold uppercase tracking-[0.1em] text-muted-foreground/50 mr-2 mt-1">You</span>
-                            )}
                         </div>
-                    </div>
-                ))}
+                    );
+                })}
             </div>
         </div>
     );

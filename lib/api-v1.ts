@@ -5,7 +5,7 @@ export const IS_MOCK = process.env.NEXT_PUBLIC_MOCK_MODE === 'true';
 
 // Agent APIs
 export async function createAgent(agentConfig: AgentConfig): Promise<AgentConfig> {
-  const res = await fetch(`${API_CONFIG.BASE_URL}/v1/agent`, {
+  const res = await fetch(`${API_CONFIG.BASE_URL}/v1/agent/agent`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(agentConfig),
@@ -20,7 +20,7 @@ export async function createAgent(agentConfig: AgentConfig): Promise<AgentConfig
 }
 
 export async function updateAgent(agentId: string, agentConfig: AgentConfig): Promise<AgentConfig> {
-  const res = await fetch(`${API_CONFIG.BASE_URL}/v1/agent/${agentId}`, {
+  const res = await fetch(`${API_CONFIG.BASE_URL}/v1/agent/agent/${agentId}`, {
     method: 'PUT',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(agentConfig),
@@ -35,7 +35,7 @@ export async function updateAgent(agentId: string, agentConfig: AgentConfig): Pr
 }
 
 export async function deleteAgent(agentId: string): Promise<void> {
-  const res = await fetch(`${API_CONFIG.BASE_URL}/v1/agent/${agentId}`, {
+  const res = await fetch(`${API_CONFIG.BASE_URL}/v1/agent/agent/${agentId}`, {
     method: 'DELETE',
   });
 
@@ -47,7 +47,7 @@ export async function deleteAgent(agentId: string): Promise<void> {
 
 // Agent Execution APIs
 export async function* streamAgentEvents(agentRequest: AgentRequest): AsyncGenerator<PublisherBaseEvent, void, unknown> {
-  const response = await fetch(`${API_CONFIG.BASE_URL}/v1/events`, {
+  const response = await fetch(`${API_CONFIG.BASE_URL}/v1/agent/events`, {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
@@ -83,7 +83,7 @@ export async function* streamAgentEvents(agentRequest: AgentRequest): AsyncGener
       for (const line of lines) {
         if (line.startsWith('data: ')) {
           const dataStr = line.substring(6); // Remove 'data: ' prefix
-          
+
           // Handle the special case where data is [DONE]
           if (dataStr.trim() === '[DONE]') {
             return; // End the generator
@@ -155,7 +155,7 @@ export async function* streamAgentResponses(agentRequest: any): AsyncGenerator<P
       for (const line of lines) {
         if (line.startsWith('data: ')) {
           const dataStr = line.substring(6); // Remove 'data: ' prefix
-          
+
           // Handle the special case where data is [DONE]
           if (dataStr.trim() === '[DONE]') {
             return; // End the generator
@@ -191,11 +191,23 @@ export async function searchCatalog(assetRequest: AssetRequest): Promise<Paginat
   return res.json();
 }
 
-export async function getResourceById(resourceType: string, id: string, projection?: string): Promise<any> {
+export async function getResourceById(resourceType: string, id: string, options?: { [key: string]: any }, projection?: string): Promise<any> {
   let url = `${API_CONFIG.BASE_URL}/v1/catalog/${resourceType}/${id}`;
+  const params = new URLSearchParams();
+
   if (projection) {
-    const params = new URLSearchParams({ projection });
-    url += `?${params.toString()}`;
+    params.append('projection', projection);
+  }
+
+  if (options) {
+    Object.entries(options).forEach(([key, value]) => {
+      params.append(key, String(value));
+    });
+  }
+
+  const queryString = params.toString();
+  if (queryString) {
+    url += `?${queryString}`;
   }
 
   const res = await fetch(url);
