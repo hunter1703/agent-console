@@ -76,9 +76,9 @@ export function translateAguiEvent(raw: AguiRawEvent): AgentEvent[] {
         case "TOOL_CALL_START":
             events.push({
                 type: "ToolCallStarted",
-                toolName: raw.toolCallName || raw.tool_call_name || raw.step_name || raw.stepName || "Tool Call",
+                toolName: raw.toolCallName || raw.tool_call_name || raw.step_name || raw.step_name || "Tool Call",
                 toolCallId: raw.toolCallId || raw.tool_call_id,
-                arguments: "", // Initialize empty
+                arguments: raw.arguments || raw.args || raw.parameters || "", // Capture initial args if provided
                 runId,
                 timestamp
             });

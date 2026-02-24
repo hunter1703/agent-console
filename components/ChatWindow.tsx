@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { Sparkles, Bot, Code, Eye } from "lucide-react";
+import { Sparkles, Bot, Code, Eye, Copy, Check } from "lucide-react";
 import MarkdownRenderer from "./MarkdownRenderer";
 
 export interface Message {
@@ -13,6 +13,7 @@ export interface Message {
 export default function ChatWindow({ messages, agentAvatar }: { messages: Message[], agentAvatar?: string }) {
     const scrollRef = useRef<HTMLDivElement>(null);
     const [viewModes, setViewModes] = useState<Record<string, "rendered" | "raw">>({});
+    const [copyingId, setCopyingId] = useState<string | null>(null);
     const isAutoScroll = useRef(true);
 
     const handleScroll = () => {
@@ -36,6 +37,16 @@ export default function ChatWindow({ messages, agentAvatar }: { messages: Messag
         }));
     };
 
+    const handleCopy = async (messageId: string, text: string) => {
+        try {
+            await navigator.clipboard.writeText(text);
+            setCopyingId(messageId);
+            setTimeout(() => setCopyingId(null), 2000);
+        } catch (err) {
+            console.error("Failed to copy text: ", err);
+        }
+    };
+
     return (
         <div 
             ref={scrollRef} 
@@ -57,6 +68,7 @@ export default function ChatWindow({ messages, agentAvatar }: { messages: Messag
 
                 {messages.map((m) => {
                     const mode = viewModes[m.id] || "rendered";
+                    const isCopying = copyingId === m.id;
                     
                     return (
                         <div
@@ -66,7 +78,7 @@ export default function ChatWindow({ messages, agentAvatar }: { messages: Messag
                             }`}
                         >
                             <div className={`flex flex-col max-w-[85%] min-w-[120px] w-fit ${m.role === "user" ? "items-end" : "items-start"}`}>
-                                {m.role === "assistant" && (
+                                {m.role === "assistant" ? (
                                     <div className="flex items-center justify-between w-full mb-2 px-1">
                                         <div className="flex items-center gap-3">
                                             <div className="w-7 h-7 rounded-full bg-surface border border-border flex items-center justify-center overflow-hidden shadow-sm">
@@ -75,15 +87,32 @@ export default function ChatWindow({ messages, agentAvatar }: { messages: Messag
                                             <span className="text-[12px] font-bold uppercase tracking-[0.15em] text-muted-foreground/80">Assistant</span>
                                         </div>
                                         
+                                        <div className="flex items-center gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                                            <button
+                                                onClick={() => handleCopy(m.id, m.content)}
+                                                className="flex items-center gap-1.5 px-2 py-1 rounded-md bg-surface border border-border/40 text-[10px] font-bold tracking-widest uppercase text-muted-foreground/70 hover:text-primary hover:border-primary/30 transition-colors"
+                                            >
+                                                {isCopying ? <><Check size={11} className="text-emerald-500" /> Copied</> : <><Copy size={11} /> Copy</>}
+                                            </button>
+                                            <button
+                                                onClick={() => toggleViewMode(m.id)}
+                                                className="flex items-center gap-1.5 px-2 py-1 rounded-md bg-surface border border-border/40 text-[10px] font-bold tracking-widest uppercase text-muted-foreground/70 hover:text-primary hover:border-primary/30 transition-colors"
+                                            >
+                                                {mode === "rendered" ? (
+                                                    <><Code size={11} /> Raw</>
+                                                ) : (
+                                                    <><Eye size={11} /> Preview</>
+                                                )}
+                                            </button>
+                                        </div>
+                                    </div>
+                                ) : (
+                                    <div className="flex items-center justify-end w-full mb-2 px-1 opacity-0 group-hover:opacity-100 transition-opacity h-7">
                                         <button
-                                            onClick={() => toggleViewMode(m.id)}
-                                            className="opacity-0 group-hover:opacity-100 transition-opacity flex items-center gap-1.5 px-2 py-1 rounded-md bg-surface border border-border/40 text-[10px] font-bold tracking-widest uppercase text-muted-foreground/70 hover:text-primary hover:border-primary/30"
+                                            onClick={() => handleCopy(m.id, m.content)}
+                                            className="flex items-center gap-1.5 px-2 py-1 rounded-md bg-surface/50 border border-border/40 text-[10px] font-bold tracking-widest uppercase text-muted-foreground/70 hover:text-primary hover:border-primary/30 transition-colors"
                                         >
-                                            {mode === "rendered" ? (
-                                                <><Code size={11} /> Raw</>
-                                            ) : (
-                                                <><Eye size={11} /> Preview</>
-                                            )}
+                                            {isCopying ? <><Check size={11} className="text-emerald-500" /> Copied</> : <><Copy size={11} /> Copy</>}
                                         </button>
                                     </div>
                                 )}

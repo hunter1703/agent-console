@@ -14,6 +14,7 @@ import MessageInput from "@/components/MessageInput";
 import { ChatSession } from "@/models/Session";
 import { AgentSessionDTO } from "@/models/ApiSchemas";
 import { Bot, RefreshCcw, Sparkles } from "lucide-react";
+import { reconstructEvents } from "@/lib/events";
 
 export default function AgentChatPage() {
     const { id } = useParams();
@@ -105,7 +106,7 @@ export default function AgentChatPage() {
                     const sessionDto: AgentSessionDTO = await getResourceById('session', backendThreadId, { includeEvents: true });
                     if (sessionDto.events && Array.isArray(sessionDto.events)) {
                         const translatedEvents = sessionDto.events.flatMap(ev => translateAguiEvent(ev));
-                        setEvents(translatedEvents);
+                        setEvents(reconstructEvents(translatedEvents));
                     }
                 } catch (e) {
                     console.error("Failed to fetch historic events", e);

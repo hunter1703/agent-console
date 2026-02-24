@@ -53,12 +53,19 @@ Verify the real-time event processing and the atomic deduplication machine.
 - [ ] **Instant Feedback (The Deduplication Machine)**:
   - [ ] Send: "Hello".
   - [ ] `Verify` "Thinking..." appears in <100ms (Placeholder event).
-  - [ ] `Verify` that when the real packet arrives, the placeholder is **decisively replaced**. There must be exactly 1 Entry per interaction.
+  - [ ] `Verify` that when the real packet arrives, the placeholder is **decisive replaced**. There must be exactly 1 Entry per interaction.
 - [ ] **Tool Call Visualization**: Send: "List current directory".
   - [ ] `Verify` a `Tool Call` block appears in the Activity Panel.
   - [ ] `Verify` states: `Initialized` -> `Executing (Args)` -> `Result`.
-  - [ ] `Click` to expand and verify raw JSON/Shell output is legible.
+  - [ ] **CRITICAL**: Verify the `Invoking [tool]` block expands to show the tool parameters/arguments.
+  - [ ] `Click` to expand and verify raw JSON/Shell output is legible in the Result block.
 - [ ] **Streaming Consistency**: Verify text appears char-by-char (unbuffered) for long responses.
+- [ ] **Chat Copy Functionality**:
+  - [ ] Hover over a user message. `Verify` a small "Copy" button appears.
+  - [ ] `Click` Copy. `Verify` button label changes to "Copied" with a green checkmark for 2 seconds.
+  - [ ] `Paste` into a notepad. `Verify` the exact message text was copied.
+  - [ ] Hover over an assistant message. `Verify` both "Copy" and "Raw/Preview" buttons appear.
+  - [ ] `Click` Copy on an assistant message. `Verify` the raw markdown text is copied.
 
 ## 5. Session Lifecycle & Persistence
 
