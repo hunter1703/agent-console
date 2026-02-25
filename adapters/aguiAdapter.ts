@@ -23,7 +23,7 @@ export interface AguiRawEvent {
 export function translateAguiEvent(raw: AguiRawEvent): AgentEvent[] {
     const events: AgentEvent[] = [];
     const type = raw.type;
-    const timestamp = raw.timestamp || raw.created_at || Date.now();
+    const timestamp = normalizeTimestamp(raw.timestamp || raw.created_at);
     const runId = raw.runId || raw.run_id || raw.threadId || raw.thread_id; // Fallback to thread if run is missing
 
     switch (type) {
@@ -44,6 +44,20 @@ export function translateAguiEvent(raw: AguiRawEvent): AgentEvent[] {
                 runId,
                 timestamp
             });
+            break;
+
+        case "TEXT_MESSAGE_CONTENT":
+            events.push({
+                type: "AssistantTextSync",
+                content: raw.delta || raw.content || "",
+                messageId: raw.messageId || raw.message_id,
+                runId,
+                timestamp
+            });
+            break;
+
+        case "TEXT_MESSAGE_START":
+            // Optional: can be used to explicitly clear/initialize a message
             break;
 
         case "TEXT_MESSAGE_END":
@@ -76,7 +90,7 @@ export function translateAguiEvent(raw: AguiRawEvent): AgentEvent[] {
         case "TOOL_CALL_START":
             events.push({
                 type: "ToolCallStarted",
-                toolName: raw.toolCallName || raw.tool_call_name || raw.step_name || raw.step_name || "Tool Call",
+                toolName: raw.toolCallName || raw.tool_call_name || raw.rawEvent?.toolCallName || raw.rawEvent?.tool_call_name || raw.step_name || "Tool Call",
                 toolCallId: raw.toolCallId || raw.tool_call_id,
                 arguments: raw.arguments || raw.args || raw.parameters || "", // Capture initial args if provided
                 runId,
@@ -97,8 +111,8 @@ export function translateAguiEvent(raw: AguiRawEvent): AgentEvent[] {
         case "TOOL_CALL_RESULT":
             events.push({
                 type: "ToolResult",
-                toolName: raw.toolCallName || raw.tool_call_name || "Tool",
-                content: raw.content || "",
+                toolName: raw.toolCallName || raw.tool_call_name || raw.rawEvent?.toolCallName || raw.rawEvent?.tool_call_name || "Tool",
+                content: raw.content || raw.rawEvent?.content || "",
                 toolCallId: raw.toolCallId || raw.tool_call_id,
                 runId,
                 timestamp
@@ -142,4 +156,11 @@ export function translateAguiEvent(raw: AguiRawEvent): AgentEvent[] {
     }
 
     return events;
+}
+
+function normalizeTimestamp(value?: number) {
+    if (!value || !Number.isFinite(value)) {
+        return Date.now();
+    }
+    return value < 1_000_000_000_000 ? value * 1000 : value;
 }

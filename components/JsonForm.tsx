@@ -897,6 +897,21 @@ export default function JsonForm({ schema, data, onChange, className = "", rootS
                     disabled={isReadOnly}
                 />
             );
+        } else if (
+            (widget === 'TEXTAREA' || widget === 'MULTILINE' || fieldLayout?.multiline) &&
+            !(property.format === 'password' || key.toLowerCase().includes('key'))
+        ) {
+            const rows = typeof fieldLayout?.rows === 'number' ? fieldLayout.rows : 4;
+            inputElement = (
+                <textarea
+                    className={`${commonClass} min-h-[120px] resize-y`}
+                    value={value ?? property.default ?? ""}
+                    placeholder={helpText || description || `Enter ${label}...`}
+                    onChange={(e) => handleFieldChange(key, e.target.value, property)}
+                    disabled={isReadOnly}
+                    rows={rows}
+                />
+            );
         } else {
             // Default to string/text
             inputElement = (

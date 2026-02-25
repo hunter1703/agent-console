@@ -45,6 +45,9 @@ Verify the "Dynamic Intelligence" logic and scoped variable resolution.
   - [ ] `Verify` final fields match the *last* selection. No duplicate boxes or stutters.
 - [ ] **Lookup Failures**: Mock a 500 error for a schema lookup. Verify the form shows a field-level error instead of crashing.
 - [ ] **Validation Borders**: Click **Create** with blank required fields. Verify red borders and "Field is required" messages appear instantly.
+- [ ] **Multiline Widgets**: Configure layout to set `widget: TEXTAREA` (or `multiline: true`) on `systemPrompt`.
+  - [ ] `Verify` the field renders as a multi-line textarea with visible line breaks.
+  - [ ] `Verify` line breaks persist after Save + reopen.
 
 ## 4. Chat UX, Activity Feed & Real-Time Events
 
@@ -60,12 +63,20 @@ Verify the real-time event processing and the atomic deduplication machine.
   - [ ] **CRITICAL**: Verify the `Invoking [tool]` block expands to show the tool parameters/arguments.
   - [ ] `Click` to expand and verify raw JSON/Shell output is legible in the Result block.
 - [ ] **Streaming Consistency**: Verify text appears char-by-char (unbuffered) for long responses.
+- [ ] **Thought Duration Accuracy**:
+  - [ ] Trigger a multi-step response that includes thinking.
+  - [ ] `Verify` the Thought summary shows a non-zero duration that matches elapsed time.
 - [ ] **Chat Copy Functionality**:
   - [ ] Hover over a user message. `Verify` a small "Copy" button appears.
   - [ ] `Click` Copy. `Verify` button label changes to "Copied" with a green checkmark for 2 seconds.
   - [ ] `Paste` into a notepad. `Verify` the exact message text was copied.
   - [ ] Hover over an assistant message. `Verify` both "Copy" and "Raw/Preview" buttons appear.
   - [ ] `Click` Copy on an assistant message. `Verify` the raw markdown text is copied.
+- [ ] **Planning Tool Cards**:
+  - [ ] Trigger planning tools (`create_plan`, `add_task`, `update_task`, `finish_plan`, `view_plan`).
+  - [ ] `Verify` chat shows a compact planning card with title, status, and tasks/IDs.
+  - [ ] `Verify` cards render even when `TOOL_CALL_RESULT` omits `toolCallName` (toolCallId correlation).
+  - [ ] Toggle `Raw/Preview` on the card. `Verify` JSON payload is visible.
 
 ## 5. Session Lifecycle & Persistence
 
@@ -76,6 +87,7 @@ Verify state integrity during resets and reloads.
   2. `Click` the **Reset** button in the header.
   3. `Verify` both Chat and Activity (Timeline) panels are cleared instantly.
   4. `Verify` the URL resets to `/agents/[id]` without a session ID.
+  5. **Hard Persistence Check**: `Refresh` the browser (Cmd+R). `Verify` the activity does NOT return. (Previously required 2 refreshes).
 - [ ] **Server-Driven Fresh Start**:
   - [ ] Start a chat in a clean URL. `Verify` the server assigns a `threadId` on the first turn.
   - [ ] `Verify` the browser URL updates to the permanent thread ID.

@@ -15,6 +15,7 @@ import { ChatSession } from "@/models/Session";
 import { AgentSessionDTO } from "@/models/ApiSchemas";
 import { Bot, RefreshCcw, Sparkles } from "lucide-react";
 import { reconstructEvents } from "@/lib/events";
+import { buildPlanningMessage, isPlanningTool } from "@/lib/planning";
 
 export default function AgentChatPage() {
     const { id } = useParams();
@@ -30,6 +31,7 @@ export default function AgentChatPage() {
     const [isStreaming, setIsStreaming] = useState(false);
     const [abortController, setAbortController] = useState<AbortController | null>(null);
     const currentRunId = useRef<string | null>(null);
+    const toolArgsRef = useRef<Record<string, { toolName: string; args: string }>>({});
 
     // 1. Fetch Agent Metadata - Always needed for the shell UI
     useEffect(() => {
@@ -49,39 +51,45 @@ export default function AgentChatPage() {
     useEffect(() => {
         if (!id) return;
 
+        let active = true;
+
         const initSession = async () => {
             const newSessionRequested = searchParams.get("newSession") === "true";
             const currentSid = searchParams.get("sessionId");
 
             // Handle Reset Navigation
             if (newSessionRequested) {
-                setSessionId(null);
-                setMessages([]);
-                setThreadId(null);
-                setEvents([]);
-                router.replace(`/agents/${id}`);
+                if (active) {
+                    setSessionId(null);
+                    setMessages([]);
+                    setThreadId(null);
+                    setEvents([]);
+                    router.replace(`/agents/${id}`);
+                }
                 return;
             }
 
             // Handle Fresh Navigation (No Session)
             if (!currentSid) {
-                setSessionId(null);
-                setMessages([]);
-                setThreadId(null);
-                setEvents([]);
+                if (active) {
+                    setSessionId(null);
+                    setMessages([]);
+                    setThreadId(null);
+                    setEvents([]);
+                }
                 return;
             }
 
             // Avoid re-initialization if already on this session
             if (currentSid === sessionId) return;
 
-            setSessionId(currentSid);
+            if (active) setSessionId(currentSid);
 
             // Load Session Data
             let backendThreadId = null;
             try {
                 const stored = localStorage.getItem(`session_${currentSid}`);
-                if (stored) {
+                if (stored && active) {
                     try {
                         const session: ChatSession = JSON.parse(stored);
                         setMessages(session.messages);
@@ -90,34 +98,40 @@ export default function AgentChatPage() {
                     } catch (e) {
                         console.error("Failed to parse session", e);
                     }
-                } else {
+                } else if (active) {
                     setMessages([]);
                     setThreadId(null);
                 }
             } catch (e) {
                 console.error("localStorage not available", e);
-                setMessages([]);
-                setThreadId(null);
+                if (active) {
+                    setMessages([]);
+                    setThreadId(null);
+                }
             }
 
             // Fetch Historic Events
             if (backendThreadId) {
                 try {
                     const sessionDto: AgentSessionDTO = await getResourceById('session', backendThreadId, { includeEvents: true });
-                    if (sessionDto.events && Array.isArray(sessionDto.events)) {
+                    if (active && sessionDto.events && Array.isArray(sessionDto.events)) {
                         const translatedEvents = sessionDto.events.flatMap(ev => translateAguiEvent(ev));
                         setEvents(reconstructEvents(translatedEvents));
                     }
                 } catch (e) {
                     console.error("Failed to fetch historic events", e);
                 }
-            } else {
+            } else if (active) {
                 setEvents([]);
             }
         };
 
         initSession();
-    }, [id, searchParams, router, sessionId]);
+
+        return () => {
+            active = false;
+        };
+    }, [id, searchParams, router]);
 
     // Persist Session
     useEffect(() => {
@@ -141,7 +155,21 @@ export default function AgentChatPage() {
     }, [messages, sessionId, agent, threadId]);
 
     const handleAgentEvent = useCallback((ev: AgentEvent) => {
+        if (ev.type === "ToolCallStarted" && ev.toolCallId) {
+            const existing = toolArgsRef.current[ev.toolCallId];
+            toolArgsRef.current[ev.toolCallId] = {
+                toolName: ev.toolName || existing?.toolName || "",
+                args: ev.arguments || existing?.args || ""
+            };
+        }
+
         if (ev.type === "ToolArgsUpdate") {
+            const existing = toolArgsRef.current[ev.toolCallId];
+            toolArgsRef.current[ev.toolCallId] = {
+                toolName: existing?.toolName || "",
+                args: (existing?.args || "") + ev.argumentsDelta
+            };
+
             setEvents(prev => prev.map(e => {
                 if (e.type === "ToolCallStarted" && e.toolCallId === ev.toolCallId) {
                     return { ...e, arguments: (e.arguments || "") + ev.argumentsDelta };
@@ -219,8 +247,24 @@ export default function AgentChatPage() {
 
         if (ev.type === "AssistantTextDelta") {
             setMessages((prev) => {
+                const mid = ev.messageId || "legacy";
+                const existingIndex = prev.findIndex(m => m.id === mid);
+                
+                if (existingIndex !== -1) {
+                    const existing = prev[existingIndex];
+                    // Simple deduplication: if the content already ends with this delta, ignore it
+                    if (existing.content.endsWith(ev.content)) {
+                        return prev;
+                    }
+                    const updated = { ...existing, content: existing.content + ev.content };
+                    const next = [...prev];
+                    next[existingIndex] = updated;
+                    return next;
+                }
+
+                // Fallback to legacy behavior if no ID is found, or create new
                 const last = prev[prev.length - 1];
-                if (last && last.role === "assistant") {
+                if (mid === "legacy" && last && last.role === "assistant" && (last.kind || "text") === "text") {
                     return [
                         ...prev.slice(0, -1),
                         { ...last, content: last.content + ev.content },
@@ -228,13 +272,56 @@ export default function AgentChatPage() {
                 } else {
                     return [
                         ...prev,
-                        { id: Date.now().toString(), role: "assistant", content: ev.content },
+                        { id: mid, role: "assistant", content: ev.content },
+                    ];
+                }
+            });
+        }
+
+        if (ev.type === "AssistantTextSync") {
+            setMessages((prev) => {
+                const mid = ev.messageId;
+                if (!mid) return prev;
+
+                const existingIndex = prev.findIndex(m => m.id === mid);
+                if (existingIndex !== -1) {
+                    const next = [...prev];
+                    next[existingIndex] = { ...prev[existingIndex], content: ev.content };
+                    return next;
+                } else {
+                    return [
+                        ...prev,
+                        { id: mid, role: "assistant", content: ev.content },
                     ];
                 }
             });
         }
 
         if (ev.type === "ToolResult") {
+            const storedTool = ev.toolCallId ? toolArgsRef.current[ev.toolCallId] : undefined;
+            const toolName = isPlanningTool(ev.toolName)
+                ? ev.toolName
+                : storedTool?.toolName;
+            if (toolName && isPlanningTool(toolName)) {
+                const toolArgs = storedTool?.args;
+                const planningMessage = buildPlanningMessage(toolName, ev.content, toolArgs);
+                if (planningMessage) {
+                    const raw = planningMessage.raw || ev.content || toolArgs || "";
+                    setMessages(prev => [
+                        ...prev,
+                        {
+                            id: `${Date.now()}-${Math.random()}`,
+                            role: "assistant",
+                            content: raw,
+                            kind: "planning",
+                            planning: planningMessage
+                        }
+                    ]);
+                }
+            }
+            if (ev.toolCallId) {
+                delete toolArgsRef.current[ev.toolCallId];
+            }
             // After a tool result, the agent is thinking about the next step
             setEvents(prev => [...prev, {
                 type: "ThinkingStart",

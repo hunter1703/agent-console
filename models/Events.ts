@@ -2,6 +2,7 @@ export type EventType =
     | "SessionAssigned"
     | "RunStarted"
     | "AssistantTextDelta"
+    | "AssistantTextSync"
     | "AssistantTextFinal"
     | "ThinkingStart"
     | "ThinkingUpdate"
@@ -32,6 +33,12 @@ export interface RunStartedEvent extends BaseAgentEvent {
 
 export interface AssistantTextDeltaEvent extends BaseAgentEvent {
     type: "AssistantTextDelta";
+    content: string;
+    messageId?: string;
+}
+
+export interface AssistantTextSyncEvent extends BaseAgentEvent {
+    type: "AssistantTextSync";
     content: string;
     messageId?: string;
 }
@@ -82,6 +89,7 @@ export type AgentEvent =
     | SessionAssignedEvent
     | RunStartedEvent
     | AssistantTextDeltaEvent
+    | AssistantTextSyncEvent
     | AssistantTextFinalEvent
     | ThinkingEvent
     | ToolCallEvent

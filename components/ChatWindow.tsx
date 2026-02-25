@@ -3,11 +3,15 @@
 import { useEffect, useRef, useState } from "react";
 import { Sparkles, Bot, Code, Eye, Copy, Check } from "lucide-react";
 import MarkdownRenderer from "./MarkdownRenderer";
+import PlanningMessage from "./PlanningMessage";
+import { PlanningMessageData } from "@/lib/planning";
 
 export interface Message {
     id: string;
     role: "user" | "assistant";
     content: string;
+    kind?: "text" | "planning";
+    planning?: PlanningMessageData;
 }
 
 export default function ChatWindow({ messages, agentAvatar }: { messages: Message[], agentAvatar?: string }) {
@@ -69,6 +73,8 @@ export default function ChatWindow({ messages, agentAvatar }: { messages: Messag
                 {messages.map((m) => {
                     const mode = viewModes[m.id] || "rendered";
                     const isCopying = copyingId === m.id;
+                    const messageKind = m.kind || "text";
+                    const planningData = messageKind === "planning" ? m.planning : undefined;
                     
                     return (
                         <div
@@ -131,9 +137,13 @@ export default function ChatWindow({ messages, agentAvatar }: { messages: Messag
                                     ) : (
                                         <div className={mode === "raw" ? "font-mono text-[13px] text-muted-foreground whitespace-pre-wrap bg-primary/5 p-4 rounded-xl border border-primary/10" : ""}>
                                             {mode === "rendered" ? (
-                                                <MarkdownRenderer content={m.content} />
+                                                planningData ? (
+                                                    <PlanningMessage data={planningData} />
+                                                ) : (
+                                                    <MarkdownRenderer content={m.content} />
+                                                )
                                             ) : (
-                                                m.content
+                                                m.content || "No raw payload available."
                                             )}
                                         </div>
                                     )}

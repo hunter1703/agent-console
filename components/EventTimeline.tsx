@@ -28,11 +28,14 @@ export default function EventTimeline({
         }
     }, [events]);
 
-    // Filter events to only show relevant ones
+    // Filter events to only show relevant ones for the activity feed.
+    // We exclude text messages as they are displayed in the main chat and interrupt thought groupings.
     const filteredEvents = events.filter((ev) => {
         if (ev.type === "ToolCallEnded") return false;
         if (ev.type === "RunStarted") return false;
         if (ev.type === "ToolArgsUpdate") return false;
+        if (ev.type === "AssistantTextDelta") return false;
+        if (ev.type === "AssistantTextFinal") return false;
         return true;
     });
 
@@ -233,15 +236,24 @@ function renderEvent(ev: AgentEvent) {
                 </div>
             );
         case "ToolCallStarted":
+            let formattedArgs = ev.arguments;
+            try {
+                if (ev.arguments && (ev.arguments.startsWith("{") || ev.arguments.startsWith("["))) {
+                    formattedArgs = JSON.stringify(JSON.parse(ev.arguments), null, 2);
+                }
+            } catch (e) {
+                // Keep raw if not valid JSON
+            }
+
             return (
                 <div className="flex flex-col gap-2 mt-1">
                     <div className="text-foreground font-bold flex items-center gap-2 tracking-tight">
                         <span className="p-1.5 bg-primary/10 rounded-sm text-primary border border-primary/20"><Wrench size={10} /></span> 
                         Invoking <span className="text-primary">{ev.toolName}</span>
                     </div>
-                    {ev.arguments && (
-                        <div className="text-[11px] bg-[#1C1C1E] dark:bg-[#000000] border border-border rounded-lg p-4 text-[#F5F5F7] break-all whitespace-pre-wrap leading-tight shadow-inner mt-2">
-                            {ev.arguments}
+                    {formattedArgs && (
+                        <div className="text-[11px] bg-[#1C1C1E] dark:bg-[#000000] border border-border rounded-lg p-4 text-[#F5F5F7] break-all whitespace-pre-wrap leading-tight shadow-inner mt-2 font-mono">
+                            {formattedArgs}
                         </div>
                     )}
                 </div>
