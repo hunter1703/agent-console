@@ -1,5 +1,6 @@
 "use client";
 
+import { useState } from "react";
 import { PlanningMessageData, PlanningTask } from "@/lib/planning";
 import {
     ClipboardList,
@@ -8,7 +9,13 @@ import {
     RefreshCcw,
     ListChecks,
     Flag,
-    AlertTriangle
+    AlertTriangle,
+    PlayCircle,
+    CheckCircle2,
+    ChevronDown,
+    ChevronUp,
+    Target,
+    FileText
 } from "lucide-react";
 
 const ACTION_META = {
@@ -17,6 +24,8 @@ const ACTION_META = {
     view: { label: "Plan Overview", icon: Eye },
     add_task: { label: "Task Added", icon: PlusCircle },
     update_task: { label: "Task Updated", icon: ListChecks },
+    start_task: { label: "Task Started", icon: PlayCircle },
+    complete_task: { label: "Task Completed", icon: CheckCircle2 },
     finish: { label: "Plan Finished", icon: Flag }
 } as const;
 
@@ -39,44 +48,51 @@ const STATUS_STYLES: Record<string, string> = {
 const TASK_LIMIT = 6;
 
 export default function PlanningMessage({ data }: { data: PlanningMessageData }) {
+    const [isExpanded, setIsExpanded] = useState(false);
+    
     const meta = ACTION_META[data.action];
     const Icon = meta.icon;
     const plan = data.plan;
     const task = data.task;
-    const mainTitle = data.action === "add_task" || data.action === "update_task"
+    const mainTitle = data.action === "add_task" || data.action === "update_task" || data.action === "start_task" || data.action === "complete_task"
         ? task?.name || "Task"
         : plan?.title || "Plan";
-    const subtitle = data.action === "add_task" || data.action === "update_task"
+    const subtitle = data.action === "add_task" || data.action === "update_task" || data.action === "start_task" || data.action === "complete_task"
         ? task?.goal
         : plan?.goal;
     const status = plan?.status || task?.status || data.status;
     const tasks = plan?.tasks || (task ? [task] : []);
     const taskRows = buildTaskRows(tasks);
-    const maxTasks = data.action === "view" || data.action === "create" ? TASK_LIMIT : 1;
+    
+    // In rich mode, we show 1 task in collapsed view, and everything in expanded view
+    const maxTasks = isExpanded ? taskRows.length : 1;
     const limitedTasks = taskRows.slice(0, maxTasks);
     const remainingCount = Math.max(0, taskRows.length - maxTasks);
+    
     const planId = plan?.planId;
     const taskId = task?.taskId || data.taskId;
     const parentId = task?.parentId;
     const result = data.result || plan?.result || task?.result;
 
     return (
-        <div className="flex flex-col gap-3">
+        <div className="flex flex-col gap-4 animate-in fade-in duration-500">
             <div className="flex items-start justify-between gap-4">
-                <div className="flex items-start gap-3">
-                    <span className="p-1.5 rounded-lg bg-primary/10 text-primary border border-primary/20">
-                        <Icon size={14} />
+                <div className="flex items-start gap-4">
+                    <span className="p-2 rounded-xl bg-primary/10 text-primary border border-primary/20 shadow-sm">
+                        <Icon size={18} />
                     </span>
-                    <div className="flex flex-col">
-                        <span className="text-[10px] font-bold uppercase tracking-[0.25em] text-muted-foreground/70">
+                    <div className="flex flex-col gap-0.5">
+                        <span className="text-[10px] font-bold uppercase tracking-[0.25em] text-muted-foreground/60">
                             {meta.label}
                         </span>
-                        <span className="text-[14px] font-semibold text-foreground mt-1">
+                        <span className="text-[16px] font-bold text-foreground tracking-tight">
                             {mainTitle}
                         </span>
                     </div>
                 </div>
-                {status && <StatusBadge status={status} />}
+                <div className="flex flex-col items-end gap-2">
+                    {status && <StatusBadge status={status} />}
+                </div>
             </div>
 
             {data.error && (
@@ -86,59 +102,84 @@ export default function PlanningMessage({ data }: { data: PlanningMessageData })
                 </div>
             )}
 
-            {subtitle && (
-                <div className="text-[12px] text-muted-foreground leading-relaxed">
-                    {subtitle}
+            {isExpanded && plan?.goal && (
+                <div className="flex flex-col gap-1.5 p-3 rounded-xl bg-secondary/30 border border-border/40">
+                    <div className="flex items-center gap-2 text-[10px] font-bold uppercase tracking-widest text-muted-foreground/50">
+                        <Target size={12} /> Plan Goal
+                    </div>
+                    <div className="text-[13px] text-foreground leading-relaxed">
+                        {plan.goal}
+                    </div>
                 </div>
             )}
 
-            {(planId || taskId || parentId) && (
-                <div className="flex flex-wrap gap-2 text-[10px] font-semibold uppercase tracking-[0.15em] text-muted-foreground/70">
+            {subtitle && !isExpanded && (
+                <div className="text-[13px] text-muted-foreground leading-relaxed italic px-1">
+                    "{subtitle}"
+                </div>
+            )}
+
+            {isExpanded && (planId || taskId || parentId) && (
+                <div className="flex flex-wrap gap-2 text-[10px] font-bold uppercase tracking-widest text-muted-foreground/60">
                     {planId && (
-                        <span className="px-2.5 py-1 rounded-full bg-surface/80 border border-border/60">
-                            Plan <span className="font-mono normal-case">{planId}</span>
+                        <span className="px-3 py-1 rounded-lg bg-surface/50 border border-border/40">
+                            Plan <span className="font-mono text-primary/80">{planId}</span>
                         </span>
                     )}
                     {taskId && (
-                        <span className="px-2.5 py-1 rounded-full bg-surface/80 border border-border/60">
-                            Task <span className="font-mono normal-case">{taskId}</span>
-                        </span>
-                    )}
-                    {parentId && (
-                        <span className="px-2.5 py-1 rounded-full bg-surface/80 border border-border/60">
-                            Parent <span className="font-mono normal-case">{parentId}</span>
+                        <span className="px-3 py-1 rounded-lg bg-surface/50 border border-border/40">
+                            Task <span className="font-mono text-primary/80">{taskId}</span>
                         </span>
                     )}
                 </div>
             )}
 
-            {result && (
-                <div className="rounded-xl border border-emerald-500/20 bg-emerald-500/10 px-3 py-2 text-[12px] text-emerald-600 dark:text-emerald-400">
-                    {result}
+            {result && isExpanded && (
+                <div className="flex flex-col gap-2 p-3 rounded-xl border border-emerald-500/20 bg-emerald-500/5 text-[13px] text-emerald-600 dark:text-emerald-400">
+                    <div className="flex items-center gap-2 text-[10px] font-bold uppercase tracking-widest opacity-70">
+                        <CheckCircle2 size={12} /> Execution Result
+                    </div>
+                    <div className="leading-relaxed">
+                        {result}
+                    </div>
                 </div>
             )}
 
-            {limitedTasks.length > 0 && (
-                <div className="flex flex-col gap-2">
-                    <span className="text-[10px] font-bold uppercase tracking-[0.2em] text-muted-foreground/70">
-                        Tasks
-                    </span>
-                    <div className="flex flex-col gap-2">
+            {(limitedTasks.length > 0 || isExpanded) && (
+                <div className={`flex flex-col gap-3 ${isExpanded ? "mt-2" : ""}`}>
+                    <div className="flex items-center justify-between">
+                        <span className="text-[10px] font-bold uppercase tracking-[0.2em] text-muted-foreground/50">
+                            {isExpanded ? "Task Hierarchy" : "Current Step"}
+                        </span>
+                        
+                        <button 
+                            onClick={() => setIsExpanded(!isExpanded)}
+                            className="text-[10px] font-bold uppercase tracking-widest text-primary/70 hover:text-primary transition-colors flex items-center gap-1 bg-primary/5 px-2 py-1 rounded-md"
+                        >
+                            {isExpanded ? <><ChevronUp size={12} /> Collapse</> : <><ChevronDown size={12} /> View Details</>}
+                        </button>
+                    </div>
+
+                    <div className="flex flex-col gap-3">
                         {limitedTasks.map(({ task, depth, key }) => (
-                            <TaskRow key={key} task={task} depth={depth} />
+                            <TaskRow key={key} task={task} depth={depth} isDetailed={isExpanded} />
                         ))}
                     </div>
-                    {remainingCount > 0 && (
-                        <span className="text-[11px] text-muted-foreground/60">
-                            +{remainingCount} more tasks
-                        </span>
+                    
+                    {!isExpanded && remainingCount > 0 && (
+                        <button 
+                            onClick={() => setIsExpanded(true)}
+                            className="text-[11px] text-muted-foreground/60 hover:text-primary transition-colors text-left pl-1 underline decoration-dotted"
+                        >
+                            + {remainingCount} more tasks in progress...
+                        </button>
                     )}
                 </div>
             )}
 
-            {data.taskCount !== undefined && data.action === "create" && (
-                <div className="text-[11px] text-muted-foreground/70">
-                    {data.taskCount} tasks in this plan
+            {isExpanded && data.taskCount !== undefined && (
+                <div className="text-[11px] text-muted-foreground/50 italic px-1">
+                    Structure: {data.taskCount} discrete tasks identified.
                 </div>
             )}
         </div>
@@ -156,27 +197,38 @@ function StatusBadge({ status }: { status: string }) {
     );
 }
 
-function TaskRow({ task, depth }: { task: PlanningTask; depth: number }) {
+function TaskRow({ task, depth, isDetailed }: { task: PlanningTask; depth: number; isDetailed?: boolean }) {
     const status = task.status;
     return (
-        <div className="flex items-start gap-2" style={{ paddingLeft: depth * 14 }}>
-            <div className="mt-2 w-1.5 h-1.5 rounded-full bg-muted-foreground/40" />
-            <div className="flex-1 flex flex-col gap-1">
-                <div className="flex items-center gap-2 flex-wrap">
-                    <span className="text-[12px] font-semibold text-foreground">
+        <div className="flex items-start gap-3 transition-all" style={{ paddingLeft: depth * 16 }}>
+            <div className={`mt-2 w-1.5 h-1.5 rounded-full ${status === 'done' ? 'bg-emerald-500' : status === 'in_progress' ? 'bg-primary animate-pulse' : 'bg-muted-foreground/30'}`} />
+            <div className="flex-1 flex flex-col gap-1.5">
+                <div className="flex items-center gap-3 flex-wrap">
+                    <span className={`text-[13px] font-bold tracking-tight ${status === 'done' ? 'text-muted-foreground line-through opacity-60' : 'text-foreground'}`}>
                         {task.name || "Untitled task"}
                     </span>
                     {status && <StatusBadge status={status} />}
                 </div>
-                {task.goal && (
-                    <span className="text-[11px] text-muted-foreground/80 leading-relaxed">
-                        {task.goal}
-                    </span>
+                
+                {isDetailed && task.goal && (
+                    <div className="flex items-start gap-2 text-[11px] text-muted-foreground/80 leading-relaxed bg-surface/30 p-2 rounded-lg border border-border/30">
+                        <Target size={12} className="mt-0.5 opacity-50 shrink-0" />
+                        <span>{task.goal}</span>
+                    </div>
                 )}
-                {task.result && (
-                    <span className="text-[11px] text-emerald-600 dark:text-emerald-400">
+
+                {isDetailed && task.description && (
+                    <div className="flex items-start gap-2 text-[11px] text-muted-foreground/70 leading-relaxed px-2">
+                        <FileText size={12} className="mt-0.5 opacity-40 shrink-0" />
+                        <span>{task.description}</span>
+                    </div>
+                )}
+
+                {isDetailed && task.result && (
+                    <div className="text-[11px] text-emerald-600/90 dark:text-emerald-400 px-2 font-medium flex items-center gap-2">
+                        <div className="w-1 h-1 rounded-full bg-emerald-500" />
                         {task.result}
-                    </span>
+                    </div>
                 )}
             </div>
         </div>

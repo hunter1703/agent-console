@@ -15,7 +15,7 @@ import { ChatSession } from "@/models/Session";
 import { AgentSessionDTO } from "@/models/ApiSchemas";
 import { Bot, RefreshCcw, Sparkles } from "lucide-react";
 import { reconstructEvents } from "@/lib/events";
-import { buildPlanningMessage, isPlanningTool } from "@/lib/planning";
+import { buildPlanningMessage, isPlanningTool, mergePlanningData } from "@/lib/planning";
 
 export default function AgentChatPage() {
     const { id } = useParams();
@@ -302,21 +302,57 @@ export default function AgentChatPage() {
             const toolName = isPlanningTool(ev.toolName)
                 ? ev.toolName
                 : storedTool?.toolName;
+            
             if (toolName && isPlanningTool(toolName)) {
                 const toolArgs = storedTool?.args;
                 const planningMessage = buildPlanningMessage(toolName, ev.content, toolArgs);
-                if (planningMessage) {
+                
+                // CRITICAL: Only update if the tool call result was successful
+                if (planningMessage && !planningMessage.error) {
                     const raw = planningMessage.raw || ev.content || toolArgs || "";
-                    setMessages(prev => [
-                        ...prev,
-                        {
-                            id: `${Date.now()}-${Math.random()}`,
-                            role: "assistant",
-                            content: raw,
-                            kind: "planning",
-                            planning: planningMessage
+                    
+                    setMessages(prev => {
+                        const newPlanId = planningMessage.plan?.planId;
+                        
+                        // 1. Try to find a message that matches the planId
+                        let existingPlanningIndex = -1;
+                        if (newPlanId) {
+                            existingPlanningIndex = prev.findLastIndex(m => 
+                                m.kind === "planning" && m.planning?.plan?.planId === newPlanId
+                            );
                         }
-                    ]);
+                        
+                        // 2. Fallback to the last planning message if no ID match or no ID provided
+                        if (existingPlanningIndex === -1) {
+                            existingPlanningIndex = prev.findLastIndex(m => m.kind === "planning");
+                        }
+                        
+                        // If we find an existing planning card and it's not a fresh "create_plan"
+                        if (existingPlanningIndex !== -1 && planningMessage.action !== "create") {
+                            const existing = prev[existingPlanningIndex];
+                            const mergedData = mergePlanningData(existing.planning!, planningMessage);
+                            
+                            const next = [...prev];
+                            next[existingPlanningIndex] = {
+                                ...existing,
+                                content: raw, // Updated raw payload
+                                planning: mergedData
+                            };
+                            return next;
+                        }
+
+                        // Otherwise, add a new one
+                        return [
+                            ...prev,
+                            {
+                                id: `${Date.now()}-${Math.random()}`,
+                                role: "assistant",
+                                content: raw,
+                                kind: "planning",
+                                planning: planningMessage
+                            }
+                        ];
+                    });
                 }
             }
             if (ev.toolCallId) {
