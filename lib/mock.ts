@@ -45,23 +45,40 @@ export async function* mockStreamResponse(
     yield { type: "SessionAssigned", threadId };
     await delay(500);
 
+    // Phase 1: Reasoning
     yield { type: "ThinkingStart", stepName: "Analyzing prompt" };
     await delay(800);
-    yield { type: "ThinkingUpdate", content: "Looking for stock tickers in prompt..." };
+    yield { type: "AssistantTextDelta", content: "I need to determine the best approach for this request. " };
     await delay(600);
+    yield { type: "AssistantTextDelta", content: "Scanning available tools for financial data..." };
+    await delay(800);
     yield { type: "ThinkingEnd" };
 
-    yield { type: "ToolCallStarted", toolName: "fetch_price", toolCallId: "tc_1" };
+    await delay(500);
+
+    // Phase 2: Tool Use
+    yield { type: "ToolCallStarted", toolName: "fetch_price", toolCallId: "tc_1", arguments: '{"symbol": "AAPL"}' };
     await delay(1000);
     yield { type: "ToolResult", toolName: "fetch_price", content: "AAPL: $185.92 (+1.2%)", toolCallId: "tc_1" };
     await delay(500);
     yield { type: "ToolCallEnded", toolName: "fetch_price", toolCallId: "tc_1" };
 
+    await delay(500);
+
+    // Phase 3: Reasoning again
+    yield { type: "ThinkingStart", stepName: "Processing results" };
+    await delay(600);
+    yield { type: "AssistantTextDelta", content: "The tool returned $185.92 for AAPL. I can now synthesize the answer." };
+    await delay(600);
+    yield { type: "ThinkingEnd" };
+
+    // Phase 4: Final Message
+    yield { type: "AssistantTextStart", messageId: "msg_1" };
     yield { type: "AssistantTextDelta", content: "Based on the latest data, Apple (AAPL) is performing well today. " };
     await delay(400);
     yield { type: "AssistantTextDelta", content: "The stock is currently trading at $185.92." };
     await delay(400);
-    yield { type: "AssistantTextFinal" };
+    yield { type: "AssistantTextFinal", messageId: "msg_1" };
 
     yield { type: "StreamEnd" };
 }

@@ -57,7 +57,12 @@ export function translateAguiEvent(raw: AguiRawEvent): AgentEvent[] {
             break;
 
         case "TEXT_MESSAGE_START":
-            // Optional: can be used to explicitly clear/initialize a message
+            events.push({
+                type: "AssistantTextStart",
+                messageId: raw.messageId || raw.message_id,
+                runId,
+                timestamp
+            });
             break;
 
         case "TEXT_MESSAGE_END":
@@ -68,19 +73,18 @@ export function translateAguiEvent(raw: AguiRawEvent): AgentEvent[] {
                 timestamp
             });
             break;
-
-        case "STEP_STARTED":
+        case "THINKING_END":
             events.push({
-                type: "ThinkingStart",
+                type: "ThinkingEnd",
                 stepName: raw.stepName || raw.step_name || "Thought",
                 runId,
                 timestamp
             });
             break;
 
-        case "STEP_FINISHED":
+        case "THINKING_START":
             events.push({
-                type: "ThinkingEnd",
+                type: "ThinkingStart",
                 stepName: raw.stepName || raw.step_name || "Thought",
                 runId,
                 timestamp
@@ -142,7 +146,7 @@ export function translateAguiEvent(raw: AguiRawEvent): AgentEvent[] {
             });
             break;
 
-        // Handle Custom Thinking events if applicable
+        // Handle Custom events (Corrections, Thoughts)
         case "CUSTOM":
             if (raw.name === "THINK_DELTA") {
                 events.push({
@@ -151,7 +155,35 @@ export function translateAguiEvent(raw: AguiRawEvent): AgentEvent[] {
                     runId,
                     timestamp
                 });
+            } else if (raw.name === "CORRECTION" || raw.name === "correction") {
+                events.push({
+                    type: "CorrectionEvent",
+                    correctionType: raw.correctionType || raw.rawEvent?.correctionType || "Unknown",
+                    code: raw.code || raw.rawEvent?.code || "Unknown",
+                    message: raw.message || raw.rawEvent?.message || "Correction required",
+                    runId,
+                    timestamp
+                });
             }
+            break;
+            
+        case "THINKING_TEXT_MESSAGE_START":
+            events.push({
+                type: "ThinkingMessageStart",
+                runId,
+                timestamp
+            });
+            break;
+
+        case "THINKING_TEXT_MESSAGE_CONTENT":
+            const isPartial = raw.partial ?? raw.rawEvent?.partial ?? true;
+            events.push({
+                type: "ThinkingUpdate",
+                content: raw.delta || raw.rawEvent?.delta || "",
+                isSync: !isPartial,
+                runId,
+                timestamp
+            });
             break;
     }
 

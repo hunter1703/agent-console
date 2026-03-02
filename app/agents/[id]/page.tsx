@@ -16,6 +16,7 @@ import { AgentSessionDTO } from "@/models/ApiSchemas";
 import { Bot, RefreshCcw, Sparkles } from "lucide-react";
 import { reconstructEvents } from "@/lib/events";
 import { buildPlanningMessage, isPlanningTool, mergePlanningData } from "@/lib/planning";
+import ThoughtPulse from "@/components/ThoughtPulse";
 
 export default function AgentChatPage() {
     const { id } = useParams();
@@ -32,6 +33,7 @@ export default function AgentChatPage() {
     const [abortController, setAbortController] = useState<AbortController | null>(null);
     const currentRunId = useRef<string | null>(null);
     const toolArgsRef = useRef<Record<string, { toolName: string; args: string }>>({});
+    const isMessagingRef = useRef(false);
 
     // 1. Fetch Agent Metadata - Always needed for the shell UI
     useEffect(() => {
@@ -155,6 +157,103 @@ export default function AgentChatPage() {
     }, [messages, sessionId, agent, threadId]);
 
     const handleAgentEvent = useCallback((ev: AgentEvent) => {
+        if (ev.type === "ThinkingStart") {
+            setMessages(prev => {
+                const last = prev[prev.length - 1];
+                // Grouping: If the last message is a thought message from the same run, ensure it is streaming
+                if (last && last.kind === "thought") {
+                    const next = [...prev];
+                    next[prev.length - 1] = { ...last, isStreaming: true };
+                    return next;
+                }
+
+                // Otherwise create new
+                return [
+                    ...prev,
+                    {
+                        id: `thought-${Date.now()}-${Math.random()}`,
+                        role: "assistant",
+                        content: "",
+                        kind: "thought",
+                        isStreaming: true,
+                        thoughts: [""] 
+                    }
+                ];
+            });
+        }
+        
+        if (ev.type === "ThinkingMessageStart") {
+            setMessages(prev => {
+                const lastIdx = [...prev].reverse().findIndex(m => m.kind === "thought");
+                const lastThoughtIndex = lastIdx === -1 ? -1 : prev.length - 1 - lastIdx;
+                if (lastThoughtIndex !== -1) {
+                    const last = prev[lastThoughtIndex];
+                    const next = [...prev];
+                    const thoughts = [...(last.thoughts || [])];
+                    if (thoughts.length > 0 && thoughts[thoughts.length - 1] !== "") {
+                        thoughts.push(""); // New section 
+                    } else if (thoughts.length === 0) {
+                        thoughts.push("");
+                    }
+                    next[lastThoughtIndex] = { ...last, isStreaming: true, thoughts };
+                    return next;
+                }
+                return prev;
+            });
+        }
+        
+        if (ev.type === "ThinkingUpdate") {
+            setMessages(prev => {
+                const lastIdx = [...prev].reverse().findIndex(m => m.kind === "thought");
+                const lastThoughtIndex = lastIdx === -1 ? -1 : prev.length - 1 - lastIdx;
+                if (lastThoughtIndex !== -1) {
+                    const last = prev[lastThoughtIndex];
+                    const next = [...prev];
+                    const thoughts = [...(last.thoughts || [""])];
+                    if (ev.isSync) {
+                        thoughts[thoughts.length - 1] = ev.content || "";
+                    } else {
+                        thoughts[thoughts.length - 1] += ev.content;
+                    }
+                    next[lastThoughtIndex] = { ...last, thoughts };
+                    return next;
+                }
+                return prev;
+            });
+        }
+
+        if (ev.type === "ThinkingEnd") {
+            setMessages(prev => {
+                const lastIdx = [...prev].reverse().findIndex(m => m.kind === "thought");
+                const lastThoughtIndex = lastIdx === -1 ? -1 : prev.length - 1 - lastIdx;
+                if (lastThoughtIndex !== -1) {
+                    const last = prev[lastThoughtIndex];
+                    const next = [...prev];
+                    
+                    // Filter out truly empty thoughts
+                    const filteredThoughts = (last.thoughts || []).map(t => t.trim()).filter(t => t.length > 0);
+                    
+                    if (filteredThoughts.length === 0) {
+                        // If no thoughts were actually recorded, remove the empty block entirely
+                        next.splice(lastThoughtIndex, 1);
+                        return next;
+                    }
+                    
+                    next[lastThoughtIndex] = { ...last, isStreaming: false, thoughts: filteredThoughts };
+                    return next;
+                }
+                return prev;
+            });
+        }
+
+        if (ev.type === "AssistantTextStart") {
+            isMessagingRef.current = true;
+        }
+
+        if (ev.type === "AssistantTextFinal") {
+            isMessagingRef.current = false;
+        }
+
         if (ev.type === "ToolCallStarted" && ev.toolCallId) {
             const existing = toolArgsRef.current[ev.toolCallId];
             toolArgsRef.current[ev.toolCallId] = {
@@ -246,6 +345,24 @@ export default function AgentChatPage() {
         }
 
         if (ev.type === "AssistantTextDelta") {
+            // ROUTING LOGIC: If we're NOT in an explicit messaging block, this is a legacy thought.
+            if (!isMessagingRef.current) {
+                setMessages(prev => {
+                    const lastIdx = [...prev].reverse().findIndex(m => m.kind === "thought");
+                    const lastThoughtIndex = lastIdx === -1 ? -1 : prev.length - 1 - lastIdx;
+                    if (lastThoughtIndex !== -1) {
+                        const last = prev[lastThoughtIndex];
+                        const next = [...prev];
+                        const thoughts = [...(last.thoughts || [""])];
+                        thoughts[thoughts.length - 1] += ev.content;
+                        next[lastThoughtIndex] = { ...last, thoughts };
+                        return next;
+                    }
+                    return prev;
+                });
+                return;
+            }
+
             setMessages((prev) => {
                 const mid = ev.messageId || "legacy";
                 const existingIndex = prev.findIndex(m => m.id === mid);
@@ -279,6 +396,25 @@ export default function AgentChatPage() {
         }
 
         if (ev.type === "AssistantTextSync") {
+            // ROUTING LOGIC: Same as Delta
+            if (!isMessagingRef.current) {
+                setMessages(prev => {
+                    const lastIdx = [...prev].reverse().findIndex(m => m.kind === "thought");
+                    const lastThoughtIndex = lastIdx === -1 ? -1 : prev.length - 1 - lastIdx;
+                    if (lastThoughtIndex !== -1) {
+                        const last = prev[lastThoughtIndex];
+                        const next = [...prev];
+                        // Sync replaces the LAST section content
+                        const thoughts = [...(last.thoughts || [""])];
+                        thoughts[thoughts.length - 1] = ev.content;
+                        next[lastThoughtIndex] = { ...last, thoughts };
+                        return next;
+                    }
+                    return prev;
+                });
+                return;
+            }
+
             setMessages((prev) => {
                 const mid = ev.messageId;
                 if (!mid) return prev;

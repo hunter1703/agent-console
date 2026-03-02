@@ -57,6 +57,11 @@ Verify the real-time event processing and the atomic deduplication machine.
   - [ ] Send: "Hello".
   - [ ] `Verify` "Thinking..." appears in <100ms (Placeholder event).
   - [ ] `Verify` that when the real packet arrives, the placeholder is **decisive replaced**. There must be exactly 1 Entry per interaction.
+- [ ] **Unified Streaming Thoughts (Consciousness Stream)**:
+  - [ ] Send a prompt that triggers reasoning (e.g., "Think about life").
+  - [ ] `Verify` the **ThoughtPulse** component appears with a premium, glassmorphic design and the text "Reasoning" with a pulse animation.
+  - [ ] `Verify` the thought content streams char-by-char at the bottom of the chat window.
+  - [ ] `Verify` that once the reasoning is done and the final message starts, the ThoughtPulse fades out gracefully.
 - [ ] **Tool Call Visualization**: Send: "List current directory".
   - [ ] `Verify` a `Tool Call` block appears in the Activity Panel.
   - [ ] `Verify` states: `Initialized` -> `Executing (Args)` -> `Result`.
@@ -77,6 +82,10 @@ Verify the real-time event processing and the atomic deduplication machine.
   - [ ] `Verify` chat shows a compact planning card with title, status, and tasks/IDs.
   - [ ] `Verify` cards render even when `TOOL_CALL_RESULT` omits `toolCallName` (toolCallId correlation).
   - [ ] Toggle `Raw/Preview` on the card. `Verify` JSON payload is visible.
+- [ ] **Correction Events**:
+  - [ ] Trigger an action that causes the backend to emit a correction (e.g. providing an invalid schema for a tool call).
+  - [ ] `Verify` a `System Correction` block appears in the Activity Panel styled as a sleek violet gradient card with a Zap icon.
+  - [ ] `Verify` the block displays the `Type`, `Code`, and `Message` of the correction.
 
 ## 5. Session Lifecycle & Persistence
 

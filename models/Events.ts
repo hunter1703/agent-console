@@ -1,18 +1,21 @@
 export type EventType =
     | "SessionAssigned"
     | "RunStarted"
+    | "AssistantTextStart"
     | "AssistantTextDelta"
     | "AssistantTextSync"
     | "AssistantTextFinal"
     | "ThinkingStart"
     | "ThinkingUpdate"
+    | "ThinkingMessageStart"
     | "ThinkingEnd"
     | "ToolCallStarted"
     | "ToolArgsUpdate"
     | "ToolCallEnded"
     | "ToolResult"
     | "StreamEnd"
-    | "ErrorEvent";
+    | "ErrorEvent"
+    | "CorrectionEvent";
 
 export interface BaseAgentEvent {
     type: EventType;
@@ -29,6 +32,11 @@ export interface RunStartedEvent extends BaseAgentEvent {
     type: "RunStarted";
     runId?: string;
     threadId?: string;
+}
+
+export interface AssistantTextStartEvent extends BaseAgentEvent {
+    type: "AssistantTextStart";
+    messageId?: string;
 }
 
 export interface AssistantTextDeltaEvent extends BaseAgentEvent {
@@ -49,9 +57,10 @@ export interface AssistantTextFinalEvent extends BaseAgentEvent {
 }
 
 export interface ThinkingEvent extends BaseAgentEvent {
-    type: "ThinkingStart" | "ThinkingUpdate" | "ThinkingEnd";
+    type: "ThinkingStart" | "ThinkingUpdate" | "ThinkingMessageStart" | "ThinkingEnd";
     stepName?: string;
     content?: string;
+    isSync?: boolean;
 }
 
 export interface ToolCallEvent extends BaseAgentEvent {
@@ -85,9 +94,17 @@ export interface ErrorEvent extends BaseAgentEvent {
     details?: any;
 }
 
+export interface CorrectionEvent extends BaseAgentEvent {
+    type: "CorrectionEvent";
+    correctionType: string;
+    code: string;
+    message: string;
+}
+
 export type AgentEvent =
     | SessionAssignedEvent
     | RunStartedEvent
+    | AssistantTextStartEvent
     | AssistantTextDeltaEvent
     | AssistantTextSyncEvent
     | AssistantTextFinalEvent
@@ -96,4 +113,5 @@ export type AgentEvent =
     | ToolArgsUpdateEvent
     | ToolResultEvent
     | StreamEndEvent
-    | ErrorEvent;
+    | ErrorEvent
+    | CorrectionEvent;

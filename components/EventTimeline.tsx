@@ -2,7 +2,7 @@
 
 import { AgentEvent } from "@/models/Events";
 import { useEffect, useRef } from "react";
-import { Terminal, Wrench, Play, Brain, CheckCircle2 } from "lucide-react";
+import { Terminal, Wrench, Play, Brain, CheckCircle2, Zap } from "lucide-react";
 
 export default function EventTimeline({
     events,
@@ -36,6 +36,8 @@ export default function EventTimeline({
         if (ev.type === "ToolArgsUpdate") return false;
         if (ev.type === "AssistantTextDelta") return false;
         if (ev.type === "AssistantTextFinal") return false;
+        if (ev.type === "AssistantTextStart") return false;
+        if (ev.type === "AssistantTextSync") return false;
         return true;
     });
 
@@ -109,30 +111,24 @@ export default function EventTimeline({
                     };
 
                     groups[runId].forEach((ev, i) => {
-                        if (ev.type === "ThinkingStart") {
-                            if (currentThought && !currentThought.end) currentThought.end = ev;
-                            flushThought();
-                            currentThought = { start: ev, updates: [] };
-                        } else if (ev.type === "ThinkingUpdate") {
-                            if (currentThought) {
+                        if (ev.type === "ThinkingStart" || ev.type === "ThinkingUpdate" || ev.type === "ThinkingEnd") {
+                            if (!currentThought) {
+                                currentThought = { start: ev, updates: [] };
+                            }
+                            if (ev.type === "ThinkingUpdate") {
                                 currentThought.updates.push(ev);
                             }
-                        } else if (ev.type === "ThinkingEnd") {
-                            // If we already closed the thought due to an interruption, we can ignore this.
-                            if (currentThought && !currentThought.end) {
+                            if (ev.type === "ThinkingEnd") {
                                 currentThought.end = ev;
-                                flushThought();
+                            } else {
+                                // Any start/update resets the end, keeping it in "Thinking..." state
+                                currentThought.end = undefined;
                             }
                         } else {
-                            // Interrupting event! Close the thought if it's open.
-                            if (currentThought && !currentThought.end) {
-                                currentThought.end = ev;
-                                flushThought();
-                            } else {
-                                flushThought();
-                            }
+                            // Interrupting event! Close the thought if it's open, BUT ONLY if this event is visible.
                             const rendered = renderEvent(ev);
                             if (rendered) {
+                                flushThought();
                                 processedItems.push({
                                     key: `ev-${i}-${ev.type}`,
                                     timestamp: ev.timestamp || Date.now(),
@@ -201,11 +197,6 @@ function renderThought(thought: { start: AgentEvent, updates: AgentEvent[], end?
                     <div className="ai-core-orb shrink-0" />
                     Thinking...
                 </div>
-                {thought.updates.length > 0 && (
-                    <div className="mt-2 text-muted-foreground pl-4 border-l-[3px] border-primary/20 py-1 leading-relaxed text-[12px] bg-surface/30 pr-2 whitespace-pre-wrap">
-                        {thought.updates.map(u => (u as any).content).join("")}
-                    </div>
-                )}
             </div>
         );
     } else {
@@ -217,11 +208,6 @@ function renderThought(thought: { start: AgentEvent, updates: AgentEvent[], end?
                     <CheckCircle2 size={12} className="text-emerald-500" /> 
                     <span>Thought <span className="text-muted-foreground/60 font-normal">({durationStr})</span></span>
                 </div>
-                {thought.updates.length > 0 && (
-                    <div className="mt-2 text-muted-foreground/80 pl-4 border-l-[3px] border-emerald-500/20 py-1 leading-relaxed text-[12px] bg-surface/10 pr-2 whitespace-pre-wrap">
-                        {thought.updates.map(u => (u as any).content).join("")}
-                    </div>
-                )}
             </div>
         );
     }
@@ -274,6 +260,25 @@ function renderEvent(ev: AgentEvent) {
                 <div className="flex items-center gap-2 p-3 bg-red-500/10 rounded-lg border border-red-500/30 text-red-500 font-bold my-2 shadow-sm">
                     <div className="w-2 h-2 rounded-full bg-red-500 animate-pulse" />
                     <span>Error: {(ev as any).error}</span>
+                </div>
+            );
+        case "CorrectionEvent":
+            return (
+                <div className="flex flex-col gap-2 my-2 relative bg-gradient-to-r from-violet-500/10 to-transparent p-4 border border-violet-500/20 rounded-xl overflow-hidden group">
+                    <div className="absolute left-0 top-0 bottom-0 w-1 bg-violet-500/50" />
+                    <div className="text-violet-600 dark:text-violet-400 font-bold flex items-center gap-2 text-[11px] uppercase tracking-widest">
+                        <Zap size={12} className="text-violet-500" />
+                        System Correction
+                    </div>
+                    {(ev as any).correctionType && (
+                        <div className="text-[10px] font-mono text-violet-600/60 dark:text-violet-400/60 mb-1 flex items-center gap-2">
+                            <span className="bg-violet-500/10 px-1.5 py-0.5 rounded text-violet-700 dark:text-violet-300">{(ev as any).correctionType}</span>
+                            <span className="opacity-70">{(ev as any).code}</span>
+                        </div>
+                    )}
+                    <div className="text-[12px] text-foreground/80 leading-relaxed font-sans pl-2 border-l border-violet-500/20 mt-1">
+                        {(ev as any).message}
+                    </div>
                 </div>
             );
         default:
