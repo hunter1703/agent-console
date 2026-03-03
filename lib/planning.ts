@@ -82,12 +82,13 @@ export function buildPlanningMessage(
     const raw = resultContent || argsContent || "";
     const planId = getString(argsPayload?.plan_id || argsPayload?.planId || resultPayload?.plan_id || resultPayload?.planId);
 
+    // Heuristic: Extract Name-ID mappings from common result strings
+    const discoveredTasks = extractDiscoveredTasks(resultContent) || [];
+
     switch (toolName) {
         case "create_plan": {
             const plan = normalizePlan(argsPayload) || {};
-            if (!plan.status) {
-                plan.status = "in_progress";
-            }
+            plan.status = "todo"; 
             if (planId && !plan.planId) {
                 plan.planId = planId;
             }
@@ -147,6 +148,12 @@ export function buildPlanningMessage(
             if (argsPayload?.result && !task.result) {
                 task.result = getString(argsPayload?.result);
             }
+            // Check discovered tasks to see if we can find a name for this ID
+            const discovered = discoveredTasks.find(dt => dt.taskId === taskId);
+            if (discovered?.name && !task.name) {
+                task.name = discovered.name;
+            }
+
             return {
                 toolName,
                 action: "update_task",
@@ -164,6 +171,12 @@ export function buildPlanningMessage(
                 task.taskId = taskId;
             }
             const status = normalizeStatus(argsPayload?.status) || normalizeStatus(resultPayload?.status) || "in_progress";
+            
+            const discovered = discoveredTasks.find(dt => dt.taskId === taskId);
+            if (discovered?.name && !task.name) {
+                task.name = discovered.name;
+            }
+
             return {
                 toolName,
                 action: "start_task",
@@ -184,6 +197,12 @@ export function buildPlanningMessage(
             if (argsPayload?.result && !task.result) {
                 task.result = getString(argsPayload?.result);
             }
+
+            const discovered = discoveredTasks.find(dt => dt.taskId === taskId);
+            if (discovered?.name && !task.name) {
+                task.name = discovered.name;
+            }
+
             return {
                 toolName,
                 action: "complete_task",
@@ -195,11 +214,9 @@ export function buildPlanningMessage(
             };
         }
         case "finish_plan": {
-            const status = normalizeStatus(argsPayload?.status || resultPayload?.final_state);
             const plan = normalizePlan(argsPayload) || {};
-            if (status) {
-                plan.status = status;
-            }
+            const status = "done"; 
+            plan.status = status;
             if (argsPayload?.result && !plan.result) {
                 plan.result = getString(argsPayload?.result);
             }
@@ -208,7 +225,7 @@ export function buildPlanningMessage(
                 action: "finish",
                 plan,
                 status,
-                result: plan.result,
+                // Result removed to prevent redundant standalone messages
                 error,
                 raw
             };
@@ -232,57 +249,151 @@ export function buildPlanningMessage(
     }
 }
 
+/**
+ * Robust task merging that handles Name -> ID promotions.
+ * Fixes duplication where name-only tasks are treated as separate from ID-only updates.
+ */
 export function mergePlanningData(
     oldData: PlanningMessageData,
     newData: PlanningMessageData
 ): PlanningMessageData {
-    // If it's a create_plan, we start fresh
     if (newData.action === "create") return newData;
 
-    // Deep merge plan and task
-    const mergedPlan: PlanningPlan = {
-        ...(oldData.plan || {}),
-        ...(newData.plan || {})
-    };
+    if (newData.action === "view" && newData.plan) {
+        return newData;
+    }
 
+    const oldPlan = oldData.plan || {};
+    const newPlan = newData.plan || {};
     const taskMap = new Map<string, PlanningTask>();
     
-    // Seed with old tasks
-    if (oldData.plan?.tasks) {
-        oldData.plan.tasks.forEach(t => { if (t.taskId) taskMap.set(t.taskId, t); });
+    // 1. Seed with old tasks
+    (oldPlan.tasks || []).forEach(t => {
+        const id = t.taskId || `name:${t.name}`;
+        taskMap.set(id, t);
+    });
+
+    // 2. Local recursive merge helper
+    function applyUpdate(update: PlanningTask) {
+        let existing: PlanningTask | undefined;
+        let existingKey: string | undefined;
+
+        if (update.taskId) {
+            existing = taskMap.get(update.taskId);
+            existingKey = update.taskId;
+
+            // PROMOTION LOGIC: If ID not found, check if an ID-less task has a matching name
+            if (!existing) {
+                const entries = Array.from(taskMap.entries());
+                const nameKey = entries.find(([k, v]) => !v.taskId && v.name && v.name === update.name)?.[0];
+                if (nameKey) {
+                    existing = taskMap.get(nameKey);
+                    taskMap.delete(nameKey);
+                }
+            }
+
+            // SEQUENTIAL PROMOTION: If still not found, promote the first nameless in_progress
+            // task (for complete_task) or first todo task (for start_task).
+            // Tasks without IDs are keyed as "name:TaskName" in the map.
+            if (!existing) {
+                const entries = Array.from(taskMap.entries());
+                const inProgressEntry = entries.find(
+                    ([k, v]) => k.startsWith('name:') && v.status === 'in_progress'
+                );
+                const todoEntry = entries.find(
+                    ([k, v]) => k.startsWith('name:') && (!v.status || v.status === 'todo')
+                );
+                const toPromote = inProgressEntry || todoEntry;
+                if (toPromote) {
+                    existing = toPromote[1];
+                    taskMap.delete(toPromote[0]);
+                }
+            }
+        } else if (update.name) {
+            const nameKey = `name:${update.name}`;
+            existing = taskMap.get(nameKey);
+            existingKey = nameKey;
+        }
+
+        const merged = mergeTasks(existing, update);
+        const finalKey = merged.taskId || existingKey || `name:${merged.name}`;
+        taskMap.set(finalKey, merged);
     }
 
-    // Update with new tasks from the new plan (if any)
-    if (newData.plan?.tasks) {
-        newData.plan.tasks.forEach(t => { if (t.taskId) taskMap.set(t.taskId, { ...taskMap.get(t.taskId), ...t }); });
+    // 3. Process new plan tasks
+    (newPlan.tasks || []).forEach(applyUpdate);
+
+    // 4. Process individual task update
+    const activeUpdate = newData.task || (newData.taskId ? { taskId: newData.taskId, status: newData.status, result: newData.result } : undefined);
+    if (activeUpdate) {
+        applyUpdate(activeUpdate);
     }
 
-    // Update with the single task update (if any)
-    const activeTask = newData.task || (newData.taskId ? { taskId: newData.taskId, status: newData.status, result: newData.result } : undefined);
-    if (activeTask?.taskId) {
-        const existing = taskMap.get(activeTask.taskId);
-        taskMap.set(activeTask.taskId, { ...(existing || {}), ...activeTask });
+    const mergedTasks = Array.from(taskMap.values());
+    
+    // 5. Build merged metadata
+    const mergedPlan: PlanningPlan = {
+        ...oldPlan,
+        ...newPlan,
+        title: newPlan.title || oldPlan.title,
+        goal: newPlan.goal || oldPlan.goal,
+        status: newPlan.status || oldPlan.status,
+        tasks: mergedTasks
+    };
+
+    // 6. Plan status transitions
+    const hasProgress = mergedTasks.some(t => t.status === 'in_progress' || t.status === 'done');
+    if (mergedPlan.status === 'todo' && hasProgress) {
+        mergedPlan.status = 'in_progress';
+    }
+    if (newData.action === "finish") {
+        mergedPlan.status = "done";
     }
 
-    if (taskMap.size > 0) {
-        mergedPlan.tasks = Array.from(taskMap.values());
-    }
-
-    const mergedTask: PlanningTask | undefined = activeTask?.taskId
-        ? taskMap.get(activeTask.taskId)
-        : (newData.task || oldData.task);
-
-    const isPassiveView = newData.action === "view";
+    const mergedTask = activeUpdate?.taskId 
+        ? taskMap.get(activeUpdate.taskId) 
+        : (activeUpdate || oldData.task);
 
     return {
         ...newData,
-        action: isPassiveView ? oldData.action : newData.action,
-        plan: Object.keys(mergedPlan).length > 0 ? mergedPlan : undefined,
+        plan: mergedPlan,
         task: mergedTask,
-        taskId: isPassiveView ? oldData.taskId : (activeTask?.taskId || newData.taskId || oldData.taskId),
-        status: isPassiveView ? oldData.status : (newData.status || oldData.status),
-        result: isPassiveView ? oldData.result : (newData.result || oldData.result)
+        taskId: activeUpdate?.taskId || newData.taskId || oldData.taskId,
+        status: newData.status || oldData.status,
+        result: newData.result || oldData.result
     };
+}
+
+function mergeTasks(existing: PlanningTask | undefined, update: PlanningTask): PlanningTask {
+    if (!existing) return update;
+    return {
+        ...existing,
+        ...update,
+        name: getString(update.name) || existing.name,
+        goal: getString(update.goal) || existing.goal,
+        description: getString(update.description) || existing.description,
+        status: update.status || existing.status,
+        result: getString(update.result) || existing.result,
+    };
+}
+
+/**
+ * Extracts Name-ID pairs from strings like "[UUID] (Name)" or "task UUID (Name)"
+ */
+function extractDiscoveredTasks(content: string): PlanningTask[] | undefined {
+    if (!content) return undefined;
+    const tasks: PlanningTask[] = [];
+    
+    // Match [UUID] (Name) or task UUID (Name)
+    const matches = content.matchAll(/[\[\s]([a-f0-9-]{36})[\]\s]\s*\(([^)]+)\)/gi);
+    for (const match of matches) {
+        tasks.push({
+            taskId: match[1],
+            name: match[2]
+        });
+    }
+
+    return tasks.length > 0 ? tasks : undefined;
 }
 
 function parseJson(value?: string) {
@@ -300,8 +411,8 @@ function normalizePlan(value: any): PlanningPlan | undefined {
     if (!value || typeof value !== "object") return undefined;
     const tasks = Array.isArray(value.tasks)
         ? value.tasks
-              .map(normalizeTask)
-              .filter((task): task is PlanningTask => Boolean(task && hasTaskContent(task)))
+        .map(normalizeTask)
+        .filter((task: PlanningTask | undefined): task is PlanningTask => Boolean(task && hasTaskContent(task)))
         : undefined;
     return {
         planId: getString(value.planId || value.plan_id || value.id),
