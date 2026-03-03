@@ -177,6 +177,7 @@ export function buildPlanningMessage(
                 task.name = discovered.name;
             }
 
+            task.status = status;
             return {
                 toolName,
                 action: "start_task",
@@ -203,6 +204,7 @@ export function buildPlanningMessage(
                 task.name = discovered.name;
             }
 
+            task.status = status;
             return {
                 toolName,
                 action: "complete_task",
@@ -292,21 +294,31 @@ export function mergePlanningData(
                 }
             }
 
-            // SEQUENTIAL PROMOTION: If still not found, promote the first nameless in_progress
-            // task (for complete_task) or first todo task (for start_task).
-            // Tasks without IDs are keyed as "name:TaskName" in the map.
+            // SEQUENTIAL PROMOTION: Only valid for start_task / complete_task.
+            // add_task inserts a brand-new record — never promote a placeholder.
             if (!existing) {
-                const entries = Array.from(taskMap.entries());
-                const inProgressEntry = entries.find(
-                    ([k, v]) => k.startsWith('name:') && v.status === 'in_progress'
-                );
-                const todoEntry = entries.find(
-                    ([k, v]) => k.startsWith('name:') && (!v.status || v.status === 'todo')
-                );
-                const toPromote = inProgressEntry || todoEntry;
-                if (toPromote) {
-                    existing = toPromote[1];
-                    taskMap.delete(toPromote[0]);
+                const action = newData.action;
+                if (action === 'start_task' || action === 'complete_task') {
+                    const entries = Array.from(taskMap.entries());
+                    let toPromote: [string, PlanningTask] | undefined;
+                    if (action === 'complete_task') {
+                        // Promote the first in_progress placeholder (no fallback to todo).
+                        toPromote = entries.find(
+                            ([k, v]) => k.startsWith('name:') && v.status === 'in_progress'
+                        );
+                    } else {
+                        // start_task: promote first todo / no-status placeholder.
+                        toPromote = entries.find(
+                            ([k, v]) => k.startsWith('name:') && (!v.status || v.status === 'todo')
+                        );
+                    }
+                    if (toPromote) {
+                        const [promoteKey, promoteTask] = toPromote;
+                        existing = promoteTask;
+                        existingKey = promoteKey;
+                        // Remove old name-keyed slot; will be re-inserted under the server-assigned ID below.
+                        taskMap.delete(promoteKey);
+                    }
                 }
             }
         } else if (update.name) {
