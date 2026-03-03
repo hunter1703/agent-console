@@ -1,254 +1,201 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import { PlanningMessageData, PlanningTask } from "@/lib/planning";
-import {
-    ClipboardList,
-    Eye,
-    PlusCircle,
-    RefreshCcw,
-    ListChecks,
-    Flag,
-    AlertTriangle,
-    PlayCircle,
-    CheckCircle2,
-    ChevronDown,
-    ChevronUp,
-    Target,
-    FileText
-} from "lucide-react";
+import { CheckCircle2, Circle, ChevronRight, AlertTriangle } from "lucide-react";
 
-const ACTION_META = {
-    create: { label: "Plan Created", icon: ClipboardList },
-    update: { label: "Plan Updated", icon: RefreshCcw },
-    view: { label: "Plan Overview", icon: Eye },
-    add_task: { label: "Task Added", icon: PlusCircle },
-    update_task: { label: "Task Updated", icon: ListChecks },
-    start_task: { label: "Task Started", icon: PlayCircle },
-    complete_task: { label: "Task Completed", icon: CheckCircle2 },
-    finish: { label: "Plan Finished", icon: Flag }
-} as const;
-
-const STATUS_LABELS: Record<string, string> = {
-    todo: "To Do",
-    in_progress: "In Progress",
-    done: "Done",
-    abandoned: "Abandoned",
-    unknown: "Unknown"
+const PLAN_STATUS: Record<string, { label: string; className: string }> = {
+    todo:        { label: "To Do",       className: "bg-muted/20 text-muted-foreground border-border/40" },
+    in_progress: { label: "In Progress", className: "bg-primary/10 text-primary border-primary/25" },
+    done:        { label: "Completed",   className: "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/25" },
+    abandoned:   { label: "Abandoned",   className: "bg-amber-500/10 text-amber-600 dark:text-amber-400 border-amber-500/25" },
 };
-
-const STATUS_STYLES: Record<string, string> = {
-    todo: "bg-amber-500/15 text-amber-600 dark:text-amber-400",
-    in_progress: "bg-primary/15 text-primary",
-    done: "bg-emerald-500/15 text-emerald-600 dark:text-emerald-400",
-    abandoned: "bg-rose-500/15 text-rose-600 dark:text-rose-400",
-    unknown: "bg-muted/15 text-muted-foreground"
-};
-
-const TASK_LIMIT = 6;
 
 export default function PlanningMessage({ data }: { data: PlanningMessageData }) {
-    const [isExpanded, setIsExpanded] = useState(false);
-    
-    const meta = ACTION_META[data.action];
-    const Icon = meta.icon;
     const plan = data.plan;
     const task = data.task;
-    const mainTitle = data.action === "add_task" || data.action === "update_task" || data.action === "start_task" || data.action === "complete_task"
-        ? task?.name || "Task"
-        : plan?.title || "Plan";
-    const subtitle = data.action === "add_task" || data.action === "update_task" || data.action === "start_task" || data.action === "complete_task"
-        ? task?.goal
-        : plan?.goal;
-    const status = plan?.status || task?.status || data.status;
-    const tasks = plan?.tasks || (task ? [task] : []);
-    const taskRows = buildTaskRows(tasks);
-    
-    // In rich mode, we show 1 task in collapsed view, and everything in expanded view
-    const maxTasks = isExpanded ? taskRows.length : 1;
-    const limitedTasks = taskRows.slice(0, maxTasks);
-    const remainingCount = Math.max(0, taskRows.length - maxTasks);
-    
-    const planId = plan?.planId;
-    const taskId = task?.taskId || data.taskId;
-    const parentId = task?.parentId;
-    const result = data.result || plan?.result || task?.result;
+
+    const planTitle  = plan?.title || "Plan";
+    const planGoal   = plan?.goal;
+    const planStatus = plan?.status || "todo";
+
+    const tasks      = useMemo(() => plan?.tasks || (task ? [task] : []), [plan?.tasks, task]);
+    const rows       = useMemo(() => buildTaskRows(tasks), [tasks]);
+
+    const doneCount  = tasks.filter(t => t.status === "done").length;
+    const totalCount = tasks.length;
+    const progress   = totalCount > 0 ? Math.round((doneCount / totalCount) * 100) : 0;
+
+    const statusMeta = PLAN_STATUS[planStatus] ?? PLAN_STATUS.todo;
 
     return (
-        <div className="flex flex-col gap-4 animate-in fade-in duration-500">
-            <div className="flex items-start justify-between gap-4">
-                <div className="flex items-start gap-4">
-                    <span className="p-2 rounded-xl bg-primary/10 text-primary border border-primary/20 shadow-sm">
-                        <Icon size={18} />
+        <div className="rounded-xl border border-border/50 bg-surface/60 shadow-sm overflow-hidden">
+            {/* Header */}
+            <div className="px-5 pt-5 pb-4 space-y-3">
+                <div className="flex items-start justify-between gap-3">
+                    <h3 className="text-[15px] font-semibold text-foreground leading-snug tracking-tight">
+                        {planTitle}
+                    </h3>
+                    <span className={`shrink-0 px-2.5 py-0.5 rounded-full text-[11px] font-semibold border ${statusMeta.className}`}>
+                        {statusMeta.label}
                     </span>
-                    <div className="flex flex-col gap-0.5">
-                        <span className="text-[10px] font-bold uppercase tracking-[0.25em] text-muted-foreground/60">
-                            {meta.label}
-                        </span>
-                        <span className="text-[16px] font-bold text-foreground tracking-tight">
-                            {mainTitle}
-                        </span>
+                </div>
+
+                {planGoal && (
+                    <p className="text-[13px] text-muted-foreground leading-relaxed">
+                        {planGoal}
+                    </p>
+                )}
+
+                {data.error && (
+                    <div className="flex items-start gap-2 text-[12px] text-rose-500 bg-rose-500/8 border border-rose-500/20 rounded-lg px-3 py-2">
+                        <AlertTriangle size={13} className="mt-0.5 shrink-0" />
+                        <span>{data.error}</span>
                     </div>
-                </div>
-                <div className="flex flex-col items-end gap-2">
-                    {status && <StatusBadge status={status} />}
-                </div>
+                )}
+
+                {totalCount > 0 && (
+                    <div className="space-y-1">
+                        <div className="h-1 bg-border/40 rounded-full overflow-hidden">
+                            <div
+                                className="h-full bg-primary rounded-full transition-all duration-700"
+                                style={{ width: `${progress}%` }}
+                            />
+                        </div>
+                        <p className="text-[11px] text-muted-foreground/50 font-medium">
+                            {doneCount} / {totalCount} tasks
+                        </p>
+                    </div>
+                )}
             </div>
 
-            {data.error && (
-                <div className="flex items-start gap-2 rounded-xl border border-rose-500/20 bg-rose-500/10 px-3 py-2 text-[12px] text-rose-500">
-                    <AlertTriangle size={14} className="mt-0.5" />
-                    <span>{data.error}</span>
-                </div>
-            )}
-
-            {isExpanded && plan?.goal && (
-                <div className="flex flex-col gap-1.5 p-3 rounded-xl bg-secondary/30 border border-border/40">
-                    <div className="flex items-center gap-2 text-[10px] font-bold uppercase tracking-widest text-muted-foreground/50">
-                        <Target size={12} /> Plan Goal
-                    </div>
-                    <div className="text-[13px] text-foreground leading-relaxed">
-                        {plan.goal}
-                    </div>
-                </div>
-            )}
-
-            {subtitle && !isExpanded && (
-                <div className="text-[13px] text-muted-foreground leading-relaxed italic px-1">
-                    "{subtitle}"
-                </div>
-            )}
-
-            {isExpanded && (planId || taskId || parentId) && (
-                <div className="flex flex-wrap gap-2 text-[10px] font-bold uppercase tracking-widest text-muted-foreground/60">
-                    {planId && (
-                        <span className="px-3 py-1 rounded-lg bg-surface/50 border border-border/40">
-                            Plan <span className="font-mono text-primary/80">{planId}</span>
-                        </span>
-                    )}
-                    {taskId && (
-                        <span className="px-3 py-1 rounded-lg bg-surface/50 border border-border/40">
-                            Task <span className="font-mono text-primary/80">{taskId}</span>
-                        </span>
-                    )}
-                </div>
-            )}
-
-            {result && isExpanded && (
-                <div className="flex flex-col gap-2 p-3 rounded-xl border border-emerald-500/20 bg-emerald-500/5 text-[13px] text-emerald-600 dark:text-emerald-400">
-                    <div className="flex items-center gap-2 text-[10px] font-bold uppercase tracking-widest opacity-70">
-                        <CheckCircle2 size={12} /> Execution Result
-                    </div>
-                    <div className="leading-relaxed">
-                        {result}
-                    </div>
-                </div>
-            )}
-
-            {(limitedTasks.length > 0 || isExpanded) && (
-                <div className={`flex flex-col gap-3 ${isExpanded ? "mt-2" : ""}`}>
-                    <div className="flex items-center justify-between">
-                        <span className="text-[10px] font-bold uppercase tracking-[0.2em] text-muted-foreground/50">
-                            {isExpanded ? "Task Hierarchy" : "Current Step"}
-                        </span>
-                        
-                        <button 
-                            onClick={() => setIsExpanded(!isExpanded)}
-                            className="text-[10px] font-bold uppercase tracking-widest text-primary/70 hover:text-primary transition-colors flex items-center gap-1 bg-primary/5 px-2 py-1 rounded-md"
-                        >
-                            {isExpanded ? <><ChevronUp size={12} /> Collapse</> : <><ChevronDown size={12} /> View Details</>}
-                        </button>
-                    </div>
-
-                    <div className="flex flex-col gap-3">
-                        {limitedTasks.map(({ task, depth, key }) => (
-                            <TaskRow key={key} task={task} depth={depth} isDetailed={isExpanded} />
+            {/* Task list */}
+            {rows.length > 0 && (
+                <>
+                    <div className="h-px bg-border/30 mx-5" />
+                    <div className="px-3 py-3 space-y-0.5">
+                        {rows.map(({ task: t, depth, key }) => (
+                            <TaskRow
+                                key={key}
+                                task={t}
+                                depth={depth}
+                                isActive={!!t.taskId && t.taskId === data.taskId}
+                            />
                         ))}
                     </div>
-                    
-                    {!isExpanded && remainingCount > 0 && (
-                        <button 
-                            onClick={() => setIsExpanded(true)}
-                            className="text-[11px] text-muted-foreground/60 hover:text-primary transition-colors text-left pl-1 underline decoration-dotted"
-                        >
-                            + {remainingCount} more tasks in progress...
-                        </button>
-                    )}
-                </div>
-            )}
-
-            {isExpanded && data.taskCount !== undefined && (
-                <div className="text-[11px] text-muted-foreground/50 italic px-1">
-                    Structure: {data.taskCount} discrete tasks identified.
-                </div>
+                </>
             )}
         </div>
     );
 }
 
-function StatusBadge({ status }: { status: string }) {
-    const normalized = status.trim().toLowerCase();
-    const label = STATUS_LABELS[normalized] || status;
-    const style = STATUS_STYLES[normalized] || STATUS_STYLES.unknown;
-    return (
-        <span className={`px-2.5 py-1 rounded-full text-[10px] font-bold uppercase tracking-[0.2em] ${style}`}>
-            {label}
-        </span>
-    );
-}
+function TaskRow({
+    task,
+    depth,
+    isActive,
+}: {
+    task: PlanningTask;
+    depth: number;
+    isActive: boolean;
+}) {
+    const [expanded, setExpanded] = useState(false);
 
-function TaskRow({ task, depth, isDetailed }: { task: PlanningTask; depth: number; isDetailed?: boolean }) {
-    const status = task.status;
+    const isDone       = task.status === "done";
+    const isInProgress = task.status === "in_progress";
+    const hasDetail    = Boolean(task.description || (isDone && task.result));
+
     return (
-        <div className="flex items-start gap-3 transition-all" style={{ paddingLeft: depth * 16 }}>
-            <div className={`mt-2 w-1.5 h-1.5 rounded-full ${status === 'done' ? 'bg-emerald-500' : status === 'in_progress' ? 'bg-primary animate-pulse' : 'bg-muted-foreground/30'}`} />
-            <div className="flex-1 flex flex-col gap-1.5">
-                <div className="flex items-center gap-3 flex-wrap">
-                    <span className={`text-[13px] font-bold tracking-tight ${status === 'done' ? 'text-muted-foreground line-through opacity-60' : 'text-foreground'}`}>
-                        {task.name || "Untitled task"}
-                    </span>
-                    {status && <StatusBadge status={status} />}
+        <div style={{ paddingLeft: depth * 18 }}>
+            <button
+                onClick={() => hasDetail && setExpanded(e => !e)}
+                className={[
+                    "w-full flex items-start gap-3 px-2 py-2 rounded-lg text-left transition-colors",
+                    isInProgress
+                        ? "bg-primary/5 border-l-2 border-l-primary pl-[6px]"
+                        : hasDetail
+                        ? "hover:bg-secondary/30 cursor-pointer"
+                        : "cursor-default",
+                ].join(" ")}
+            >
+                {/* Status indicator */}
+                <div className="mt-[3px] shrink-0 w-4 flex items-center justify-center">
+                    {isDone ? (
+                        <CheckCircle2 size={14} className="text-emerald-500" />
+                    ) : isInProgress ? (
+                        <span className="relative flex w-2.5 h-2.5">
+                            <span className="absolute inline-flex h-full w-full rounded-full bg-primary opacity-40 animate-ping" />
+                            <span className="relative inline-flex rounded-full w-2.5 h-2.5 bg-primary" />
+                        </span>
+                    ) : (
+                        <Circle size={13} className="text-border" />
+                    )}
                 </div>
-                
-                {isDetailed && task.goal && (
-                    <div className="flex items-start gap-2 text-[11px] text-muted-foreground/80 leading-relaxed bg-surface/30 p-2 rounded-lg border border-border/30">
-                        <Target size={12} className="mt-0.5 opacity-50 shrink-0" />
-                        <span>{task.goal}</span>
-                    </div>
-                )}
 
-                {isDetailed && task.description && (
-                    <div className="flex items-start gap-2 text-[11px] text-muted-foreground/70 leading-relaxed px-2">
-                        <FileText size={12} className="mt-0.5 opacity-40 shrink-0" />
-                        <span>{task.description}</span>
+                {/* Text */}
+                <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-1.5">
+                        <span className={[
+                            "text-[13px] font-medium leading-snug",
+                            isDone
+                                ? "line-through text-muted-foreground/40"
+                                : isInProgress
+                                ? "text-foreground"
+                                : "text-foreground/70",
+                        ].join(" ")}>
+                            {task.name || "Task"}
+                        </span>
+                        {hasDetail && (
+                            <ChevronRight
+                                size={11}
+                                className={[
+                                    "text-muted-foreground/30 transition-transform shrink-0",
+                                    expanded ? "rotate-90" : "",
+                                ].join(" ")}
+                            />
+                        )}
                     </div>
-                )}
+                    {task.goal && (
+                        <p className={[
+                            "text-[11px] leading-snug mt-0.5",
+                            isDone ? "text-muted-foreground/25" : "text-muted-foreground/55",
+                        ].join(" ")}>
+                            {task.goal}
+                        </p>
+                    )}
+                </div>
+            </button>
 
-                {isDetailed && task.result && (
-                    <div className="text-[11px] text-emerald-600/90 dark:text-emerald-400 px-2 font-medium flex items-center gap-2">
-                        <div className="w-1 h-1 rounded-full bg-emerald-500" />
-                        {task.result}
-                    </div>
-                )}
-            </div>
+            {/* Expandable detail */}
+            {expanded && hasDetail && (
+                <div className="ml-9 mr-2 mb-1 px-3 py-2.5 rounded-lg bg-secondary/20 border border-border/20 space-y-2">
+                    {task.description && (
+                        <p className="text-[12px] text-muted-foreground/80 leading-relaxed">
+                            {task.description}
+                        </p>
+                    )}
+                    {task.result && (
+                        <p className={[
+                            "text-[12px] text-foreground/65 leading-relaxed italic",
+                            task.description ? "border-t border-border/20 pt-2" : "",
+                        ].join(" ")}>
+                            {task.result}
+                        </p>
+                    )}
+                </div>
+            )}
         </div>
     );
 }
 
 function buildTaskRows(tasks: PlanningTask[]) {
     if (!tasks.length) return [];
-    const childrenMap = new Map<string, PlanningTask[]>();
-    const knownIds = new Set<string>();
 
-    tasks.forEach(task => {
-        if (task.taskId) {
-            knownIds.add(task.taskId);
-        }
-    });
+    const childrenMap = new Map<string, PlanningTask[]>();
+    const knownIds    = new Set(tasks.map(t => t.taskId).filter(Boolean));
 
     tasks.forEach(task => {
         const parentId = task.parentId && knownIds.has(task.parentId) ? task.parentId : "root";
-        const siblings = childrenMap.get(parentId) || [];
+        const siblings = childrenMap.get(parentId) ?? [];
         siblings.push(task);
         childrenMap.set(parentId, siblings);
     });
@@ -256,13 +203,9 @@ function buildTaskRows(tasks: PlanningTask[]) {
     const rows: { task: PlanningTask; depth: number; key: string }[] = [];
 
     const walk = (parentId: string, depth: number) => {
-        const children = childrenMap.get(parentId) || [];
-        children.forEach((child, index) => {
-            const key = child.taskId || `${parentId}-${index}`;
-            rows.push({ task: child, depth, key });
-            if (child.taskId && childrenMap.has(child.taskId)) {
-                walk(child.taskId, depth + 1);
-            }
+        (childrenMap.get(parentId) ?? []).forEach((child, i) => {
+            rows.push({ task: child, depth, key: child.taskId ?? `${parentId}-${i}` });
+            if (child.taskId) walk(child.taskId, depth + 1);
         });
     };
 
