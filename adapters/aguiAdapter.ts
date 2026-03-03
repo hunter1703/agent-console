@@ -146,6 +146,24 @@ export function translateAguiEvent(raw: AguiRawEvent): AgentEvent[] {
             });
             break;
 
+        case "STEP_STARTED":
+            events.push({
+                type: "ThinkingStart",
+                stepName: raw.stepName || raw.step_name || "Thought",
+                runId,
+                timestamp
+            });
+            break;
+
+        case "STEP_FINISHED":
+            events.push({
+                type: "ThinkingEnd",
+                stepName: raw.stepName || raw.step_name || "Thought",
+                runId,
+                timestamp
+            });
+            break;
+
         // Handle Custom events (Corrections, Thoughts)
         case "CUSTOM":
             if (raw.name === "THINK_DELTA") {
