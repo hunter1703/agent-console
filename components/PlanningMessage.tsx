@@ -48,7 +48,7 @@ export default function PlanningMessage({ data }: { data: PlanningMessageData })
                 )}
 
                 {data.error && (
-                    <div className="flex items-start gap-2 text-[12px] text-rose-500 bg-rose-500/8 border border-rose-500/20 rounded-lg px-3 py-2">
+                    <div className="flex items-start gap-2 text-[12px] text-rose-500 bg-rose-500/10 border border-rose-500/20 rounded-lg px-3 py-2">
                         <AlertTriangle size={13} className="mt-0.5 shrink-0" />
                         <span>{data.error}</span>
                     </div>
@@ -204,7 +204,7 @@ function buildTaskRows(tasks: PlanningTask[]) {
 
     const walk = (parentId: string, depth: number) => {
         (childrenMap.get(parentId) ?? []).forEach((child, i) => {
-            rows.push({ task: child, depth, key: child.taskId ?? `${parentId}-${i}` });
+            rows.push({ task: child, depth, key: child.taskId ?? (child.name ? `name:${child.name}` : `${parentId}-${i}`) });
             if (child.taskId) walk(child.taskId, depth + 1);
         });
     };
