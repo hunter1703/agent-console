@@ -5,25 +5,55 @@ import { API_CONFIG } from './config';
 const API_BASE = API_CONFIG.BASE_URL;
 export const IS_MOCK = process.env.NEXT_PUBLIC_MOCK_MODE ? process.env.NEXT_PUBLIC_MOCK_MODE === "true" : false;
 
-export async function fetchModels(): Promise<ModelConfig[]> {
+export interface ModelPage {
+  models: ModelConfig[];
+  hasMore: boolean;
+  total: number;
+}
+
+function mapModel(item: any): ModelConfig {
+  return {
+    id: item.id,
+    type: item.type || item.provider || "OPEN_AI_COMPATIBLE",
+    model: item.model || item.modelId || item.id || "",
+    name: item.name || item.modelId || "Unnamed Model",
+    baseUrl: item.baseUrl,
+    temperature: item.temperature,
+    topK: item.topK,
+    topP: item.topP,
+    repeatPenalty: item.repeatPenalty,
+    numPredict: item.numPredict,
+    maxContextLength: item.maxContextLength,
+    stopTokens: item.stopTokens,
+    responseFormat: item.responseFormat,
+    apiKey: item.apiKey,
+    toolCallingEnabled: item.toolCallingEnabled,
+    toolCallingSupported: item.toolCallingSupported,
+    contextManagerConfig: item.contextManagerConfig,
+    serverCommand: item.serverCommand,
+    serverArgs: item.serverArgs,
+    serverWorkdir: item.serverWorkdir,
+    capabilities: item.capabilities,
+  };
+}
+
+export async function fetchModels(options?: { offset?: number; limit?: number }): Promise<ModelPage> {
+  const offset = options?.offset ?? 0;
+  const limit = options?.limit ?? 20;
+
   if (IS_MOCK) {
-    return Promise.resolve(MOCK_MODELS);
+    const slice = MOCK_MODELS.slice(offset, offset + limit);
+    return { models: slice, hasMore: offset + limit < MOCK_MODELS.length, total: MOCK_MODELS.length };
   }
 
-  // Use the catalog API to list models (as per updated spec)
   try {
     const response = await fetch(`${API_BASE}/v1/catalog/list`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         assetType: "model",
-        query: {
-          page: {
-            offset: 0,
-            limit: 50
-          }
-        }
-      })
+        query: { page: { offset, limit } },
+      }),
     });
 
     if (!response.ok) {
@@ -31,32 +61,8 @@ export async function fetchModels(): Promise<ModelConfig[]> {
     }
 
     const result = await response.json();
-    if (result.items && Array.isArray(result.items)) {
-      return result.items.map((item: any) => ({
-        id: item.id,
-        type: item.type || item.provider || "OPEN_AI_COMPATIBLE",
-        model: item.model || item.modelId || item.id || "",
-        name: item.name || item.modelId || "Unnamed Model",
-        baseUrl: item.baseUrl,
-        temperature: item.temperature,
-        topK: item.topK,
-        topP: item.topP,
-        repeatPenalty: item.repeatPenalty,
-        numPredict: item.numPredict,
-        maxContextLength: item.maxContextLength,
-        stopTokens: item.stopTokens,
-        responseFormat: item.responseFormat,
-        apiKey: item.apiKey,
-        toolCallingEnabled: item.toolCallingEnabled,
-        toolCallingSupported: item.toolCallingSupported,
-        contextManagerConfig: item.contextManagerConfig,
-        serverCommand: item.serverCommand,
-        serverArgs: item.serverArgs,
-        serverWorkdir: item.serverWorkdir,
-        capabilities: item.capabilities
-      }));
-    }
-    return [];
+    const models = (result.items || []).map(mapModel);
+    return { models, hasMore: result.hasMore ?? false, total: result.total ?? models.length };
   } catch (error) {
     console.error("Error fetching models:", error);
     throw new Error("Failed to fetch models");

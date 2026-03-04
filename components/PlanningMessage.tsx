@@ -2,7 +2,7 @@
 
 import { useState, useMemo } from "react";
 import { PlanningMessageData, PlanningTask } from "@/lib/planning";
-import { CheckCircle2, Circle, ChevronRight, AlertTriangle } from "lucide-react";
+import { CheckCircle2, Circle, ChevronRight, AlertTriangle, CircleDot } from "lucide-react";
 
 const PLAN_STATUS: Record<string, { label: string; className: string }> = {
     todo:        { label: "To Do",       className: "bg-muted/20 text-muted-foreground border-border/40" },
@@ -122,10 +122,7 @@ function TaskRow({
                     {isDone ? (
                         <CheckCircle2 size={14} className="text-emerald-500" />
                     ) : isInProgress ? (
-                        <span className="relative flex w-2.5 h-2.5">
-                            <span className="absolute inline-flex h-full w-full rounded-full bg-primary opacity-40 animate-ping" />
-                            <span className="relative inline-flex rounded-full w-2.5 h-2.5 bg-primary" />
-                        </span>
+                        <CircleDot size={14} className="text-primary motion-safe:animate-pulse" />
                     ) : (
                         <Circle size={13} className="text-border" />
                     )}
@@ -139,7 +136,7 @@ function TaskRow({
                             isDone
                                 ? "line-through text-muted-foreground/40"
                                 : isInProgress
-                                ? "text-foreground"
+                                ? "text-primary font-semibold"
                                 : "text-foreground/70",
                         ].join(" ")}>
                             {task.name || "Task"}

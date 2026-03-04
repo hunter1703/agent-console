@@ -1,4 +1,4 @@
-fetch("http://localhost:3000/api/v1/schemas", {
+fetch("http://localhost:3000/api/schemas", {
   method: "POST",
   headers: { "Content-Type": "application/json" },
   body: JSON.stringify({ assetType: "tool_configs", assetId: "run_cmd" })

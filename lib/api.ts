@@ -7,57 +7,12 @@ import { API_CONFIG } from './config';
 const API_BASE = API_CONFIG.BASE_URL;
 export const IS_MOCK = process.env.NEXT_PUBLIC_MOCK_MODE ? process.env.NEXT_PUBLIC_MOCK_MODE === "true" : false; // Default to false (use real API)
 
-// Type definition for catalog items
-export interface CatalogItem {
-    id: string;
-    name: string;
-    [key: string]: any;
-}
-
 // Type definition for paginated results
 interface PaginatedResult {
     items: any[];
     total?: number;
     hasMore?: boolean;
     nextCursor?: string;
-}
-
-/**
- * Generic function to fetch a list of entities from the Catalog API.
- * Used for populating dropdowns and selection menus.
- */
-export async function fetchCatalogList(assetType: string): Promise<CatalogItem[]> {
-    if (IS_MOCK) {
-        // In mock mode, we return empty or pre-defined mocks if available
-        return [];
-    }
-
-    try {
-        const response = await fetch(`${API_BASE}/v1/catalog/list`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-                assetType,
-                query: {
-                    page: {
-                        offset: 0,
-                        limit: 100
-                    }
-                }
-            })
-        });
-
-        if (!response.ok) {
-            console.warn(`Failed to fetch catalog list for ${assetType}: ${response.status}`);
-            return [];
-        }
-
-        const result: PaginatedResult = await response.json();
-        return result.items || [];
-    } catch (error) {
-        console.error(`Error fetching catalog list for ${assetType}:`, error);
-        return [];
-    }
 }
 
 /**
@@ -87,7 +42,7 @@ export async function fetchSchema(assetType: string): Promise<SchemaResponse | n
     }
 
     try {
-        const response = await fetch(`${API_BASE}/v1/schemas/${assetType}`);
+        const response = await fetch(`${API_BASE}/schemas/${assetType}`);
         if (!response.ok) {
             console.warn(`Failed to fetch schema for ${assetType}: ${response.status}`);
             return null;
@@ -99,25 +54,49 @@ export async function fetchSchema(assetType: string): Promise<SchemaResponse | n
     }
 }
 
-export async function fetchAgents(): Promise<AgentConfig[]> {
+export interface AgentPage {
+    agents: AgentConfig[];
+    hasMore: boolean;
+    total: number;
+}
+
+function mapAgent(item: any): AgentConfig {
+    return {
+        id: item.id,
+        type: item.type,
+        name: item.name || "Unnamed Agent",
+        description: item.description,
+        avatar: item.avatar,
+        model: {
+            modelId: item.model?.modelId,
+            role: item.model?.role,
+            systemPrompt: item.model?.systemPrompt,
+            contextManagerConfig: item.model?.contextManagerConfig,
+            tools: item.model?.tools,
+            type: item.model?.type,
+        },
+        sessionStore: item.sessionStore,
+        metadata: item.metadata || {},
+    };
+}
+
+export async function fetchAgents(options?: { offset?: number; limit?: number }): Promise<AgentPage> {
+    const offset = options?.offset ?? 0;
+    const limit = options?.limit ?? 20;
+
     if (IS_MOCK) {
-        return Promise.resolve(MOCK_AGENTS);
+        const slice = MOCK_AGENTS.slice(offset, offset + limit);
+        return { agents: slice, hasMore: offset + limit < MOCK_AGENTS.length, total: MOCK_AGENTS.length };
     }
 
-    // Use catalog/list API to get all agents (per OpenAPI spec)
     try {
         const response = await fetch(`${API_BASE}/v1/catalog/list`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
                 assetType: "agent",
-                query: {
-                    page: {
-                        offset: 0,
-                        limit: 100
-                    }
-                }
-            })
+                query: { page: { offset, limit } },
+            }),
         });
 
         if (!response.ok) {
@@ -125,28 +104,8 @@ export async function fetchAgents(): Promise<AgentConfig[]> {
         }
 
         const result: PaginatedResult = await response.json();
-
-        // Map the API response to the AgentConfig format
-        if (result.items && Array.isArray(result.items)) {
-            return result.items.map((item: any) => ({
-                id: item.id,
-                type: item.type,
-                name: item.name || "Unnamed Agent",
-                description: item.description,
-                avatar: item.avatar,
-                model: {
-                    modelId: item.model?.modelId,
-                    role: item.model?.role,
-                    systemPrompt: item.model?.systemPrompt,
-                    contextManagerConfig: item.model?.contextManagerConfig,
-                    tools: item.model?.tools,
-                    type: item.model?.type
-                },
-                sessionStore: item.sessionStore,
-                metadata: item.metadata || {}
-            }));
-        }
-        return [];
+        const agents = (result.items || []).map(mapAgent);
+        return { agents, hasMore: result.hasMore ?? false, total: result.total ?? agents.length };
     } catch (error) {
         console.error("Error fetching agents:", error);
         throw new Error("Failed to fetch agents");
@@ -244,4 +203,110 @@ export async function deleteAgent(id: string): Promise<void> {
 
     // Use the new API for deleting agents
     await deleteAgentV1(id);
+}
+
+/* ── Session APIs ─────────────────────────────────────────────────────────── */
+
+export interface SessionSummary {
+    id: string;
+    agentId: string;
+    title?: string;
+    lastActiveAt: number;
+    threadId?: string;
+}
+
+export interface SessionPage {
+    sessions: SessionSummary[];
+    hasMore: boolean;
+    total: number;
+}
+
+function normalizeSession(item: any): SessionSummary {
+    return {
+        id: item.id || item.sessionId || item.threadId || "",
+        agentId: item.agentId || "",
+        // API returns `name` not `title` in the list endpoint
+        title: item.title || item.name || undefined,
+        // Use 0 when no timestamp — sorts to the end; real timestamps sort correctly
+        lastActiveAt: item.lastActiveAt || item.updatedTime || item.createdTime || item.createdAt || 0,
+        threadId: item.threadId || undefined,
+    };
+}
+
+function sortSessionsDesc(sessions: SessionSummary[]): SessionSummary[] {
+    return [...sessions].sort((a, b) => b.lastActiveAt - a.lastActiveAt);
+}
+
+export async function fetchSessions(options?: {
+    agentId?: string;
+    limit?: number;
+    offset?: number;
+}): Promise<SessionPage> {
+    const body: any = {
+        assetType: "session",
+        query: {
+            page: { offset: options?.offset ?? 0, limit: options?.limit ?? 20 },
+        },
+    };
+    if (options?.agentId) {
+        body.query.filter = { field: "agentId", op: "EQ", values: [options.agentId] };
+    }
+
+    try {
+        const res = await fetch(`${API_BASE}/v1/catalog/list`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(body),
+        });
+        if (!res.ok) return { sessions: [], hasMore: false, total: 0 };
+        const result: PaginatedResult = await res.json();
+        return {
+            sessions: sortSessionsDesc((result.items || []).map(normalizeSession)),
+            hasMore: result.hasMore ?? false,
+            total: result.total ?? 0,
+        };
+    } catch {
+        return { sessions: [], hasMore: false, total: 0 };
+    }
+}
+
+export async function searchSessions(
+    query: string,
+    agentId?: string,
+    offset = 0,
+    limit = 20
+): Promise<SessionPage> {
+    const body: any = {
+        assetType: "session",
+        options: { query },
+        query: { page: { offset, limit } },
+    };
+    if (agentId) {
+        body.query.filter = { field: "agentId", op: "EQ", values: [agentId] };
+    }
+
+    try {
+        const res = await fetch(`${API_BASE}/v1/catalog/search`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(body),
+        });
+        if (!res.ok) return { sessions: [], hasMore: false, total: 0 };
+        const result: PaginatedResult = await res.json();
+        return {
+            sessions: sortSessionsDesc((result.items || []).map(normalizeSession)),
+            hasMore: result.hasMore ?? false,
+            total: result.total ?? 0,
+        };
+    } catch {
+        return { sessions: [], hasMore: false, total: 0 };
+    }
+}
+
+export async function deleteSession(sessionId: string): Promise<void> {
+    try {
+        await fetch(`${API_BASE}/v1/agent/session/${sessionId}`, { method: "DELETE" });
+    } catch {
+        /* ignore network errors — optimistic removal already applied */
+    }
 }

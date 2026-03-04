@@ -82,6 +82,7 @@ Verify the real-time event processing and the atomic deduplication machine.
   - [ ] `Verify` chat shows a compact planning card with title, status, and tasks/IDs.
   - [ ] `Verify` cards render even when `TOOL_CALL_RESULT` omits `toolCallName` (toolCallId correlation).
   - [ ] Toggle `Raw/Preview` on the card. `Verify` JSON payload is visible.
+  - [ ] Trigger `create_plan` -> `start_task` -> `complete_task`. `Verify` task order stays consistent (sorted by task ID) and the active task shows a blue in-progress indicator.
 - [ ] **Correction Events**:
   - [ ] Trigger an action that causes the backend to emit a correction (e.g. providing an invalid schema for a tool call).
   - [ ] `Verify` a `System Correction` block appears in the Activity Panel styled as a sleek violet gradient card with a Zap icon.
@@ -112,6 +113,12 @@ Verify state integrity during resets and reloads.
 Verify the premium "Studio" feel and memory integrity.
 
 - [ ] **Design Polish**: Verify smooth theme transitions (Light/Dark) do not break glassmorphism or contrast.
+- [ ] **Mobile Navigation & Safe Areas**:
+  - [ ] Emulate an iPhone viewport. `Verify` the floating menu button appears and opens the sidebar drawer.
+  - [ ] `Verify` tapping outside the drawer or selecting a nav item closes it.
+  - [ ] Navigate to **Agents** and **Models**. `Verify` action buttons are visible without hover.
+  - [ ] Open any agent chat. `Verify` the message input sits above the home indicator and remains tappable.
+  - [ ] On **Explore** and **History**, `Verify` the main content area scrolls smoothly with touch.
 - [ ] **Layout Shifts (CLS)**: Verify adding tools doesn't cause the "Update Agent" button to jump or disappear.
 - [ ] **Storage Resilience**: Fill `localStorage`. Verify the console doesn't crash and shows a descriptive error if persistence fails.
 - [ ] **Cross-Tab Sync**: Verify Tab A reflects config changes from Tab B immediately (or warns about stale data).

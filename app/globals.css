@@ -1,358 +1,299 @@
 @import "tailwindcss";
 @plugin "@tailwindcss/typography";
 
-/* 
-  Apple & Don Norman Inspired Design System
-  Focus: Affordances, Signifiers, Feedback, Mapping, and High-Contrast Premium Aesthetics.
+/*
+  Agent Console Design System
+  Built on Don Norman's design principles + Apple HIG.
+  Clarity through restraint. Feedback through honesty.
 */
 
 :root {
-  /* =========================================
-     THEME: Porcelain Light
-     ========================================= */
-  
-  /* Core Surfaces */
-  --background: #FFFFFF;        /* Pure white for pristine contrast */
-  --foreground: #111111;        /* High legibility near-black */
-  
-  --surface: #F5F5F7;           /* Apple-like off-white for cards/panels */
-  --surface-hover: #EBEBEF;     /* Interactive state */
-  --surface-active: #E0E0E5;    /* Depressed state */
+  /* ── Surfaces ──────────────────────────────────────── */
+  --background: #FFFFFF;
+  --foreground: #1D1D1F;      /* Apple's exact body text color */
 
-  /* Accents */
-  --primary: #0071E3;           /* Apple System Blue - clear affordance */
-  --primary-hover: #0077ED;     /* Hover feedback */
+  --surface: #F5F5F7;
+  --surface-hover: #EBEBED;
+  --surface-active: #E3E3E6;
+
+  /* ── Accent ────────────────────────────────────────── */
+  /* System Indigo — reads as "intelligent" without being generic blue */
+  --primary: #5856D6;
+  --primary-hover: #4744C7;
   --primary-foreground: #FFFFFF;
+  --accent-surface: rgba(88, 86, 214, 0.07);
 
-  /* Text & Borders */
-  --muted: #86868B;             /* Secondary/tertiary text */
-  --muted-foreground: #555555;  
-  --border: rgba(0, 0, 0, 0.12);/* Subtle distinct structural lines */
-  --ring: rgba(0, 113, 227, 0.3);
+  /* ── Text Hierarchy ────────────────────────────────── */
+  --muted: #6E6E73;           /* Apple secondary label */
+  --muted-foreground: #AEAEB2; /* Apple tertiary label */
 
-  /* Deep Physical Shadows (Affordances) */
-  --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.04);
+  /* ── Structure ─────────────────────────────────────── */
+  --border: rgba(0, 0, 0, 0.08);
+  --ring: rgba(88, 86, 214, 0.25);
+
+  /* ── Elevation ─────────────────────────────────────── */
+  /* One level of card shadow. If you need more — fix the layout. */
+  --shadow-sm: 0 1px 3px rgba(0, 0, 0, 0.07), 0 1px 2px rgba(0, 0, 0, 0.04);
   --shadow-md: 0 4px 12px rgba(0, 0, 0, 0.08);
-  --shadow-lg: 0 12px 32px rgba(0, 0, 0, 0.12);
-  --shadow-floating: 0 20px 40px rgba(0, 0, 0, 0.16), 0 0 0 1px rgba(0,0,0,0.05);
-  
-  /* Glows for "Active" or "Processing" feedback */
-  --glow-primary: 0 0 20px rgba(0, 113, 227, 0.4);
-  --glow-success: 0 0 20px rgba(52, 199, 89, 0.4);
+  --shadow-lg: 0 8px 24px rgba(0, 0, 0, 0.10);
 
-  /* Glassmorphism / Depth */
-  --glass-bg: rgba(255, 255, 255, 0.75);
-  --glass-border: rgba(0, 0, 0, 0.08);
+  /* ── Semantic Status ───────────────────────────────── */
+  --green: #34C759;
+  --red: #FF3B30;
+  --amber: #FF9F0A;
 
-  --sidebar-bg: #F5F5F7;
-  --sidebar-border: rgba(0, 0, 0, 0.08);
+  /* ── Legacy aliases (used by older components) ──────── */
+  --glass-bg: var(--surface);
+  --glass-border: var(--border);
+  --sidebar-bg: var(--surface);
+  --sidebar-border: var(--border);
+  --shadow-floating: var(--shadow-lg);
+  --glow-primary: none;
+  --glow-success: none;
 }
 
 .dark {
-  /* =========================================
-     THEME: Obsidian Dark
-     ========================================= */
-  
-  /* Core Surfaces */
-  --background: #000000;        /* Pure OLED black for maximum depth */
-  --foreground: #F5F5F7;        /* Off-white text for reduced eye strain */
-  
-  --surface: #1C1C1E;           /* Distinct structural elevation */
-  --surface-hover: #2C2C2E;     /* Interactive state */
-  --surface-active: #3A3A3D;    /* Depressed state */
+  /* ── Surfaces ──────────────────────────────────────── */
+  --background: #111111;      /* Not pure black — avoids harsh OLED contrast */
+  --foreground: #F5F5F7;
 
-  /* Accents */
-  --primary: #0A84FF;           /* Brighter blue for dark mode visibility */
-  --primary-hover: #2997FF;     /* Hover feedback */
+  --surface: #1C1C1E;
+  --surface-hover: #2C2C2E;
+  --surface-active: #3A3A3D;
+
+  /* ── Accent ────────────────────────────────────────── */
+  --primary: #6E6CF0;         /* Brightened indigo for dark mode readability */
+  --primary-hover: #7B79F5;
   --primary-foreground: #FFFFFF;
+  --accent-surface: rgba(110, 108, 240, 0.12);
 
-  /* Text & Borders */
-  --muted: #86868B;
-  --muted-foreground: #98989D;
-  --border: rgba(255, 255, 255, 0.15); /* Crisper structural lines */
-  --ring: rgba(10, 132, 255, 0.4);
+  /* ── Text Hierarchy ────────────────────────────────── */
+  --muted: #AEAEB2;
+  --muted-foreground: #636366;
 
-  /* Deep Physical Shadows (Requires different treatment on black) */
-  --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.5);
-  --shadow-md: 0 8px 16px rgba(0, 0, 0, 0.6);
-  --shadow-lg: 0 16px 32px rgba(0, 0, 0, 0.8);
-  --shadow-floating: 0 24px 48px rgba(0, 0, 0, 0.9), 0 0 0 1px rgba(255,255,255,0.1);
+  /* ── Structure ─────────────────────────────────────── */
+  --border: rgba(255, 255, 255, 0.08);
+  --ring: rgba(110, 108, 240, 0.30);
 
-  /* Glows */
-  --glow-primary: 0 0 30px rgba(10, 132, 255, 0.5);
-  --glow-success: 0 0 30px rgba(48, 209, 88, 0.4);
+  /* ── Elevation ─────────────────────────────────────── */
+  --shadow-sm: 0 1px 3px rgba(0, 0, 0, 0.30), 0 1px 2px rgba(0, 0, 0, 0.20);
+  --shadow-md: 0 4px 12px rgba(0, 0, 0, 0.50);
+  --shadow-lg: 0 8px 24px rgba(0, 0, 0, 0.60);
 
-  /* Glassmorphism / Depth */
-  --glass-bg: rgba(28, 28, 30, 0.65);
-  --glass-border: rgba(255, 255, 255, 0.15);
-
-  --sidebar-bg: #1C1C1E;
-  --sidebar-border: rgba(255, 255, 255, 0.1);
+  /* ── Legacy aliases ─────────────────────────────────── */
+  --glass-bg: var(--surface);
+  --glass-border: var(--border);
+  --sidebar-bg: var(--surface);
+  --sidebar-border: var(--border);
+  --shadow-floating: var(--shadow-lg);
+  --glow-primary: none;
+  --glow-success: none;
 }
 
+/* ── Tailwind v4 color registrations ─────────────────────────────────────── */
 @theme {
-  /* Typography - Strict Mapping */
-  --font-sans: -apple-system, BlinkMacSystemFont, "SF Pro Display", "SF Pro Icons", "Helvetica Neue", Helvetica, Arial, sans-serif;
-  --font-mono: "SF Mono", Sequence, "Menlo", "Consolas", monospace;
+  --font-sans: -apple-system, BlinkMacSystemFont, "SF Pro Text", "SF Pro Display",
+               "Helvetica Neue", Helvetica, Arial, sans-serif;
+  --font-mono: "SF Mono", "Menlo", "Consolas", "Monaco", "Courier New", monospace;
 
-  /* Colors */
+  /* Color aliases → Tailwind utilities: bg-background, text-foreground, etc. */
   --color-background: var(--background);
   --color-foreground: var(--foreground);
   --color-surface: var(--surface);
   --color-surface-hover: var(--surface-hover);
   --color-surface-active: var(--surface-active);
+  --color-secondary: var(--surface);          /* legacy alias */
   --color-primary: var(--primary);
   --color-primary-hover: var(--primary-hover);
   --color-primary-foreground: var(--primary-foreground);
+  --color-accent-surface: var(--accent-surface);
   --color-muted: var(--muted);
   --color-muted-foreground: var(--muted-foreground);
   --color-border: var(--border);
   --color-ring: var(--ring);
+  --color-green: var(--green);
+  --color-red: var(--red);
+  --color-amber: var(--amber);
 
-  /* Affordance Timings */
-  --animate-in: fade-in 0.3s cubic-bezier(0.2, 0.8, 0.2, 1);
-  --animate-out: fade-out 0.2s cubic-bezier(0.4, 0, 1, 1);
-  --animate-slide-up: slide-up 0.5s cubic-bezier(0.16, 1, 0.3, 1);
-  --animate-pop: pop 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275);
-  
-  /* Structure */
+  /* Border radius — three values. Use these only. */
+  --radius-sm: 8px;
+  --radius-md: 12px;
+  --radius-lg: 16px;
+
+  /* Legacy radius aliases */
   --radius-xl: 14px;
   --radius-2xl: 18px;
   --radius-3xl: 24px;
 }
 
-/* Base Setup */
+/* ── Base ─────────────────────────────────────────────────────────────────── */
+* {
+  box-sizing: border-box;
+}
+
 body {
   background-color: var(--background);
   color: var(--foreground);
   font-family: var(--font-sans);
+  font-size: 15px;
+  line-height: 1.5;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
   overflow-x: hidden;
-  transition: background-color 0.4s ease, color 0.4s ease;
 }
 
-/* =========================================
-   Don Norman Signifiers (Utility Classes)
-   ========================================= */
+/* ── Purposeful Animations ────────────────────────────────────────────────── */
+/* Each animation communicates something. None are decoration. */
 
-/* The 'Physical' Card - High affordance of interactivity */
-.physical-card {
-  background-color: var(--surface);
-  border: 1px solid var(--border);
-  border-radius: var(--radius-2xl);
-  box-shadow: var(--shadow-sm);
-  transition: all 0.3s cubic-bezier(0.2, 0.8, 0.2, 1);
-}
-.physical-card:hover {
-  transform: translateY(-2px);
-  box-shadow: var(--shadow-md);
-  border-color: var(--primary);
-}
-.physical-card:active {
-  transform: translateY(1px) scale(0.98);
-  box-shadow: var(--shadow-sm);
+/* Message enters the conversation */
+@keyframes message-enter {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
 }
 
-/* Magnetic Inputs - Draws focus and signifies input readiness */
-.magnetic-input {
-  background-color: var(--background);
-  border: 1px solid var(--border);
-  box-shadow: inset 0 2px 4px rgba(0,0,0,0.02);
-  transition: all 0.3s cubic-bezier(0.2, 0.8, 0.2, 1);
-}
-.magnetic-input:focus-within {
-  border-color: var(--primary);
-  box-shadow: var(--glow-primary);
-  transform: translateY(-1px);
+/* The thinking indicator dot — opacity only, no scale, no glow */
+@keyframes thinking-pulse {
+  0%, 100% { opacity: 0.35; }
+  50% { opacity: 1; }
 }
 
-/* Glass Panels - Used for UI overlays that float above content */
-.glass-panel {
-  background: var(--glass-bg);
-  backdrop-filter: blur(24px);
-  -webkit-backdrop-filter: blur(24px);
-  border: 1px solid var(--glass-border);
-  box-shadow: var(--shadow-floating);
+/* Panels slide in from edge */
+@keyframes panel-slide-right {
+  from {
+    opacity: 0;
+    transform: translateX(16px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
 }
 
-/* Immediate Interaction Buttons */
-.tactile-button {
-  transition: transform 0.15s cubic-bezier(0.34, 1.56, 0.64, 1), background-color 0.2s ease, box-shadow 0.2s ease;
-}
-.tactile-button:active {
-  transform: scale(0.92);
+/* Generic fade */
+@keyframes fade-in {
+  from { opacity: 0; }
+  to { opacity: 1; }
 }
 
-/* =========================================
-   Keyframes for Rich Physical Feedback
-   ========================================= */
+/* Slide up for content sections */
 @keyframes slide-up {
-  from { transform: translateY(16px); opacity: 0; }
-  to { transform: translateY(0); opacity: 1; }
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
 }
 
-@keyframes pop {
-  0% { transform: scale(0.95); opacity: 0; }
-  50% { transform: scale(1.02); }
-  100% { transform: scale(1); opacity: 1; }
+/* ── Animation Utility Classes ────────────────────────────────────────────── */
+.message-enter {
+  animation: message-enter 150ms ease-out both;
 }
 
-@keyframes pulse-glow {
-  0% { box-shadow: 0 0 0 0 var(--ring); }
-  70% { box-shadow: 0 0 0 10px rgba(0, 113, 227, 0); }
-  100% { box-shadow: 0 0 0 0 rgba(0, 113, 227, 0); }
+.thinking-dot {
+  animation: thinking-pulse 1200ms ease-in-out infinite;
 }
 
-/* Custom Scrollbar - Minimal & Precise */
+.panel-enter {
+  animation: panel-slide-right 250ms ease-out both;
+}
+
+.fade-enter {
+  animation: fade-in 150ms ease-out both;
+}
+
+.slide-up {
+  animation: slide-up 200ms ease-out both;
+}
+
+/* ── Scrollbars ───────────────────────────────────────────────────────────── */
 ::-webkit-scrollbar {
-  width: 6px;
-  height: 6px;
+  width: 5px;
+  height: 5px;
 }
+
 ::-webkit-scrollbar-track {
   background: transparent;
 }
+
 ::-webkit-scrollbar-thumb {
   background: var(--border);
   border-radius: 10px;
 }
+
 ::-webkit-scrollbar-thumb:hover {
-  background: var(--muted);
+  background: var(--muted-foreground);
 }
 
 .scrollbar-hide::-webkit-scrollbar {
   display: none;
 }
+
 .scrollbar-hide {
   -ms-overflow-style: none;
   scrollbar-width: none;
 }
 
-/* =========================================
-   Phase 4: Magical Interactions & Unique Animations
-   ========================================= */
+/* ── Legacy compatibility ─────────────────────────────────────────────────── */
+/* These classes are used by old components still being phased out.
+   They've been simplified — no glassmorphism, no bounce, no glow. */
 
-/* Ambient Aurora Background */
-.aurora-bg {
-  position: relative;
-  overflow: hidden;
-  z-index: 0;
+.physical-card {
+  background-color: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-sm);
+  transition: box-shadow 200ms ease-out;
 }
 
-.aurora-bg::before,
-.aurora-bg::after {
-  content: '';
-  position: fixed;
-  top: -50%;
-  left: -50%;
-  width: 200%;
-  height: 200%;
-  border-radius: 50%;
-  background: radial-gradient(circle, rgba(0, 113, 227, 0.04) 0%, rgba(0, 0, 0, 0) 60%);
-  pointer-events: none;
-  z-index: -1;
-  animation: aurora-drift 60s linear infinite alternate;
+.physical-card:hover {
+  box-shadow: var(--shadow-md);
 }
 
-.dark .aurora-bg::before {
-  background: radial-gradient(circle, rgba(10, 132, 255, 0.06) 0%, rgba(0, 0, 0, 0) 50%);
+.magnetic-input {
+  background-color: var(--surface);
+  border: 1px solid var(--border);
+  transition: border-color 150ms ease-out;
 }
 
-.aurora-bg::after {
-  background: radial-gradient(circle, rgba(52, 199, 89, 0.02) 0%, rgba(0, 0, 0, 0) 50%);
-  animation: aurora-drift 80s linear infinite alternate-reverse;
-  left: 10%;
-  top: 10%;
+.magnetic-input:focus-within {
+  border-color: var(--primary);
 }
 
-.dark .aurora-bg::after {
-  background: radial-gradient(circle, rgba(48, 209, 88, 0.04) 0%, rgba(0, 0, 0, 0) 50%);
+/* Removed: glassmorphism, spring-bounce, aurora-drift, ai-core-breathe,
+   rotate-gradient, pulse-glow. Motion communicates state, not status. */
+
+.glass-panel {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  box-shadow: var(--shadow-md);
 }
 
-@keyframes aurora-drift {
-  0% { transform: rotate(0deg) translate(-5%, 5%); }
-  50% { transform: rotate(180deg) translate(5%, -5%) scale(1.1); }
-  100% { transform: rotate(360deg) translate(-5%, 5%); }
+.tactile-button {
+  transition: opacity 80ms ease-out;
 }
 
-/* Dynamic Rotating Gradient Borders (for Agent Card) */
-.gradient-border-card {
-  position: relative;
-  z-index: 1;
+.tactile-button:active {
+  opacity: 0.7;
 }
 
-.gradient-border-card::before {
-  content: "";
-  position: absolute;
-  inset: -1px;
-  border-radius: inherit;
-  background: conic-gradient(from 0deg, transparent 0%, rgba(0, 113, 227, 0.5) 25%, transparent 50%, rgba(0, 113, 227, 0.5) 75%, transparent 100%);
-  z-index: -1;
-  opacity: 0;
-  transition: opacity 0.5s ease;
-}
-
-.gradient-border-card:hover::before {
-  opacity: 1;
-  animation: rotate-gradient 3s linear infinite;
-}
-
-.dark .gradient-border-card::before {
-  background: conic-gradient(from 0deg, transparent 0%, rgba(10, 132, 255, 0.7) 25%, transparent 50%, rgba(10, 132, 255, 0.7) 75%, transparent 100%);
-}
-
-@keyframes rotate-gradient {
-  to { transform: rotate(360deg); }
-}
-
-/* Spring Bounce for Bubbles */
-.spring-bounce {
-  transform-origin: bottom center;
-  animation: spring-bounce-anim 0.6s cubic-bezier(0.175, 0.885, 0.32, 1.275) both;
-}
-
-.spring-bounce-user {
-  transform-origin: bottom right;
-  animation: spring-bounce-anim 0.6s cubic-bezier(0.175, 0.885, 0.32, 1.275) both;
-}
-
+/* spring-bounce kept as no-op to avoid breaking references */
+.spring-bounce,
+.spring-bounce-user,
 .spring-bounce-assistant {
-  transform-origin: bottom left;
-  animation: spring-bounce-anim 0.6s cubic-bezier(0.175, 0.885, 0.32, 1.275) both;
+  /* intentionally empty — old spring animations removed */
 }
 
-@keyframes spring-bounce-anim {
-  0% { transform: scale(0.9) translateY(10px); opacity: 0; }
-  100% { transform: scale(1) translateY(0); opacity: 1; }
-}
+/* aurora-bg kept as no-op */
+.aurora-bg {}
 
-/* AI Core Orb */
-.ai-core-orb {
-  width: 12px;
-  height: 12px;
-  border-radius: 50%;
-  background: var(--primary);
-  box-shadow: 0 0 10px var(--primary), inset 0 0 4px rgba(255,255,255,0.8);
-  animation: ai-core-breathe 2s ease-in-out infinite;
-  position: relative;
-}
-
-.ai-core-orb::after {
-  content: '';
-  position: absolute;
-  inset: -4px;
-  border-radius: 50%;
-  border: 1px solid var(--primary);
-  opacity: 0.5;
-  animation: ai-core-ripple 2s ease-out infinite;
-}
-
-@keyframes ai-core-breathe {
-  0%, 100% { transform: scale(1); opacity: 0.8; box-shadow: 0 0 8px var(--primary); }
-  50% { transform: scale(1.2); opacity: 1; box-shadow: 0 0 16px var(--primary); }
-}
-
-@keyframes ai-core-ripple {
-  0% { transform: scale(1); opacity: 0.6; }
-  100% { transform: scale(2); opacity: 0; }
-}
+/* gradient-border-card kept as no-op */
+.gradient-border-card {}

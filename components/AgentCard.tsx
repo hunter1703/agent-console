@@ -4,7 +4,7 @@ import { Bot, ArrowRight } from "lucide-react";
 
 export default function AgentCard({ agent }: { agent: AgentConfig }) {
     return (
-        <div className="physical-card p-8 flex flex-col gap-6 group relative overflow-hidden">
+        <div className="physical-card p-6 sm:p-8 flex flex-col gap-6 group relative overflow-hidden">
             {/* Minimalist Header */}
             <div className="flex items-start gap-5">
                 <div className="w-14 h-14 rounded-2xl bg-background border border-border flex items-center justify-center text-2xl shadow-sm transition-transform duration-300 group-hover:scale-105 group-hover:shadow-md">

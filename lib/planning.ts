@@ -474,3 +474,14 @@ function getNumber(value: any) {
 function hasTaskContent(task: PlanningTask) {
     return Boolean(task.taskId || task.name || task.goal || task.status || task.result);
 }
+
+function sortPlanningTasks(tasks: PlanningTask[]) {
+    return [...tasks].sort((a, b) => {
+        const aKey = a.taskId ?? "";
+        const bKey = b.taskId ?? "";
+        if (aKey && bKey) return aKey.localeCompare(bKey);
+        if (aKey) return -1;
+        if (bKey) return 1;
+        return 0;
+    });
+}

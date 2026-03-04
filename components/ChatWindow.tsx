@@ -57,7 +57,7 @@ export default function ChatWindow({ messages, agentAvatar }: { messages: Messag
         <div 
             ref={scrollRef} 
             onScroll={handleScroll}
-            className="flex-1 overflow-y-auto px-6 md:px-10 pt-10 pb-8 scroll-smooth custom-scrollbar"
+            className="flex-1 overflow-y-auto px-4 sm:px-6 md:px-10 pt-8 sm:pt-10 pb-8 scroll-smooth custom-scrollbar"
         >
             <div className="max-w-[800px] mx-auto w-full flex flex-col gap-10">
                 {messages.length === 0 && (

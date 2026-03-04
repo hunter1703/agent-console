@@ -193,7 +193,7 @@ export function translateAguiEvent(raw: AguiRawEvent): AgentEvent[] {
             });
             break;
 
-        case "THINKING_TEXT_MESSAGE_CONTENT":
+        case "THINKING_TEXT_MESSAGE_CONTENT": {
             const isPartial = raw.partial ?? raw.rawEvent?.partial ?? true;
             events.push({
                 type: "ThinkingUpdate",
@@ -202,6 +202,13 @@ export function translateAguiEvent(raw: AguiRawEvent): AgentEvent[] {
                 runId,
                 timestamp
             });
+            break;
+        }
+
+        // THINKING_TEXT_MESSAGE_END signals the end of one thought block only.
+        // The agent remains in thinking state until THINKING_END / STEP_FINISHED.
+        // No event emitted — the next THINKING_TEXT_MESSAGE_START will open the next block.
+        case "THINKING_TEXT_MESSAGE_END":
             break;
     }
 

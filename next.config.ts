@@ -25,6 +25,14 @@ const nextConfig: NextConfig = {
           destination: `${backendUrl}/schemas/:path*`,
         },
         {
+          source: "/api/schemas",
+          destination: `${backendUrl}/schemas`,
+        },
+        {
+          source: "/api/schemas/:path*",
+          destination: `${backendUrl}/schemas/:path*`,
+        },
+        {
           source: "/api/v1/:path*",
           destination: `${backendUrl}/v1/:path*`,
         }

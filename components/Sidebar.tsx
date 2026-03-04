@@ -8,42 +8,75 @@ import {
     Bot,
     BrainCircuit,
     Sparkles,
-    Activity
+    X
 } from "lucide-react";
 import { ThemeToggle } from "@/components/ThemeToggle";
 import { useState, useEffect } from "react";
 import { checkHealth } from "@/lib/api";
 
-export default function Sidebar() {
+export default function Sidebar({
+    isOpen = false,
+    onClose,
+}: {
+    isOpen?: boolean;
+    onClose?: () => void;
+}) {
+    const handleNavigate = () => {
+        if (onClose) onClose();
+    };
+
     return (
-        <aside className="w-[300px] flex-shrink-0 flex flex-col bg-[var(--sidebar-bg)] border-r border-border p-8 z-20 transition-colors duration-400">
+        <>
+            <div
+                className={`fixed inset-0 bg-black/50 backdrop-blur-sm z-30 transition-opacity duration-300 md:hidden ${
+                    isOpen ? "opacity-100" : "opacity-0 pointer-events-none"
+                }`}
+                onClick={onClose}
+                aria-hidden="true"
+            />
+            <aside
+                className={`fixed inset-y-0 left-0 w-[260px] sm:w-[280px] md:w-[300px] flex-shrink-0 flex flex-col bg-[var(--sidebar-bg)] border-r border-border px-6 sm:px-8 pt-[calc(env(safe-area-inset-top)+1.5rem)] pb-[calc(env(safe-area-inset-bottom)+1.5rem)] md:pt-8 md:pb-8 z-40 transition-all duration-300 md:static md:translate-x-0 ${
+                    isOpen ? "translate-x-0" : "-translate-x-full"
+                }`}
+            >
             {/* App Branding - Clean and distinct */}
-            <div className="flex items-center gap-4 px-2 mb-14 mt-4">
-                <div className="w-12 h-12 rounded-[20px] bg-primary border border-primary-foreground/10 flex items-center justify-center shadow-lg text-primary-foreground">
-                    <Sparkles size={22} strokeWidth={2} />
+                <div className="flex items-center gap-4 px-2 mb-10 sm:mb-14 mt-4">
+                    <div className="flex items-center gap-4 flex-1">
+                        <div className="w-12 h-12 rounded-[20px] bg-primary border border-primary-foreground/10 flex items-center justify-center shadow-lg text-primary-foreground">
+                            <Sparkles size={22} strokeWidth={2} />
+                        </div>
+                        <div className="flex flex-col">
+                            <h1 className="text-[18px] font-bold tracking-tight text-foreground leading-tight">Agent Console</h1>
+                            <p className="text-[11px] uppercase tracking-[0.25em] text-muted-foreground font-bold mt-1">Studio</p>
+                        </div>
+                    </div>
+                    <button
+                        type="button"
+                        onClick={onClose}
+                        aria-label="Close navigation"
+                        className="md:hidden w-9 h-9 rounded-xl bg-background/60 border border-border flex items-center justify-center text-muted-foreground hover:text-foreground hover:bg-surface-hover transition-all"
+                    >
+                        <X size={16} />
+                    </button>
                 </div>
-                <div className="flex flex-col">
-                    <h1 className="text-[18px] font-bold tracking-tight text-foreground leading-tight">Agent Console</h1>
-                    <p className="text-[11px] uppercase tracking-[0.25em] text-muted-foreground font-bold mt-1">Studio</p>
-                </div>
-            </div>
 
             <nav className="flex flex-col gap-2 flex-1 px-2">
-                <NavItem href="/" icon={<LayoutGrid size={18} strokeWidth={2} />} label="Explore" />
-                <NavItem href="/history" icon={<History size={18} strokeWidth={2} />} label="History" />
+                <NavItem href="/" icon={<LayoutGrid size={18} strokeWidth={2} />} label="Explore" onNavigate={handleNavigate} />
+                <NavItem href="/history" icon={<History size={18} strokeWidth={2} />} label="History" onNavigate={handleNavigate} />
 
                 <div className="mt-10 mb-4 px-3 text-[10px] font-bold uppercase tracking-[0.3em] text-muted-foreground/50">
                     Management
                 </div>
-                <NavItem href="/admin/agents" icon={<Bot size={18} strokeWidth={2} />} label="Agents" />
-                <NavItem href="/admin/models" icon={<BrainCircuit size={18} strokeWidth={2} />} label="Models" />
+                <NavItem href="/admin/agents" icon={<Bot size={18} strokeWidth={2} />} label="Agents" onNavigate={handleNavigate} />
+                <NavItem href="/admin/models" icon={<BrainCircuit size={18} strokeWidth={2} />} label="Models" onNavigate={handleNavigate} />
             </nav>
 
             <div className="mt-auto px-4 pt-10 pb-4 border-t border-border flex items-center justify-between">
                 <StatusIndicator />
                 <ThemeToggle />
             </div>
-        </aside>
+            </aside>
+        </>
     );
 }
 
@@ -91,13 +124,24 @@ function StatusIndicator() {
     );
 }
 
-function NavItem({ href, icon, label }: { href: string; icon: React.ReactNode; label: string }) {
+function NavItem({
+    href,
+    icon,
+    label,
+    onNavigate,
+}: {
+    href: string;
+    icon: React.ReactNode;
+    label: string;
+    onNavigate?: () => void;
+}) {
     const pathname = usePathname();
     const isActive = pathname === href;
 
     return (
         <Link
             href={href}
+            onClick={onNavigate}
             /* Apply tactile-button for immediate physical feedback on click */
             className={`group flex items-center gap-4 px-4 py-3 rounded-2xl tactile-button ${
                 isActive
