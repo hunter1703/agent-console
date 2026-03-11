@@ -12,29 +12,7 @@ export interface ModelPage {
 }
 
 function mapModel(item: any): ModelConfig {
-  return {
-    id: item.id,
-    type: item.type || item.provider || "OPEN_AI_COMPATIBLE",
-    model: item.model || item.modelId || item.id || "",
-    name: item.name || item.modelId || "Unnamed Model",
-    baseUrl: item.baseUrl,
-    temperature: item.temperature,
-    topK: item.topK,
-    topP: item.topP,
-    repeatPenalty: item.repeatPenalty,
-    numPredict: item.numPredict,
-    maxContextLength: item.maxContextLength,
-    stopTokens: item.stopTokens,
-    responseFormat: item.responseFormat,
-    apiKey: item.apiKey,
-    toolCallingEnabled: item.toolCallingEnabled,
-    toolCallingSupported: item.toolCallingSupported,
-    contextManagerConfig: item.contextManagerConfig,
-    serverCommand: item.serverCommand,
-    serverArgs: item.serverArgs,
-    serverWorkdir: item.serverWorkdir,
-    capabilities: item.capabilities,
-  };
+  return { ...item, name: item.name || item.modelId || "Unnamed Model" };
 }
 
 export async function fetchModels(options?: { offset?: number; limit?: number }): Promise<ModelPage> {
@@ -85,30 +63,7 @@ export async function fetchModelConfig(id: string): Promise<ModelConfig> {
     }
 
     const item = await response.json();
-    return {
-      id: item.id,
-      type: item.type || "OPEN_AI_COMPATIBLE",
-      model: item.model || item.modelId || item.id || "",
-      name: item.name || item.modelId || "Unnamed Model",
-      baseUrl: item.baseUrl,
-      temperature: item.temperature,
-      topK: item.topK,
-      topP: item.topP,
-      repeatPenalty: item.repeatPenalty,
-      numPredict: item.numPredict,
-      maxContextLength: item.maxContextLength,
-      stopTokens: item.stopTokens,
-      responseFormat: item.responseFormat,
-      apiKey: item.apiKey,
-      toolCallingEnabled: item.toolCallingEnabled,
-      toolCallingSupported: item.toolCallingSupported,
-      contextManagerConfig: item.contextManagerConfig,
-      serverCommand: item.serverCommand,
-      serverArgs: item.serverArgs,
-      serverWorkdir: item.serverWorkdir,
-      capabilities: item.capabilities || [],
-      metadata: item.metadata || {}
-    };
+    return { ...item, name: item.name || item.modelId || "Unnamed Model" };
   } catch (error) {
     console.error("Error fetching model:", error);
     throw new Error("Failed to fetch model config");

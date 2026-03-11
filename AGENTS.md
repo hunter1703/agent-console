@@ -44,10 +44,11 @@ Across the platform, selection fields and dropdowns adhere to a strict separatio
 
 ## 4. Maintenance & QA Policy
 
-To ensure the long-term integrity of the Agent Console, all code changes must be reflected in the [QA_CERTIFICATION.md](file:///Users/rhp/Projects/agent-console/QA_CERTIFICATION.md).
+To ensure long-term integrity of the Agent Console, all non-trivial code changes must include automated test coverage.
 
 ### **Bug Fix Protocol**
 
-1. **New Tests**: If a bug is found and fixed, a corresponding test case MUST be added to the `QA_CERTIFICATION.md` if it is not already present.
-2. **Strengthen Checks**: If a bug was already "covered" by a test case but still passed under the radar, the existing check must be strengthened with more granular verification steps (e.g., lower-level UI steps or race-condition audits).
-3. **Continuous Certification**: The QA document is a living record. Every feature addition or architectural shift must update the relevant sections of the certification roadmap.
+1. **New Tests Required**: If a bug is fixed, add or update at least one automated test that fails before the fix and passes after it.
+2. **Accepted Test Types**: Use either unit/integration tests (logic-level) or Playwright E2E tests (behavior-level), based on where the bug lives.
+3. **Strengthen Existing Coverage**: If a bug escaped existing tests, improve assertions and/or add lower-level checks to prevent recurrence.
+4. **No Doc-Only Substitution**: Documentation updates never replace required automated tests.

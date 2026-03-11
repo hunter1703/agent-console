@@ -2,12 +2,12 @@
 
 import { useEffect, useRef } from "react";
 import { X, Plus } from "lucide-react";
-import { ChatSession } from "@/models/Session";
+import { SessionSummary } from "@/lib/api";
 
 interface SessionsPanelProps {
     isOpen: boolean;
     onClose: () => void;
-    sessions: ChatSession[];
+    sessions: SessionSummary[];
     activeSessionId: string | null;
     agentId: string;
     onSelectSession: (sessionId: string) => void;
@@ -109,10 +109,7 @@ export default function SessionsPanel({
                                 const isActive =
                                     session.id === activeSessionId ||
                                     session.threadId === activeSessionId;
-                                const preview =
-                                    session.title ||
-                                    session.messages[0]?.content?.slice(0, 60) ||
-                                    "Session";
+                                const preview = session.title || "Session";
 
                                 return (
                                     <li key={session.id}>

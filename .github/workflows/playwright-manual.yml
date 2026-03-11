@@ -1,0 +1,42 @@
+name: Playwright E2E (Manual)
+
+on:
+  workflow_dispatch:
+    inputs:
+      target:
+        description: "Playwright target suite"
+        required: true
+        default: "mock"
+        type: choice
+        options:
+          - mock
+          - live
+
+jobs:
+  e2e:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: "npm"
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Install Playwright Browsers
+        run: npx playwright install --with-deps chromium
+
+      - name: Run mock suite
+        if: ${{ github.event.inputs.target == 'mock' }}
+        run: npm run test:e2e -- --project=chromium-mock --project=chromium-mobile-mock
+
+      - name: Run live smoke suite
+        if: ${{ github.event.inputs.target == 'live' }}
+        env:
+          BACKEND_URL: ${{ secrets.BACKEND_URL }}
+        run: npm run test:e2e:live

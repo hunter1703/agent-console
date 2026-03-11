@@ -50,6 +50,12 @@
   --shadow-floating: var(--shadow-lg);
   --glow-primary: none;
   --glow-success: none;
+
+  /* ── Page Layout Widths ───────────────────────────── */
+  --content-gutter: clamp(14px, 2vw, 24px);
+  --content-max-regular: 1240px;
+  --content-max-wide: 1460px;
+  --content-max-builder: 1540px;
 }
 
 .dark {
@@ -140,6 +146,10 @@ body {
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
   overflow-x: hidden;
+}
+
+button:not(:disabled), [role="button"], a, label[for], select {
+  cursor: pointer !important;
 }
 
 /* ── Purposeful Animations ────────────────────────────────────────────────── */
@@ -297,3 +307,42 @@ body {
 
 /* gradient-border-card kept as no-op */
 .gradient-border-card {}
+
+/* ── Shared Page Shells ──────────────────────────────────────────────────── */
+.app-shell-regular,
+.app-shell-wide {
+  width: min(calc(100vw - var(--content-gutter) * 2), var(--content-max-regular));
+  margin-inline: auto;
+}
+
+.app-shell-wide {
+  width: min(calc(100vw - var(--content-gutter) * 2), var(--content-max-wide));
+}
+
+.app-shell-builder {
+  width: min(calc(100vw - var(--content-gutter) * 2), var(--content-max-builder));
+  margin-inline: auto;
+}
+
+/* ── Builder Atmosphere ───────────────────────────────────────────────────── */
+.studio-canvas {
+  position: relative;
+  isolation: isolate;
+}
+
+.studio-canvas::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  z-index: -1;
+  background:
+    radial-gradient(1200px 360px at 8% -8%, rgba(88, 86, 214, 0.13), transparent 72%),
+    radial-gradient(860px 300px at 92% 0%, rgba(255, 159, 10, 0.09), transparent 74%);
+}
+
+.dark .studio-canvas::before {
+  background:
+    radial-gradient(1200px 360px at 8% -8%, rgba(110, 108, 240, 0.18), transparent 72%),
+    radial-gradient(860px 300px at 92% 0%, rgba(255, 159, 10, 0.12), transparent 74%);
+}

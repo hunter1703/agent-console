@@ -2,11 +2,14 @@ export interface AgentConfig {
     id: string;
     name: string;
     type: string;
-    description: string;
-    avatar: string;
-    model: AgentModelConfig;
-    sessionStore: SessionServiceConfig;
+    description?: string;
+    avatar?: string;
+    model?: AgentModelConfig;
+    sessionStore?: SessionServiceConfig;
+    routingModelId?: string | null;
+    routingHistorySize?: number;
     metadata?: Record<string, any>;
+    [key: string]: any; // allow schema-driven fields without frontend changes
 }
 
 export interface AgentModelConfig {

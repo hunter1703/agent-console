@@ -1,128 +1,83 @@
-# Agent Console: Unified QA Certification & Automated Test Specification
+# Agent Console QA Certification
 
-This document serves as the absolute source of truth for certifying the Agent Console. it contains exhaustive, "no stones unturned" verification steps suitable for human QA and automated LLM-driven testing suites (Playwright/Cypress).
+This document is the source of truth for QA coverage and automation mapping.
 
----
+## Automation Status Legend
+- `Automated`: Covered by Playwright E2E specs in `tests/e2e`.
+- `Manual`: Requires manual/device-specific validation.
 
 ## 1. Infrastructure & Networking
 
-Verify the integrity of the Console-Backend bridge and its resilience to failure.
+| ID | Status | Scenario | Spec / Notes |
+|---|---|---|---|
+| AC-INF-002 | Automated | Offline health banner is shown when `/api/health` fails | `tests/e2e/settings-agents-list.spec.ts` |
+| AC-INF-003 | Automated | Events SSE proxy preserves streaming cadence and anti-buffering headers | `tests/e2e/sse-proxy-contract.spec.ts` |
+| AC-INF-004 | Automated | SSE proxy routes preserve upstream status codes and anti-buffering headers (events + resume) | `tests/e2e/sse-proxy-live.spec.ts` |
+| AC-INF-005 | Automated | Builder load failures do not trigger infinite schema/config refetch loops | `tests/e2e/agent-builder-validation.spec.ts` |
 
-- [ ] **Connectivity & Pulse**: Open `http://localhost:3000`. Locate the circular status indicator at the bottom-left sidebar.
-  - [ ] `Verify` color is green and text is "System Online" with a subtle pulse.
-- [ ] **Failover & Recovery**:
-  1. Open `next.config.ts`. Change backend port `18080` to `9999`. Save.
-  2. `Verify` UI turns red and reports "System Offline" within the heart-beat interval.
-  3. Revert port to `18080`. Verify status restores to Green without page reload.
-- [ ] **SSE Proxy Performance (Low-Level)**:
-  - [ ] Verify `X-Accel-Buffering: no` and `Cache-Control: no-cache` are present on `/api/v1/events`.
-  - [ ] Ensure the Next.js proxy doesn't buffer for streams exceeding 60 seconds.
+## 2. Settings Management
 
-## 2. Intelligence Catalogs (Discovery)
+| ID | Status | Scenario | Spec / Notes |
+|---|---|---|---|
+| AC-AGT-001 | Automated | Settings lists agents/models and routes to dedicated builders | `tests/e2e/settings-agents-list.spec.ts` |
+| AC-AGT-003 | Automated | List row action controls reveal on hover (desktop contract) | `tests/e2e/settings-agents-list.spec.ts` |
 
-Verify data ingestion, rendering, and responsive behavior.
+## 3. Agent Builder Contract
 
-- [ ] **Discovery Audit**: Click **Explore** in the sidebar.
-  - [ ] `Verify` bootstrapped agents (`echo_agent`, `shell_agent`) appear with correct descriptions and model logos.
-  - [ ] `Verify` a 1col (mobile) -> 3col+ (desktop) responsive transition.
-- [ ] **Management Audit**: Click **Models** under Management.
-  - [ ] `Verify` Gemini/Qwen/DeepSeek cards exist.
-- [ ] **Edge Cases**:
-  - [ ] Verify "No results found" empty states exist when backend catalogs are empty.
-  - [ ] Insert an agent with missing optional fields (no description). Verify the grid doesn't crash.
+| ID | Status | Scenario | Spec / Notes |
+|---|---|---|---|
+| AC-AGT-010 | Automated | Step/section navigation renders from backend layout metadata | `tests/e2e/agent-builder-core.spec.ts` |
+| AC-AGT-011 | Automated | Schema + layout fields render without frontend hardcoding | `tests/e2e/agent-builder-core.spec.ts` |
+| AC-AGT-012a | Automated | Agent create payload roundtrip | `tests/e2e/agent-builder-core.spec.ts` |
+| AC-AGT-012b | Automated | Agent edit payload roundtrip | `tests/e2e/agent-builder-core.spec.ts` |
+| AC-AGT-013 | Automated | Dynamic schema lookup for tool configs renders | `tests/e2e/agent-builder-core.spec.ts` |
+| AC-AGT-014 | Automated | Dynamic schema lookup only refetches on dependent-value change | `tests/e2e/agent-builder-core.spec.ts` |
+| AC-AGT-015 | Automated | Dynamic schema field hides when backend returns empty schema | `tests/e2e/agent-builder-core.spec.ts` |
+| AC-AGT-020 | Automated | Visibility rules react to discriminator changes | `tests/e2e/agent-builder-validation.spec.ts` |
+| AC-AGT-021 | Automated | Fallback generic mode renders when wizard metadata missing | `tests/e2e/agent-builder-validation.spec.ts` |
+| AC-AGT-022a | Automated | Draft restore hydrates state from localStorage | `tests/e2e/agent-builder-core.spec.ts` |
+| AC-AGT-022b | Automated | Draft discard clears localStorage and keeps server edit state | `tests/e2e/agent-builder-core.spec.ts` |
+| AC-AGT-022c | Automated | Refresh on clean baseline does not show restore dialog | `tests/e2e/agent-builder-core.spec.ts` |
 
-## 3. Dynamic Form Engine (`JsonForm`)
+## 4. Model Builder Contract
 
-Verify the "Dynamic Intelligence" logic and scoped variable resolution.
+| ID | Status | Scenario | Spec / Notes |
+|---|---|---|---|
+| AC-MDL-010 | Automated | Model builder renders backend-driven steps | `tests/e2e/model-builder.spec.ts` |
+| AC-MDL-010b | Automated | Root presets apply backend payload patch | `tests/e2e/model-builder.spec.ts` |
+| AC-MDL-011a | Automated | Model create payload roundtrip | `tests/e2e/model-builder.spec.ts` |
+| AC-MDL-011b | Automated | Model edit payload roundtrip | `tests/e2e/model-builder.spec.ts` |
 
-- [ ] **Model Registration**: Click **New Model**. Fill fields and click **Create**. Verify the model appears instantly in the list.
-- [ ] **Scoped Variable Resolution**: Click **New Agent**.
-  - [ ] **$.root**: Verify Model ID dropdown filters based on the top-level agent data.
-  - [ ] **$local**: Add Tool -> select `run_cmd`. Verify sibling `tool_name` triggers the parameter schema lookup.
-  - [ ] **$^parent**: Verify nested array items can access parent-level config data correctly.
-- [ ] **Race Conditions (Brutal Stress)**:
-  - [ ] Click through a dropdown (e.g., `echo` -> `run_cmd` -> `echo`) as fast as possible.
-  - [ ] `Verify` final fields match the *last* selection. No duplicate boxes or stutters.
-- [ ] **Lookup Failures**: Mock a 500 error for a schema lookup. Verify the form shows a field-level error instead of crashing.
-- [ ] **Validation Borders**: Click **Create** with blank required fields. Verify red borders and "Field is required" messages appear instantly.
-- [ ] **Multiline Widgets**: Configure layout to set `widget: TEXTAREA` (or `multiline: true`) on `systemPrompt`.
-  - [ ] `Verify` the field renders as a multi-line textarea with visible line breaks.
-  - [ ] `Verify` line breaks persist after Save + reopen.
+## 5. Chat Runtime & Eventing
 
-## 4. Chat UX, Activity Feed & Real-Time Events
+| ID | Status | Scenario | Spec / Notes |
+|---|---|---|---|
+| AC-CHAT-001 | Automated | Chat send/stream renders assistant output and tool usage details | `tests/e2e/chat-hardening.spec.ts` |
+| AC-CHAT-002 | Automated | Stop action exits streaming and restores send affordance | `tests/e2e/chat-hardening.spec.ts` |
+| AC-CHAT-003 | Automated | Paused session hydration + resume endpoint routing from direct URL | `tests/e2e/chat-hardening.spec.ts` |
+| AC-CHAT-004 | Automated | Repeated text deltas are preserved (no token loss) | `tests/e2e/chat-hardening.spec.ts` |
+| AC-CHAT-005 | Automated | SSE keepalive/comment frames do not break parsing | `tests/e2e/chat-hardening.spec.ts` |
+| AC-EVT-001 | Automated | Reconstruction preserves pre-start tool args | `tests/e2e/events-hardening.spec.ts` |
+| AC-EVT-002 | Automated | History/session hydration reconstructs out-of-order tool args in UI | `tests/e2e/history-reconstruct-hardening.spec.ts` |
+| AC-EVT-003 | Automated | Streaming UI preserves complete args when args events precede tool start | `tests/e2e/chat-hardening.spec.ts` |
 
-Verify the real-time event processing and the atomic deduplication machine.
+## 6. Mobile UX
 
-- [ ] **Instant Feedback (The Deduplication Machine)**:
-  - [ ] Send: "Hello".
-  - [ ] `Verify` "Thinking..." appears in <100ms (Placeholder event).
-  - [ ] `Verify` that when the real packet arrives, the placeholder is **decisive replaced**. There must be exactly 1 Entry per interaction.
-- [ ] **Unified Streaming Thoughts (Consciousness Stream)**:
-  - [ ] Send a prompt that triggers reasoning (e.g., "Think about life").
-  - [ ] `Verify` the **ThoughtPulse** component appears with a premium, glassmorphic design and the text "Reasoning" with a pulse animation.
-  - [ ] `Verify` the thought content streams char-by-char at the bottom of the chat window.
-  - [ ] `Verify` that once the reasoning is done and the final message starts, the ThoughtPulse fades out gracefully.
-- [ ] **Tool Call Visualization**: Send: "List current directory".
-  - [ ] `Verify` a `Tool Call` block appears in the Activity Panel.
-  - [ ] `Verify` states: `Initialized` -> `Executing (Args)` -> `Result`.
-  - [ ] **CRITICAL**: Verify the `Invoking [tool]` block expands to show the tool parameters/arguments.
-  - [ ] `Click` to expand and verify raw JSON/Shell output is legible in the Result block.
-- [ ] **Streaming Consistency**: Verify text appears char-by-char (unbuffered) for long responses.
-- [ ] **Thought Duration Accuracy**:
-  - [ ] Trigger a multi-step response that includes thinking.
-  - [ ] `Verify` the Thought summary shows a non-zero duration that matches elapsed time.
-- [ ] **Chat Copy Functionality**:
-  - [ ] Hover over a user message. `Verify` a small "Copy" button appears.
-  - [ ] `Click` Copy. `Verify` button label changes to "Copied" with a green checkmark for 2 seconds.
-  - [ ] `Paste` into a notepad. `Verify` the exact message text was copied.
-  - [ ] Hover over an assistant message. `Verify` both "Copy" and "Raw/Preview" buttons appear.
-  - [ ] `Click` Copy on an assistant message. `Verify` the raw markdown text is copied.
-- [ ] **Planning Tool Cards**:
-  - [ ] Trigger planning tools (`create_plan`, `add_task`, `update_task`, `finish_plan`, `view_plan`).
-  - [ ] `Verify` chat shows a compact planning card with title, status, and tasks/IDs.
-  - [ ] `Verify` cards render even when `TOOL_CALL_RESULT` omits `toolCallName` (toolCallId correlation).
-  - [ ] Toggle `Raw/Preview` on the card. `Verify` JSON payload is visible.
-  - [ ] Trigger `create_plan` -> `start_task` -> `complete_task`. `Verify` task order stays consistent (sorted by task ID) and the active task shows a blue in-progress indicator.
-- [ ] **Correction Events**:
-  - [ ] Trigger an action that causes the backend to emit a correction (e.g. providing an invalid schema for a tool call).
-  - [ ] `Verify` a `System Correction` block appears in the Activity Panel styled as a sleek violet gradient card with a Zap icon.
-  - [ ] `Verify` the block displays the `Type`, `Code`, and `Message` of the correction.
+| ID | Status | Scenario | Spec / Notes |
+|---|---|---|---|
+| AC-MOB-010 | Automated | Builder navigation actions remain visible and usable on mobile | `tests/e2e/mobile-builder.spec.ts` |
+| AC-MOB-011 | Automated | iOS safe-area contracts keep chat composer visible/usable | `tests/e2e/mobile-builder.spec.ts` |
 
-## 5. Session Lifecycle & Persistence
+## 7. Live Backend Smoke
 
-Verify state integrity during resets and reloads.
+| ID | Status | Scenario | Spec / Notes |
+|---|---|---|---|
+| AC-LIVE-001 | Automated | Settings page loads in live backend mode | `tests/e2e/live-smoke.spec.ts` |
 
-- [ ] **Reset & Cleanup (Fixed)**:
-  1. During an active chat with multiple activity nodes:
-  2. `Click` the **Reset** button in the header.
-  3. `Verify` both Chat and Activity (Timeline) panels are cleared instantly.
-  4. `Verify` the URL resets to `/agents/[id]` without a session ID.
-  5. **Hard Persistence Check**: `Refresh` the browser (Cmd+R). `Verify` the activity does NOT return. (Previously required 2 refreshes).
-- [ ] **Server-Driven Fresh Start**:
-  - [ ] Start a chat in a clean URL. `Verify` the server assigns a `threadId` on the first turn.
-  - [ ] `Verify` the browser URL updates to the permanent thread ID.
-- [ ] **Fresh Navigation Proofing (Regression)**:
-  - [ ] Open a direct link to an agent (e.g., `/agents/echo_agent`) without any query parameters.
-  - [ ] `Verify` the "Loading agent console..." splash screen disappears and the UI renders the agent header (Name, Avatar).
-- [ ] **Persistence**:
-  - [ ] `Cmd+R` during a run. Verify chat and activity return in the correct order.
-- [ ] **History Reconstruction**: Go to **History**. Select an old session. Verify all historical "Thoughts" and "Tool Calls" are fully replayed in the Activity Panel.
+## How To Run
 
-## 6. UI/UX "Apple Principles" & Stability
-
-Verify the premium "Studio" feel and memory integrity.
-
-- [ ] **Design Polish**: Verify smooth theme transitions (Light/Dark) do not break glassmorphism or contrast.
-- [ ] **Mobile Navigation & Safe Areas**:
-  - [ ] Emulate an iPhone viewport. `Verify` the floating menu button appears and opens the sidebar drawer.
-  - [ ] `Verify` tapping outside the drawer or selecting a nav item closes it.
-  - [ ] Navigate to **Agents** and **Models**. `Verify` action buttons are visible without hover.
-  - [ ] Open any agent chat. `Verify` the message input sits above the home indicator and remains tappable.
-  - [ ] On **Explore** and **History**, `Verify` the main content area scrolls smoothly with touch.
-- [ ] **Layout Shifts (CLS)**: Verify adding tools doesn't cause the "Update Agent" button to jump or disappear.
-- [ ] **Storage Resilience**: Fill `localStorage`. Verify the console doesn't crash and shows a descriptive error if persistence fails.
-- [ ] **Cross-Tab Sync**: Verify Tab A reflects config changes from Tab B immediately (or warns about stale data).
-
----
-
-**Automated Testing Note**: This document serves as the prompt specification for LLM testing agents. When running automated verification, the agent should attempt to "break" the form using the boundary conditions listed above.
+```bash
+npm run test:e2e
+npm run test:e2e:live
+npm run test:e2e:ui
+```

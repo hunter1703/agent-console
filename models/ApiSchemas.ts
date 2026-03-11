@@ -87,6 +87,13 @@ export interface AgentSessionDTO {
   messages?: any[];
   threadId?: string;
   events?: any[];
+  pause?: {
+    paused?: boolean;
+    reason?: string;
+    prompt?: string;
+    options?: string[];
+    requestedAt?: number;
+  };
 }
 
 export interface InMemorySessionServiceConfig extends SessionServiceConfig {

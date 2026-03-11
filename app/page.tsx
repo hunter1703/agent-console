@@ -87,7 +87,7 @@ export default function HomePage() {
 
     return (
         <div className="min-h-full px-4 py-12 sm:py-16">
-            <div className="max-w-[680px] mx-auto w-full flex flex-col gap-10">
+            <div className="app-shell-regular flex w-full flex-col gap-10">
 
                 {/* Greeting */}
                 <div className="slide-up" style={{ animationDelay: "0ms" }}>
@@ -205,14 +205,14 @@ export default function HomePage() {
                                     <div className="flex-1 min-w-0">
                                         <div className="flex items-baseline gap-2">
                                             <span className="text-[14px] font-medium text-foreground leading-tight">
-                                                {session.agentName}
+                                                {session.title || "Conversation"}
                                             </span>
                                             <span className="text-[12px] text-muted-foreground shrink-0">
                                                 {formatRelativeTime(session.lastActiveAt)}
                                             </span>
                                         </div>
                                         <p className="text-[13px] text-muted mt-0.5 truncate">
-                                            {session.title || "Conversation"}
+                                            {session.agentName}
                                         </p>
                                     </div>
 

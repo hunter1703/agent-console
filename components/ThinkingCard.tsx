@@ -7,41 +7,41 @@ import MarkdownRenderer from "@/components/MarkdownRenderer";
 interface ThinkingCardProps {
     thoughts: string[];
     isStreaming?: boolean;
-    startedAt?: number; // timestamp when thinking started
+    durationSecs?: number;
 }
 
 export default function ThinkingCard({
     thoughts,
     isStreaming,
-    startedAt,
+    durationSecs,
 }: ThinkingCardProps) {
     const [isExpanded, setIsExpanded] = useState(true);
-    const [durationSecs, setDurationSecs] = useState<number | null>(null);
 
-    // Auto-collapse when done streaming. Record how long it took.
+    const hasContent = thoughts.some((t) => t.trim().length > 0);
+
+    // Auto-collapse when done streaming and there's content to collapse.
     useEffect(() => {
-        if (!isStreaming && thoughts.length > 0) {
-            if (startedAt) {
-                setDurationSecs(Math.round((Date.now() - startedAt) / 1000));
-            }
+        if (!isStreaming && hasContent) {
             const t = setTimeout(() => setIsExpanded(false), 600);
             return () => clearTimeout(t);
-        } else {
-            setIsExpanded(true);
         }
-    }, [isStreaming, thoughts.length, startedAt]);
-
-    if (thoughts.length === 0 && !isStreaming) return null;
+    }, [isStreaming, hasContent]);
 
     const allThoughts = thoughts.join("\n\n---\n\n");
+    // Show content block while streaming (Formulating… or actual thoughts) or when has content
+    const showContent = isStreaming || hasContent;
+    const expanded = isStreaming ? true : isExpanded;
 
     return (
         <div className="message-enter w-full">
             {/* Header — always visible */}
             <button
-                onClick={() => setIsExpanded((v) => !v)}
-                className="flex items-center gap-2 mb-1.5 text-left group/thinking"
-                aria-expanded={isExpanded}
+                onClick={() => hasContent ? setIsExpanded((v) => !v) : undefined}
+                className={[
+                    "flex items-center gap-2 mb-1.5 text-left group/thinking",
+                    hasContent ? "cursor-pointer" : "cursor-default",
+                ].join(" ")}
+                aria-expanded={hasContent ? isExpanded : undefined}
             >
                 {/* Animated thinking dot */}
                 <span
@@ -54,24 +54,24 @@ export default function ThinkingCard({
                 <span className="text-[13px] font-medium text-muted transition-colors group-hover/thinking:text-foreground">
                     {isStreaming
                         ? "Thinking…"
-                        : durationSecs !== null && durationSecs > 0
+                        : durationSecs !== undefined
                         ? `Thought for ${durationSecs}s`
                         : "Thought"}
                 </span>
 
-                {!isStreaming && thoughts.length > 0 && (
+                {!isStreaming && hasContent && (
                     <ChevronDown
                         size={13}
                         className={[
                             "text-muted-foreground transition-transform",
-                            isExpanded ? "rotate-0" : "-rotate-90",
+                            expanded ? "rotate-0" : "-rotate-90",
                         ].join(" ")}
                     />
                 )}
             </button>
 
-            {/* Content — collapsible */}
-            {isExpanded && (
+            {/* Content — collapsible, only shown when streaming or has real content */}
+            {expanded && showContent && (
                 <div
                     className={[
                         "rounded-[var(--radius-lg)] overflow-hidden",
@@ -79,7 +79,7 @@ export default function ThinkingCard({
                         "bg-accent-surface px-4 py-3",
                     ].join(" ")}
                 >
-                    {isStreaming && thoughts.length === 0 ? (
+                    {isStreaming && !hasContent ? (
                         <p className="text-[14px] text-muted italic">Formulating…</p>
                     ) : (
                         <div className="text-[14px] leading-relaxed text-foreground/80">

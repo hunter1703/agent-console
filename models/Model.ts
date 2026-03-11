@@ -3,6 +3,7 @@ export interface ModelConfig {
   name: string;
   type: string;
   model: string;
+  [key: string]: any; // allow schema-driven fields without frontend changes
   baseUrl?: string;
   temperature?: number;
   topK?: number;

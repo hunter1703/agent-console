@@ -46,8 +46,9 @@ export default function MessageInput({
         <div
             className="shrink-0 w-full px-4 pt-3 pb-[calc(env(safe-area-inset-bottom)+12px)]"
             style={{ background: "var(--background)" }}
+            data-testid="message-input-shell"
         >
-            <div className="max-w-[720px] mx-auto">
+            <div className="max-w-[980px] mx-auto">
                 <div
                     className={[
                         "flex items-end gap-2 rounded-[var(--radius-md)] px-3 py-2",

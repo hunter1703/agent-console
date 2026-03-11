@@ -7,7 +7,7 @@ import { AgentConfig } from "@/models/Agent";
 import { AgentEvent } from "@/models/Events";
 import { ChatSession } from "@/models/Session";
 import { AgentSessionDTO } from "@/models/ApiSchemas";
-import { fetchAgentConfig, getResourceById } from "@/lib/api";
+import { fetchAgentConfig, fetchSessions, getResourceById, SessionSummary } from "@/lib/api";
 import { mockStreamResponse } from "@/lib/mock";
 import { fetchSseStream } from "@/lib/stream";
 import { translateAguiEvent } from "@/adapters/aguiAdapter";
@@ -24,7 +24,7 @@ import PlanningCard from "@/components/PlanningCard";
 import ToolDetails from "@/components/ToolDetails";
 import MarkdownRenderer from "@/components/MarkdownRenderer";
 import SessionsPanel from "@/components/SessionsPanel";
-import { ArrowLeft, Settings, AlignLeft, Copy, Check } from "lucide-react";
+import { ArrowLeft, Settings, AlignLeft, Copy, Check, SquarePen } from "lucide-react";
 
 /* ── Message types ─────────────────────────────────────────────────────────── */
 export interface Message {
@@ -35,27 +35,31 @@ export interface Message {
     planning?: PlanningMessageData;
     isStreaming?: boolean;
     thoughts?: string[];
-    thinkingStartedAt?: number;
+    thinkingDurationSecs?: number;
 }
 
-/* ── Load all sessions for this agent from localStorage ────────────────────── */
-function loadAgentSessions(agentId: string): ChatSession[] {
-    const sessions: ChatSession[] = [];
-    try {
-        for (let i = 0; i < localStorage.length; i++) {
-            const key = localStorage.key(i);
-            if (!key?.startsWith("session_")) continue;
-            try {
-                const s: ChatSession = JSON.parse(localStorage.getItem(key) || "");
-                if (s.agentId === agentId && s.messages?.length) sessions.push(s);
-            } catch {
-                /* ignore */
-            }
-        }
-    } catch {
-        /* localStorage unavailable */
+interface PauseInfo {
+    paused: boolean;
+    reason?: string;
+    prompt?: string;
+    options: string[];
+    requestedAt?: number;
+}
+
+function normalizePauseInfo(raw: any): PauseInfo | null {
+    if (!raw || raw.paused !== true) {
+        return null;
     }
-    return sessions.sort((a, b) => b.lastActiveAt - a.lastActiveAt);
+    const options = Array.isArray(raw.options)
+        ? raw.options.filter((value: any) => typeof value === "string" && value.trim().length > 0)
+        : [];
+    return {
+        paused: true,
+        reason: typeof raw.reason === "string" ? raw.reason : undefined,
+        prompt: typeof raw.prompt === "string" ? raw.prompt : undefined,
+        options,
+        requestedAt: typeof raw.requestedAt === "number" ? raw.requestedAt : undefined,
+    };
 }
 
 /* ── User message bubble ───────────────────────────────────────────────────── */
@@ -153,22 +157,29 @@ export default function StudioPage() {
     const [threadId, setThreadId] = useState<string | null>(null);
     const [isStreaming, setIsStreaming] = useState(false);
     const [abortController, setAbortController] = useState<AbortController | null>(null);
+    const [pauseInfo, setPauseInfo] = useState<PauseInfo | null>(null);
     const [sessionsPanelOpen, setSessionsPanelOpen] = useState(false);
-    const [agentSessions, setAgentSessions] = useState<ChatSession[]>([]);
+    const [agentSessions, setAgentSessions] = useState<SessionSummary[]>([]);
 
     const currentRunId = useRef<string | null>(null);
     const toolArgsRef = useRef<Record<string, { toolName: string; args: string }>>({});
     const isMessagingRef = useRef(false);
+    const messageSentAtRef = useRef<number>(0);
     const scrollRef = useRef<HTMLDivElement>(null);
     const isAutoScroll = useRef(true);
     // Ref so handleAgentEvent (stable useCallback) always sees current sessionId
     const sessionIdRef = useRef<string | null>(null);
 
-    // Auto-scroll
+    // onWheel fires before the scroll event, letting us cut off auto-scroll
+    // before the next React effect runs. onScroll re-enables when back at bottom.
+    const handleWheel = (e: React.WheelEvent) => {
+        if (e.deltaY < 0) isAutoScroll.current = false;
+    };
+
     const handleScroll = () => {
         if (!scrollRef.current) return;
         const { scrollTop, scrollHeight, clientHeight } = scrollRef.current;
-        isAutoScroll.current = scrollHeight - scrollTop - clientHeight <= 60;
+        if (scrollHeight - scrollTop - clientHeight <= 60) isAutoScroll.current = true;
     };
 
     useEffect(() => {
@@ -190,10 +201,12 @@ export default function StudioPage() {
             .catch((e) => console.error("Failed to load agent", e));
     }, [id]);
 
-    // 2. Load agent sessions for the panel
+    // 2. Load agent sessions for the panel from backend API
     useEffect(() => {
         if (!id) return;
-        setAgentSessions(loadAgentSessions(id as string));
+        fetchSessions({ agentId: id as string, limit: 50 })
+            .then(({ sessions }) => setAgentSessions(sessions))
+            .catch(() => setAgentSessions([]));
     }, [id, sessionId]); // Refresh when session changes
 
     // 3. Initialize session from URL params
@@ -211,6 +224,7 @@ export default function StudioPage() {
                     setMessages([]);
                     setThreadId(null);
                     setEvents([]);
+                    setPauseInfo(null);
                     router.replace(`/chat/${id}`);
                 }
                 return;
@@ -222,6 +236,7 @@ export default function StudioPage() {
                     setMessages([]);
                     setThreadId(null);
                     setEvents([]);
+                    setPauseInfo(null);
                 }
                 return;
             }
@@ -249,7 +264,9 @@ export default function StudioPage() {
                 }
             }
 
-            // Fetch historic events from backend
+            // Fetch historic events from backend. Fall back to URL sessionId when
+            // no local cache exists so direct links still hydrate pause/history.
+            backendThreadId = backendThreadId || currentSid;
             if (backendThreadId) {
                 try {
                     const dto: AgentSessionDTO = await getResourceById(
@@ -263,11 +280,15 @@ export default function StudioPage() {
                         );
                         setEvents(reconstructEvents(translated));
                     }
+                    if (active) {
+                        setPauseInfo(normalizePauseInfo((dto as any).pause));
+                    }
                 } catch {
                     /* backend events unavailable */
                 }
             } else if (active) {
                 setEvents([]);
+                setPauseInfo(null);
             }
         };
 
@@ -306,24 +327,14 @@ export default function StudioPage() {
     const handleAgentEvent = useCallback((ev: AgentEvent) => {
         if (ev.type === "ThinkingStart") {
             setMessages((prev) => {
-                const last = prev[prev.length - 1];
-                if (last && last.kind === "thought") {
+                const lastIdx = [...prev].reverse().findIndex((m) => m.kind === "thought");
+                const idx = lastIdx === -1 ? -1 : prev.length - 1 - lastIdx;
+                if (idx !== -1) {
                     const next = [...prev];
-                    next[prev.length - 1] = { ...last, isStreaming: true };
+                    next[idx] = { ...prev[idx], isStreaming: true };
                     return next;
                 }
-                return [
-                    ...prev,
-                    {
-                        id: `thought-${Date.now()}-${Math.random()}`,
-                        role: "assistant",
-                        content: "",
-                        kind: "thought",
-                        isStreaming: true,
-                        thoughts: [""],
-                        thinkingStartedAt: Date.now(),
-                    },
-                ];
+                return prev;
             });
         }
 
@@ -372,6 +383,8 @@ export default function StudioPage() {
         }
 
         if (ev.type === "ThinkingEnd") {
+            // One thought block finished — filter empty strings but keep isStreaming: true
+            // because more thought blocks may follow. AssistantTextStart closes the phase.
             setMessages((prev) => {
                 const lastIdx = [...prev]
                     .reverse()
@@ -379,26 +392,38 @@ export default function StudioPage() {
                 const idx = lastIdx === -1 ? -1 : prev.length - 1 - lastIdx;
                 if (idx !== -1) {
                     const last = prev[idx];
-                    const next = [...prev];
                     const filteredThoughts = (last.thoughts || [])
                         .map((t) => t.trim())
                         .filter((t) => t.length > 0);
-                    if (filteredThoughts.length === 0) {
-                        next.splice(idx, 1);
-                        return next;
-                    }
-                    next[idx] = {
-                        ...last,
-                        isStreaming: false,
-                        thoughts: filteredThoughts,
-                    };
+                    const next = [...prev];
+                    next[idx] = { ...last, thoughts: filteredThoughts };
                     return next;
                 }
                 return prev;
             });
         }
 
-        if (ev.type === "AssistantTextStart") isMessagingRef.current = true;
+        if (ev.type === "AssistantTextStart") {
+            isMessagingRef.current = true;
+            const durationSecs = messageSentAtRef.current
+                ? Math.ceil((Date.now() - messageSentAtRef.current) / 1000)
+                : undefined;
+            // Close the thinking phase — always keep the thought message (never remove)
+            setMessages((prev) => {
+                const lastIdx = [...prev]
+                    .reverse()
+                    .findIndex((m) => m.kind === "thought" && m.isStreaming);
+                const idx = lastIdx === -1 ? -1 : prev.length - 1 - lastIdx;
+                if (idx === -1) return prev;
+                const last = prev[idx];
+                const filtered = (last.thoughts || [])
+                    .map((t: string) => t.trim())
+                    .filter((t: string) => t.length > 0);
+                const next = [...prev];
+                next[idx] = { ...last, isStreaming: false, thoughts: filtered, thinkingDurationSecs: durationSecs };
+                return next;
+            });
+        }
         if (ev.type === "AssistantTextFinal") isMessagingRef.current = false;
 
         if (ev.type === "ToolCallStarted" && ev.toolCallId) {
@@ -495,6 +520,7 @@ export default function StudioPage() {
         if (ev.type === "RunStarted" && ev.threadId) {
             setThreadId(ev.threadId);
             currentRunId.current = ev.runId || null;
+            setPauseInfo(null);
             if (!sessionIdRef.current) {
                 sessionIdRef.current = ev.threadId;
                 setSessionId(ev.threadId);
@@ -532,7 +558,6 @@ export default function StudioPage() {
 
                 if (existingIndex !== -1) {
                     const existing = prev[existingIndex];
-                    if (existing.content.endsWith(ev.content)) return prev;
                     const next = [...prev];
                     next[existingIndex] = {
                         ...existing,
@@ -677,6 +702,34 @@ export default function StudioPage() {
 
         if (ev.type === "ErrorEvent" || ev.type === "StreamEnd") {
             setIsStreaming(false);
+            // Close any still-open streaming thought bubble
+            setMessages((prev) => {
+                const lastIdx = [...prev]
+                    .reverse()
+                    .findIndex((m) => m.kind === "thought" && m.isStreaming);
+                const idx = lastIdx === -1 ? -1 : prev.length - 1 - lastIdx;
+                if (idx === -1) return prev;
+                const last = prev[idx];
+                const durationSecs = messageSentAtRef.current
+                    ? Math.ceil((Date.now() - messageSentAtRef.current) / 1000)
+                    : undefined;
+                const filtered = (last.thoughts || []).map((t) => t.trim()).filter((t) => t.length > 0);
+                const next = [...prev];
+                next[idx] = { ...last, isStreaming: false, thoughts: filtered, thinkingDurationSecs: durationSecs };
+                return next;
+            });
+        }
+
+        if (ev.type === "CorrectionEvent") {
+            setMessages((prev) => [
+                ...prev,
+                {
+                    id: `correction-${Date.now()}-${Math.random()}`,
+                    role: "assistant",
+                    content: `Policy feedback: ${ev.message}`,
+                    kind: "text",
+                },
+            ]);
         }
     }, []);
 
@@ -685,6 +738,7 @@ export default function StudioPage() {
         if (!text.trim() || isStreaming) return;
 
         setIsStreaming(true);
+        messageSentAtRef.current = Date.now();
         currentRunId.current = `pending_${Date.now()}`;
         const controller = new AbortController();
         setAbortController(controller);
@@ -695,7 +749,15 @@ export default function StudioPage() {
                 role: "user",
                 content: text,
             };
-            setMessages((prev) => [...prev, userMsg]);
+            const thoughtMsg: Message = {
+                id: `thought-${Date.now()}`,
+                role: "assistant",
+                content: "",
+                kind: "thought",
+                isStreaming: true,
+                thoughts: [],
+            };
+            setMessages((prev) => [...prev, userMsg, thoughtMsg]);
 
             const pendingRunId = currentRunId.current;
             setEvents((prev) => [
@@ -717,13 +779,19 @@ export default function StudioPage() {
             } else {
                 const API_BASE =
                     process.env.NEXT_PUBLIC_API_BASE_URL || "/api";
-                const url = `${API_BASE}/v1/events`;
-                const body = {
-                    type: "agent",
-                    agentId: id,
-                    sessionId: threadId || undefined,
-                    message: text,
-                };
+                const activeSessionId = threadId || sessionId;
+                const isResumeRequest = !!(pauseInfo?.paused && activeSessionId);
+                const url = isResumeRequest
+                    ? `${API_BASE}/v1/agent/session/${activeSessionId}/resume/events`
+                    : `${API_BASE}/v1/events`;
+                const body = isResumeRequest
+                    ? { message: text }
+                    : {
+                        type: "agent",
+                        agentId: id,
+                        sessionId: activeSessionId || undefined,
+                        message: text,
+                    };
 
                 const stream = fetchSseStream(url, {
                     method: "POST",
@@ -760,6 +828,7 @@ export default function StudioPage() {
         setThreadId(null);
         setMessages([]);
         setEvents([]);
+        setPauseInfo(null);
         currentRunId.current = null;
         sessionIdRef.current = null;
         router.replace(`/chat/${id}`);
@@ -811,6 +880,14 @@ export default function StudioPage() {
                 {/* Right actions */}
                 <div className="flex items-center gap-1">
                     <button
+                        onClick={resetSession}
+                        className="w-8 h-8 flex items-center justify-center rounded-md text-muted hover:text-foreground hover:bg-surface-hover transition-colors"
+                        aria-label="New conversation"
+                        title="New conversation"
+                    >
+                        <SquarePen size={15} />
+                    </button>
+                    <button
                         onClick={() => setSessionsPanelOpen(true)}
                         className="h-8 px-3 rounded-md text-[13px] font-medium text-muted hover:text-foreground hover:bg-surface-hover transition-colors"
                     >
@@ -830,9 +907,10 @@ export default function StudioPage() {
             <div
                 ref={scrollRef}
                 onScroll={handleScroll}
+                onWheel={handleWheel}
                 className="flex-1 min-h-0 overflow-y-auto scrollbar-hide"
             >
-                <div className="max-w-[720px] mx-auto px-4 py-8 flex flex-col gap-6">
+                <div className="w-full max-w-[980px] mx-auto px-4 py-8 flex flex-col gap-6">
                     {/* Empty state */}
                     {messages.length === 0 && (
                         <div className="flex flex-col items-center justify-center py-20 gap-3 fade-enter">
@@ -858,7 +936,7 @@ export default function StudioPage() {
                                     key={m.id}
                                     thoughts={m.thoughts || []}
                                     isStreaming={m.isStreaming}
-                                    startedAt={m.thinkingStartedAt}
+                                    durationSecs={m.thinkingDurationSecs}
                                 />
                             );
                         }
@@ -884,6 +962,38 @@ export default function StudioPage() {
                     )}
                 </div>
             </div>
+
+            {pauseInfo?.paused && (
+                <div className="shrink-0 border-t border-border bg-surface/40 px-4 py-3">
+                    <div className="mx-auto flex w-full max-w-[980px] flex-col gap-2 rounded-[var(--radius-md)] border border-primary/20 bg-background px-3 py-3">
+                        <p className="text-[12px] font-semibold uppercase tracking-wide text-primary">
+                            Session paused
+                        </p>
+                        <p className="text-[13px] text-foreground">
+                            {pauseInfo.prompt || "A clarification or confirmation is required before continuing."}
+                        </p>
+                        {pauseInfo.reason && (
+                            <p className="text-[12px] text-muted">
+                                Reason: {pauseInfo.reason}
+                            </p>
+                        )}
+                        {pauseInfo.options.length > 0 && (
+                            <div className="flex flex-wrap gap-2 pt-1">
+                                {pauseInfo.options.map((option) => (
+                                    <button
+                                        key={option}
+                                        onClick={() => handleSend(option)}
+                                        disabled={isStreaming}
+                                        className="rounded-full border border-primary/25 bg-primary/10 px-3 py-1 text-[12px] text-primary hover:bg-primary/15 disabled:opacity-60"
+                                    >
+                                        {option}
+                                    </button>
+                                ))}
+                            </div>
+                        )}
+                    </div>
+                </div>
+            )}
 
             {/* ── Message input ──────────────────────────────────────────────── */}
             <MessageInput

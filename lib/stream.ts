@@ -40,18 +40,23 @@ export async function* fetchSseStream(
             if (done) break;
 
             buffer += value;
-            const lines = buffer.split("\n\n");
+            const lines = buffer.split(/\r?\n\r?\n/);
             buffer = lines.pop() || "";
 
             for (const line of lines) {
                 if (!line.trim()) continue;
-                yield parseSseLine(line);
+                const parsed = parseSseLine(line);
+                if (!parsed.data.trim()) continue;
+                yield parsed;
             }
         }
 
         // Process remaining buffer if it looks like a complete event
         if (buffer.trim()) {
-            yield parseSseLine(buffer);
+            const parsed = parseSseLine(buffer);
+            if (parsed.data.trim()) {
+                yield parsed;
+            }
         }
     } finally {
         reader.releaseLock();
@@ -60,9 +65,11 @@ export async function* fetchSseStream(
 
 function parseSseLine(line: string): SSEEvent {
     const event: SSEEvent = { data: "" };
-    const parts = line.split("\n");
+    const parts = line.split(/\r?\n/);
 
     for (const part of parts) {
+        if (!part || part.startsWith(":")) continue;
+
         const colonIndex = part.indexOf(":");
         if (colonIndex === -1) continue;
 

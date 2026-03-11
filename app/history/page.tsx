@@ -6,14 +6,15 @@ import { fetchAgents, fetchSessions, searchSessions, deleteSession, SessionSumma
 import { AgentConfig } from "@/models/Agent";
 import { Trash2, ArrowUpRight, Clock } from "lucide-react";
 
+type SessionWithAgent = SessionSummary & { agentName: string };
 
-function groupByTime(sessions: SessionSummary[]): Record<string, SessionSummary[]> {
+function groupByTime(sessions: SessionWithAgent[]): Record<string, SessionWithAgent[]> {
     const now = Date.now();
     const DAY = 86_400_000;
     const WEEK = 7 * DAY;
     const MONTH = 30 * DAY;
 
-    const groups: Record<string, SessionSummary[]> = {
+    const groups: Record<string, SessionWithAgent[]> = {
         Today: [],
         Yesterday: [],
         "This week": [],
@@ -50,7 +51,7 @@ const PAGE_SIZE = 20;
 
 export default function HistoryPage() {
     const [agents, setAgents] = useState<AgentConfig[]>([]);
-    const [sessions, setSessions] = useState<SessionSummary[]>([]);
+    const [sessions, setSessions] = useState<SessionWithAgent[]>([]);
     const [loading, setLoading] = useState(true);
     const [loadingMore, setLoadingMore] = useState(false);
     const [hasMore, setHasMore] = useState(false);
@@ -58,20 +59,22 @@ export default function HistoryPage() {
     const [selectedAgent, setSelectedAgent] = useState<string | null>(null);
     const [deletingId, setDeletingId] = useState<string | null>(null);
 
+    const agentMapRef = useRef<Record<string, string>>({});
     const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
     const offsetRef = useRef(0);
 
-    const agentMap = useMemo(() => {
-        const map: Record<string, string> = {};
-        agents.forEach((a) => { if (a.id) map[a.id] = a.name || "Unnamed Agent"; });
-        return map;
-    }, [agents]);
+    function toSessionWithAgent(s: SessionSummary): SessionWithAgent {
+        return { ...s, agentName: agentMapRef.current[s.agentId] || "Agent" };
+    }
 
     // Load agents once — high limit so all agents appear as filter pills
     useEffect(() => {
         fetchAgents({ offset: 0, limit: 200 })
             .then(({ agents: data }) => {
                 setAgents(data);
+                const map: Record<string, string> = {};
+                data.forEach((a) => { map[a.id] = a.name; });
+                agentMapRef.current = map;
             })
             .catch(console.error);
     }, []);
@@ -88,7 +91,7 @@ export default function HistoryPage() {
                     ? await searchSessions(searchQuery.trim(), selectedAgent ?? undefined, 0, PAGE_SIZE)
                     : await fetchSessions({ agentId: selectedAgent ?? undefined, offset: 0, limit: PAGE_SIZE });
 
-                setSessions(page.sessions);
+                setSessions(page.sessions.map(toSessionWithAgent));
                 setHasMore(page.hasMore);
             } catch {
                 setSessions([]);
@@ -120,7 +123,7 @@ export default function HistoryPage() {
                 : await fetchSessions({ agentId: selectedAgent ?? undefined, offset: nextOffset, limit: PAGE_SIZE });
 
             offsetRef.current = nextOffset;
-            setSessions((prev) => [...prev, ...page.sessions]);
+            setSessions((prev) => [...prev, ...page.sessions.map(toSessionWithAgent)]);
             setHasMore(page.hasMore);
         } catch {
             // keep existing sessions
@@ -142,7 +145,7 @@ export default function HistoryPage() {
 
     return (
         <div className="min-h-full px-4 py-10 sm:py-14">
-            <div className="max-w-[720px] mx-auto w-full flex flex-col gap-8">
+            <div className="app-shell-regular flex w-full flex-col gap-8">
 
                 {/* Header */}
                 <div className="slide-up flex flex-col gap-1" style={{ animationDelay: "0ms" }}>
@@ -239,7 +242,6 @@ export default function HistoryPage() {
                                 <div className="rounded-[var(--radius-lg)] border border-border overflow-hidden divide-y divide-border">
                                     {groupSessions.map((session) => {
                                         const isDeleting = deletingId === session.id;
-                                        const agentName = agentMap[session.agentId] || "Agent";
 
                                         return (
                                             <div
@@ -272,14 +274,14 @@ export default function HistoryPage() {
                                                         >
                                                             <div className="flex items-baseline gap-2">
                                                                 <span className="text-[14px] font-medium text-foreground truncate">
-                                                                    {agentName}
+                                                                    {session.title || "Conversation"}
                                                                 </span>
                                                                 <span className="text-[12px] text-muted-foreground shrink-0">
                                                                     {formatTime(session.lastActiveAt)}
                                                                 </span>
                                                             </div>
                                                             <p className="text-[13px] text-muted mt-0.5 truncate">
-                                                                {session.title || "Conversation"}
+                                                                {session.agentName}
                                                             </p>
                                                         </Link>
 

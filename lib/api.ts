@@ -31,18 +31,16 @@ export async function checkHealth(): Promise<boolean> {
 // Type definition for schema responses
 export interface SchemaResponse {
     schema: any;
-    layout?: {
-        [key: string]: any;
-    };
+    layout?: Record<string, any>;
 }
 
-export async function fetchSchema(assetType: string): Promise<SchemaResponse | null> {
-    if (IS_MOCK) {
-        return null;
-    }
-
+export async function fetchSchema(
+    assetType: string,
+    mode?: "create" | "edit" | "view",
+): Promise<SchemaResponse | null> {
     try {
-        const response = await fetch(`${API_BASE}/schemas/${assetType}`);
+        const query = mode ? `?mode=${mode}` : "";
+        const response = await fetch(`${API_BASE}/schemas/${assetType}${query}`);
         if (!response.ok) {
             console.warn(`Failed to fetch schema for ${assetType}: ${response.status}`);
             return null;
@@ -61,23 +59,7 @@ export interface AgentPage {
 }
 
 function mapAgent(item: any): AgentConfig {
-    return {
-        id: item.id,
-        type: item.type,
-        name: item.name || "Unnamed Agent",
-        description: item.description,
-        avatar: item.avatar,
-        model: {
-            modelId: item.model?.modelId,
-            role: item.model?.role,
-            systemPrompt: item.model?.systemPrompt,
-            contextManagerConfig: item.model?.contextManagerConfig,
-            tools: item.model?.tools,
-            type: item.model?.type,
-        },
-        sessionStore: item.sessionStore,
-        metadata: item.metadata || {},
-    };
+    return { ...item, name: item.name || "Unnamed Agent", metadata: item.metadata || {} };
 }
 
 export async function fetchAgents(options?: { offset?: number; limit?: number }): Promise<AgentPage> {
@@ -128,23 +110,7 @@ export async function fetchAgentConfig(id: string): Promise<AgentConfig> {
         }
 
         const item = await response.json();
-        return {
-            id: item.id,
-            type: item.type,
-            name: item.name || "Unnamed Agent",
-            description: item.description,
-            avatar: item.avatar,
-            model: {
-                modelId: item.model?.modelId,
-                role: item.model?.role,
-                systemPrompt: item.model?.systemPrompt,
-                contextManagerConfig: item.model?.contextManagerConfig,
-                tools: item.model?.tools,
-                type: item.model?.type
-            },
-            sessionStore: item.sessionStore,
-            metadata: item.metadata || {}
-        };
+        return { ...item, name: item.name || "Unnamed Agent", metadata: item.metadata || {} };
     } catch (error) {
         console.error("Error fetching agent config:", error);
         throw new Error("Failed to fetch agent config");
@@ -158,19 +124,9 @@ export async function createAgent(config: Partial<AgentConfig>): Promise<AgentCo
         return Promise.resolve(newAgent);
     }
 
-    // Per updated instruction: Client MUST NEVER send IDs for creation.
-    // The server will generate the ID and return it.
-    const { id: _ignored, ...configWithoutId } = config;
-    const newAgentConfig = {
-        type: configWithoutId.type,
-        name: configWithoutId.name,
-        description: configWithoutId.description,
-        avatar: configWithoutId.avatar,
-        model: configWithoutId.model,
-        sessionStore: configWithoutId.sessionStore
-    };
-
-    return await createAgentV1(newAgentConfig as any) as AgentConfig;
+    // Server generates the ID — never send it on creation.
+    const { id: _ignored, metadata: _meta, ...configWithoutId } = config;
+    return await createAgentV1(configWithoutId as any) as AgentConfig;
 }
 
 export async function updateAgent(id: string, config: Partial<AgentConfig>): Promise<AgentConfig> {
@@ -180,18 +136,9 @@ export async function updateAgent(id: string, config: Partial<AgentConfig>): Pro
         return Promise.resolve(MOCK_AGENTS[index]);
     }
 
-    // Per OpenAPI spec: MUST include 'id' in both URL and request body when updating
-    const updatedConfig = {
-        id: id,  // Required in body for updates
-        type: config.type,
-        name: config.name,
-        description: config.description,
-        avatar: config.avatar,
-        model: config.model,
-        sessionStore: config.sessionStore
-    };
-
-    return await updateAgentV1(id, updatedConfig as any) as AgentConfig;
+    // id must appear in both URL and body per API spec.
+    const { metadata: _meta, ...rest } = config;
+    return await updateAgentV1(id, { ...rest, id } as any) as AgentConfig;
 }
 
 export async function deleteAgent(id: string): Promise<void> {
@@ -228,7 +175,7 @@ function normalizeSession(item: any): SessionSummary {
         // API returns `name` not `title` in the list endpoint
         title: item.title || item.name || undefined,
         // Use 0 when no timestamp — sorts to the end; real timestamps sort correctly
-        lastActiveAt: item.lastActiveAt || item.updatedTime || item.createdTime || item.createdAt || 0,
+        lastActiveAt: item.lastActiveAt || item.updatedTime || item.createdTime || 0,
         threadId: item.threadId || undefined,
     };
 }
