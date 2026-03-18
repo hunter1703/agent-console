@@ -43,6 +43,26 @@ function AgentsTab() {
     load();
   }, []);
 
+  // Infinite scroll for agents
+  useEffect(() => {
+    const observer = new IntersectionObserver(
+      (entries) => {
+        const first = entries[0];
+        if (first.isIntersecting && hasMore && !loadingMore) {
+          loadMore();
+        }
+      },
+      { threshold: 0.1, rootMargin: '200px' }
+    );
+
+    const target = document.getElementById('agents-load-more-trigger');
+    if (target) observer.observe(target);
+
+    return () => {
+      if (target) observer.unobserve(target);
+    };
+  }, [hasMore, loadingMore]);
+
   const loadMore = async () => {
     if (!hasMore || loadingMore) {
       return;
@@ -172,15 +192,15 @@ function AgentsTab() {
             })}
           </div>
 
-          {hasMore && (
-            <button
-              onClick={loadMore}
-              disabled={loadingMore}
-              className="mt-3 w-full rounded-[var(--radius-md)] border border-border bg-surface py-2 text-[13px] text-muted hover:text-foreground disabled:opacity-50"
-            >
-              {loadingMore ? "Loading..." : "Load more"}
-            </button>
-          )}
+          {/* Infinite scroll trigger */}
+          <div id="agents-load-more-trigger" className="h-10 flex items-center justify-center">
+            {loadingMore && (
+              <div className="flex items-center gap-2 text-muted-foreground">
+                <div className="w-4 h-4 border-2 border-primary border-t-transparent rounded-full animate-spin" />
+                <span className="text-[13px]">Loading...</span>
+              </div>
+            )}
+          </div>
         </>
       )}
     </div>
@@ -215,6 +235,26 @@ function ModelsTab() {
   useEffect(() => {
     load();
   }, []);
+
+  // Infinite scroll for models
+  useEffect(() => {
+    const observer = new IntersectionObserver(
+      (entries) => {
+        const first = entries[0];
+        if (first.isIntersecting && hasMore && !loadingMore) {
+          loadMore();
+        }
+      },
+      { threshold: 0.1, rootMargin: '200px' }
+    );
+
+    const target = document.getElementById('models-load-more-trigger');
+    if (target) observer.observe(target);
+
+    return () => {
+      if (target) observer.unobserve(target);
+    };
+  }, [hasMore, loadingMore]);
 
   const loadMore = async () => {
     if (!hasMore || loadingMore) {
@@ -335,15 +375,15 @@ function ModelsTab() {
             })}
           </div>
 
-          {hasMore && (
-            <button
-              onClick={loadMore}
-              disabled={loadingMore}
-              className="mt-3 w-full rounded-[var(--radius-md)] border border-border bg-surface py-2 text-[13px] text-muted hover:text-foreground disabled:opacity-50"
-            >
-              {loadingMore ? "Loading..." : "Load more"}
-            </button>
-          )}
+          {/* Infinite scroll trigger */}
+          <div id="models-load-more-trigger" className="h-10 flex items-center justify-center">
+            {loadingMore && (
+              <div className="flex items-center gap-2 text-muted-foreground">
+                <div className="w-4 h-4 border-2 border-primary border-t-transparent rounded-full animate-spin" />
+                <span className="text-[13px]">Loading...</span>
+              </div>
+            )}
+          </div>
         </>
       )}
     </div>

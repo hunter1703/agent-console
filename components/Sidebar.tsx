@@ -10,7 +10,7 @@ import {
     Sparkles,
     X
 } from "lucide-react";
-import { ThemeToggle } from "@/components/ThemeToggle";
+import ThemeToggle from "@/components/ThemeToggle";
 import { useState, useEffect } from "react";
 import { checkHealth } from "@/lib/api";
 

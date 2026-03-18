@@ -35,7 +35,7 @@ const nextConfig: NextConfig = {
         {
           // Keep SSE endpoints on dedicated route handlers to preserve
           // streaming headers and avoid proxy buffering differences.
-          source: "/api/v1/:path((?!events$)(?!agent/session/[^/]+/resume/events$).*)",
+          source: "/api/v1/:path((?!events$)(?!agent/session/[^/]+/resume/events$)(?!agent/[^/]+/chat$).*)",
           destination: `${backendUrl}/v1/:path*`,
         }
       ],
