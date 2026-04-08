@@ -1,0 +1,23 @@
+{
+  "enabled": true,
+  "name": "Review Visual Elements",
+  "description": "Automatically reviews webapp visual elements (icons, typography, colors, buttons, animations, responsiveness) after changes to UI code files to ensure consistency with the design system",
+  "version": "1",
+  "when": {
+    "type": "fileEdited",
+    "patterns": [
+      "agent-console/**/*.tsx",
+      "agent-console/**/*.ts",
+      "agent-console/**/*.css",
+      "agent-console/**/*.scss",
+      "agent-console/**/styles/**/*",
+      "agent-console/**/components/**/*"
+    ]
+  },
+  "then": {
+    "type": "askAgent",
+    "prompt": "Review the visual elements in the changed files against our design system standards from AGENTS.md. Check: 1) Icons - consistency and clarity, 2) Typography - hierarchy and readability, 3) Color palette - adherence to theme, 4) Visual language - minimalism and aesthetic integrity, 5) Buttons - states and feedback, 6) Animations - subtlety and purpose, 7) Responsiveness - layout adaptation. Provide specific feedback on any deviations. The webapp should have coherent and consistent visual language, should be responsive, should feel lively and animated, elegant, rich, coherent, visually appealing, user experience, innovative, creative, and align with unseen.co. It should EXACTLY align with the design goals specified at /Users/rhp/Projects/agent-console/.kiro/specs/agent-console-web-modernization/design.md. You can use playwright mcp for this or any other tool necessary"
+  },
+  "workspaceFolderName": "agent-console",
+  "shortName": "review-visual-elements"
+}

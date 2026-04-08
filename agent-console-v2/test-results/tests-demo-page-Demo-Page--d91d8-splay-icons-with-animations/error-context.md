@@ -1,0 +1,560 @@
+# Page snapshot
+
+```yaml
+- generic [active] [ref=e1]:
+  - main [ref=e2]:
+    - generic [ref=e3]:
+      - generic [ref=e4]:
+        - heading "A g e n t C o n s o l e V 2" [level=1] [ref=e6]:
+          - generic [ref=e7]: A
+          - generic [ref=e8]: g
+          - generic [ref=e9]: e
+          - generic [ref=e10]: "n"
+          - generic [ref=e11]: t
+          - generic [ref=e13]: C
+          - generic [ref=e14]: o
+          - generic [ref=e15]: "n"
+          - generic [ref=e16]: s
+          - generic [ref=e17]: o
+          - generic [ref=e18]: l
+          - generic [ref=e19]: e
+          - generic [ref=e21]: V
+          - generic [ref=e22]: "2"
+        - generic [ref=e24]:
+          - generic [ref=e25]: D
+          - generic [ref=e26]: e
+          - generic [ref=e27]: l
+          - generic [ref=e28]: i
+          - generic [ref=e29]: g
+          - generic [ref=e30]: h
+          - generic [ref=e31]: t
+          - generic [ref=e32]: f
+          - generic [ref=e33]: u
+          - generic [ref=e34]: l
+          - generic [ref=e35]: ","
+          - generic [ref=e37]: p
+          - generic [ref=e38]: l
+          - generic [ref=e39]: a
+          - generic [ref=e40]: "y"
+          - generic [ref=e41]: f
+          - generic [ref=e42]: u
+          - generic [ref=e43]: l
+          - generic [ref=e44]: ","
+          - generic [ref=e46]: i
+          - generic [ref=e47]: "n"
+          - generic [ref=e48]: t
+          - generic [ref=e49]: e
+          - generic [ref=e50]: r
+          - generic [ref=e51]: a
+          - generic [ref=e52]: c
+          - generic [ref=e53]: t
+          - generic [ref=e54]: i
+          - generic [ref=e55]: v
+          - generic [ref=e56]: e
+          - generic [ref=e58]: d
+          - generic [ref=e59]: e
+          - generic [ref=e60]: s
+          - generic [ref=e61]: i
+          - generic [ref=e62]: g
+          - generic [ref=e63]: "n"
+          - generic [ref=e65]: s
+          - generic [ref=e66]: "y"
+          - generic [ref=e67]: s
+          - generic [ref=e68]: t
+          - generic [ref=e69]: e
+          - generic [ref=e70]: m
+      - generic [ref=e71]:
+        - heading "B u t t o n s" [level=2] [ref=e72]:
+          - generic [ref=e73]: B
+          - generic [ref=e74]: u
+          - generic [ref=e75]: t
+          - generic [ref=e76]: t
+          - generic [ref=e77]: o
+          - generic [ref=e78]: "n"
+          - generic [ref=e79]: s
+        - generic [ref=e81]:
+          - generic [ref=e82]:
+            - button "Primary Button" [ref=e83] [cursor=pointer]:
+              - generic [ref=e85]: Primary Button
+            - button "Magnetic Button" [ref=e86] [cursor=pointer]:
+              - generic [ref=e88]: Magnetic Button
+            - button "Liquid Border" [ref=e89] [cursor=pointer]:
+              - img
+              - generic [ref=e91]: Liquid Border
+            - button "Secondary Button" [ref=e92] [cursor=pointer]:
+              - generic [ref=e94]: Secondary Button
+            - button "Ghost Button" [ref=e95] [cursor=pointer]:
+              - generic [ref=e97]: Ghost Button
+            - button "Danger Button" [ref=e98] [cursor=pointer]:
+              - generic [ref=e100]: Danger Button
+          - generic [ref=e101]:
+            - button "Small" [ref=e102] [cursor=pointer]:
+              - generic [ref=e104]: Small
+            - button "Medium" [ref=e105] [cursor=pointer]:
+              - generic [ref=e107]: Medium
+            - button "Large" [ref=e108] [cursor=pointer]:
+              - generic [ref=e110]: Large
+          - generic [ref=e111]:
+            - button "With Icon" [ref=e112] [cursor=pointer]:
+              - generic [ref=e113]:
+                - img [ref=e115]
+                - generic [ref=e118]: With Icon
+            - button [disabled] [ref=e119]:
+              - img [ref=e122]
+            - button "Disabled" [disabled] [ref=e124]:
+              - generic [ref=e126]: Disabled
+      - generic [ref=e127]:
+        - heading "A n i m a t e d T e x t" [level=2] [ref=e128]:
+          - generic [ref=e129]: A
+          - generic [ref=e130]: "n"
+          - generic [ref=e131]: i
+          - generic [ref=e132]: m
+          - generic [ref=e133]: a
+          - generic [ref=e134]: t
+          - generic [ref=e135]: e
+          - generic [ref=e136]: d
+          - generic [ref=e138]: T
+          - generic [ref=e139]: e
+          - generic [ref=e140]: x
+          - generic [ref=e141]: t
+        - generic [ref=e143]:
+          - generic [ref=e144]:
+            - paragraph [ref=e145]: "Character-by-character reveal:"
+            - generic [ref=e146]:
+              - generic [ref=e147]: T
+              - generic [ref=e148]: h
+              - generic [ref=e149]: e
+              - generic [ref=e151]: q
+              - generic [ref=e152]: u
+              - generic [ref=e153]: i
+              - generic [ref=e154]: c
+              - generic [ref=e155]: k
+              - generic [ref=e157]: b
+              - generic [ref=e158]: r
+              - generic [ref=e159]: o
+              - generic [ref=e160]: w
+              - generic [ref=e161]: "n"
+              - generic [ref=e163]: f
+              - generic [ref=e164]: o
+              - generic [ref=e165]: x
+              - generic [ref=e167]: j
+              - generic [ref=e168]: u
+              - generic [ref=e169]: m
+              - generic [ref=e170]: p
+              - generic [ref=e171]: s
+              - generic [ref=e173]: o
+              - generic [ref=e174]: v
+              - generic [ref=e175]: e
+              - generic [ref=e176]: r
+              - generic [ref=e178]: t
+              - generic [ref=e179]: h
+              - generic [ref=e180]: e
+              - generic [ref=e182]: l
+              - generic [ref=e183]: a
+              - generic [ref=e184]: z
+              - generic [ref=e185]: "y"
+              - generic [ref=e187]: d
+              - generic [ref=e188]: o
+              - generic [ref=e189]: g
+          - generic [ref=e190]:
+            - paragraph [ref=e191]: "With serif font switch on hover:"
+            - generic [ref=e192]:
+              - generic [ref=e193]: H
+              - generic [ref=e194]: o
+              - generic [ref=e195]: v
+              - generic [ref=e196]: e
+              - generic [ref=e197]: r
+              - generic [ref=e199]: o
+              - generic [ref=e200]: v
+              - generic [ref=e201]: e
+              - generic [ref=e202]: r
+              - generic [ref=e204]: m
+              - generic [ref=e205]: e
+              - generic [ref=e207]: t
+              - generic [ref=e208]: o
+              - generic [ref=e210]: s
+              - generic [ref=e211]: e
+              - generic [ref=e212]: e
+              - generic [ref=e214]: t
+              - generic [ref=e215]: h
+              - generic [ref=e216]: e
+              - generic [ref=e218]: m
+              - generic [ref=e219]: a
+              - generic [ref=e220]: g
+              - generic [ref=e221]: i
+              - generic [ref=e222]: c
+          - generic [ref=e223]:
+            - paragraph [ref=e224]: "Animated links:"
+            - generic [ref=e225]:
+              - link "D o c u m e n t a t i o n" [ref=e226] [cursor=pointer]:
+                - /url: "#"
+                - generic [ref=e227]:
+                  - generic [ref=e228]: D
+                  - generic [ref=e229]: o
+                  - generic [ref=e230]: c
+                  - generic [ref=e231]: u
+                  - generic [ref=e232]: m
+                  - generic [ref=e233]: e
+                  - generic [ref=e234]: "n"
+                  - generic [ref=e235]: t
+                  - generic [ref=e236]: a
+                  - generic [ref=e237]: t
+                  - generic [ref=e238]: i
+                  - generic [ref=e239]: o
+                  - generic [ref=e240]: "n"
+              - link "G e t S t a r t e d" [ref=e241] [cursor=pointer]:
+                - /url: "#"
+                - generic [ref=e242]:
+                  - generic [ref=e243]: G
+                  - generic [ref=e244]: e
+                  - generic [ref=e245]: t
+                  - generic [ref=e247]: S
+                  - generic [ref=e248]: t
+                  - generic [ref=e249]: a
+                  - generic [ref=e250]: r
+                  - generic [ref=e251]: t
+                  - generic [ref=e252]: e
+                  - generic [ref=e253]: d
+              - link "E x a m p l e s" [ref=e254] [cursor=pointer]:
+                - /url: "#"
+                - generic [ref=e255]:
+                  - generic [ref=e256]: E
+                  - generic [ref=e257]: x
+                  - generic [ref=e258]: a
+                  - generic [ref=e259]: m
+                  - generic [ref=e260]: p
+                  - generic [ref=e261]: l
+                  - generic [ref=e262]: e
+                  - generic [ref=e263]: s
+      - generic [ref=e264]:
+        - heading "I n p u t s" [level=2] [ref=e265]:
+          - generic [ref=e266]: I
+          - generic [ref=e267]: "n"
+          - generic [ref=e268]: p
+          - generic [ref=e269]: u
+          - generic [ref=e270]: t
+          - generic [ref=e271]: s
+        - generic [ref=e273]:
+          - generic [ref=e274]:
+            - generic [ref=e275]:
+              - generic: Email
+              - textbox "Enter your email" [ref=e276]
+            - paragraph [ref=e278]: We'll never share your email
+          - generic [ref=e279]:
+            - generic [ref=e280]:
+              - generic: Name
+              - textbox "Enter your name" [ref=e281]
+            - generic [ref=e283]: 0/50
+          - generic [ref=e284]:
+            - generic [ref=e285]: Message
+            - textbox "Type your message..." [ref=e287]
+            - generic [ref=e288]:
+              - paragraph [ref=e289]: Tell us what you think
+              - generic [ref=e290]: 0/500
+          - button "Submit" [ref=e291] [cursor=pointer]:
+            - generic [ref=e293]: Submit
+      - generic [ref=e294]:
+        - heading "C a r d s" [level=2] [ref=e295]:
+          - generic [ref=e296]: C
+          - generic [ref=e297]: a
+          - generic [ref=e298]: r
+          - generic [ref=e299]: d
+          - generic [ref=e300]: s
+        - generic [ref=e301]:
+          - generic [ref=e302]:
+            - heading "Default Card" [level=3] [ref=e303]
+            - paragraph [ref=e304]: Simple card with surface background
+          - generic [ref=e305] [cursor=pointer]:
+            - heading "Elevated Card" [level=3] [ref=e306]
+            - paragraph [ref=e307]: Card with shadow and hover lift
+          - generic [ref=e308] [cursor=pointer]:
+            - heading "Outlined Card" [level=3] [ref=e309]
+            - paragraph [ref=e310]: Card with border outline
+          - generic [ref=e311] [cursor=pointer]:
+            - heading "Glass Card (Magnetic)" [level=3] [ref=e312]
+            - paragraph [ref=e313]: Glassmorphism with magnetic hover
+      - generic [ref=e314]:
+        - heading "A v a t a r s" [level=2] [ref=e315]:
+          - generic [ref=e316]: A
+          - generic [ref=e317]: v
+          - generic [ref=e318]: a
+          - generic [ref=e319]: t
+          - generic [ref=e320]: a
+          - generic [ref=e321]: r
+          - generic [ref=e322]: s
+        - generic [ref=e324]:
+          - generic [ref=e325]:
+            - generic [ref=e327]: JD
+            - paragraph [ref=e328]: Small
+          - generic [ref=e329]:
+            - generic [ref=e331]: JD
+            - paragraph [ref=e332]: Medium
+          - generic [ref=e333]:
+            - generic [ref=e335]: JD
+            - paragraph [ref=e336]: Large
+          - generic [ref=e337]:
+            - generic [ref=e339]: AA
+            - paragraph [ref=e340]: Agent
+          - generic [ref=e341]:
+            - generic [ref=e343] [cursor=pointer]: JS
+            - paragraph [ref=e344]: Interactive
+      - generic [ref=e345]:
+        - heading "I c o n s" [level=2] [ref=e346]:
+          - generic [ref=e347]: I
+          - generic [ref=e348]: c
+          - generic [ref=e349]: o
+          - generic [ref=e350]: "n"
+          - generic [ref=e351]: s
+        - generic [ref=e353]:
+          - generic [ref=e354]:
+            - img [ref=e356]
+            - paragraph [ref=e359]: Default
+          - generic [ref=e360]:
+            - img [ref=e362]
+            - paragraph [ref=e364]: Spin
+          - generic [ref=e365]:
+            - img [ref=e367]
+            - paragraph [ref=e370]: Pulse
+          - generic [ref=e371]:
+            - img [ref=e373]
+            - paragraph [ref=e375]: Bounce
+          - generic [ref=e376]:
+            - img [ref=e378]
+            - paragraph [ref=e380]: Hover
+      - generic [ref=e381]:
+        - heading "M i c r o i n t e r a c t i o n s" [level=2] [ref=e382]:
+          - generic [ref=e383]: M
+          - generic [ref=e384]: i
+          - generic [ref=e385]: c
+          - generic [ref=e386]: r
+          - generic [ref=e387]: o
+          - generic [ref=e388]: i
+          - generic [ref=e389]: "n"
+          - generic [ref=e390]: t
+          - generic [ref=e391]: e
+          - generic [ref=e392]: r
+          - generic [ref=e393]: a
+          - generic [ref=e394]: c
+          - generic [ref=e395]: t
+          - generic [ref=e396]: i
+          - generic [ref=e397]: o
+          - generic [ref=e398]: "n"
+          - generic [ref=e399]: s
+        - generic [ref=e401]:
+          - generic [ref=e402]:
+            - heading "Toggle Switches" [level=3] [ref=e403]
+            - generic [ref=e404]:
+              - generic [ref=e405]:
+                - switch [ref=e407]
+                - paragraph [ref=e409]: Small
+              - generic [ref=e410]:
+                - switch [ref=e412]
+                - paragraph [ref=e414]: Medium
+              - generic [ref=e415]:
+                - switch [ref=e417]
+                - paragraph [ref=e419]: Large
+              - generic [ref=e420]:
+                - switch [checked] [disabled] [ref=e422]
+                - paragraph [ref=e424]: Disabled
+          - generic [ref=e425]:
+            - heading "Checkboxes" [level=3] [ref=e426]
+            - generic [ref=e427]:
+              - generic [ref=e428] [cursor=pointer]:
+                - checkbox "Accept terms and conditions" [ref=e429]
+                - generic [ref=e430]: Accept terms and conditions
+              - generic [ref=e431] [cursor=pointer]:
+                - checkbox "Receive email notifications" [checked] [ref=e432]
+                - generic [ref=e433]: Receive email notifications
+              - generic [ref=e434] [cursor=pointer]:
+                - checkbox "Subscribe to newsletter" [ref=e435]
+                - generic [ref=e436]: Subscribe to newsletter
+              - generic [ref=e437]:
+                - checkbox "Disabled checkbox" [checked] [disabled] [ref=e438]
+                - generic [ref=e439]: Disabled checkbox
+          - generic [ref=e440]:
+            - heading "Radio Buttons" [level=3] [ref=e441]
+            - generic [ref=e442]:
+              - generic [ref=e443] [cursor=pointer]:
+                - radio "Option 1" [checked] [ref=e444]
+                - generic [ref=e445]: Option 1
+              - generic [ref=e446] [cursor=pointer]:
+                - radio "Option 2" [ref=e447]
+                - generic [ref=e448]: Option 2
+              - generic [ref=e449] [cursor=pointer]:
+                - radio "Option 3" [ref=e450]
+                - generic [ref=e451]: Option 3
+              - generic [ref=e452]:
+                - radio "Disabled option" [disabled] [ref=e453]
+                - generic [ref=e454]: Disabled option
+      - generic [ref=e455]:
+        - heading "L o a d i n g S t a t e s" [level=2] [ref=e456]:
+          - generic [ref=e457]: L
+          - generic [ref=e458]: o
+          - generic [ref=e459]: a
+          - generic [ref=e460]: d
+          - generic [ref=e461]: i
+          - generic [ref=e462]: "n"
+          - generic [ref=e463]: g
+          - generic [ref=e465]: S
+          - generic [ref=e466]: t
+          - generic [ref=e467]: a
+          - generic [ref=e468]: t
+          - generic [ref=e469]: e
+          - generic [ref=e470]: s
+        - generic [ref=e472]:
+          - generic [ref=e473]:
+            - generic [ref=e474]:
+              - heading "Skeleton Screens" [level=3] [ref=e475]
+              - button "Show Loading" [ref=e476] [cursor=pointer]:
+                - generic [ref=e478]: Show Loading
+            - generic [ref=e480]:
+              - heading "Loaded Content" [level=4] [ref=e481]
+              - paragraph [ref=e482]: This is the actual content that appears after loading.
+          - generic [ref=e483]:
+            - heading "Shimmer Effects" [level=3] [ref=e484]
+            - generic [ref=e485]:
+              - generic [ref=e487]:
+                - heading "Loading Card" [level=4] [ref=e488]
+                - paragraph [ref=e489]: Shimmer effect overlay
+              - button "Hover Me" [ref=e491]: Hover Me
+      - generic [ref=e493]:
+        - heading "S t a g g e r A n i m a t i o n s" [level=2] [ref=e494]:
+          - generic [ref=e495]: S
+          - generic [ref=e496]: t
+          - generic [ref=e497]: a
+          - generic [ref=e498]: g
+          - generic [ref=e499]: g
+          - generic [ref=e500]: e
+          - generic [ref=e501]: r
+          - generic [ref=e503]: A
+          - generic [ref=e504]: "n"
+          - generic [ref=e505]: i
+          - generic [ref=e506]: m
+          - generic [ref=e507]: a
+          - generic [ref=e508]: t
+          - generic [ref=e509]: i
+          - generic [ref=e510]: o
+          - generic [ref=e511]: "n"
+          - generic [ref=e512]: s
+        - generic [ref=e514]:
+          - generic [ref=e515]:
+            - heading "List Items (Bottom to Top)" [level=3] [ref=e516]
+            - generic [ref=e517]:
+              - generic [ref=e519]:
+                - heading "First Item" [level=4] [ref=e520]
+                - paragraph [ref=e521]: This is the first item
+              - generic [ref=e523]:
+                - heading "Second Item" [level=4] [ref=e524]
+                - paragraph [ref=e525]: This is the second item
+              - generic [ref=e527]:
+                - heading "Third Item" [level=4] [ref=e528]
+                - paragraph [ref=e529]: This is the third item
+              - generic [ref=e531]:
+                - heading "Fourth Item" [level=4] [ref=e532]
+                - paragraph [ref=e533]: This is the fourth item
+          - generic [ref=e534]:
+            - heading "Grid Items (Fade In)" [level=3] [ref=e535]
+            - generic [ref=e536]:
+              - heading "First Item" [level=4] [ref=e539] [cursor=pointer]
+              - heading "Second Item" [level=4] [ref=e542] [cursor=pointer]
+              - heading "Third Item" [level=4] [ref=e545] [cursor=pointer]
+              - heading "Fourth Item" [level=4] [ref=e548] [cursor=pointer]
+      - generic [ref=e549]:
+        - heading "P a g e T r a n s i t i o n s" [level=2] [ref=e550]:
+          - generic [ref=e551]: P
+          - generic [ref=e552]: a
+          - generic [ref=e553]: g
+          - generic [ref=e554]: e
+          - generic [ref=e556]: T
+          - generic [ref=e557]: r
+          - generic [ref=e558]: a
+          - generic [ref=e559]: "n"
+          - generic [ref=e560]: s
+          - generic [ref=e561]: i
+          - generic [ref=e562]: t
+          - generic [ref=e563]: i
+          - generic [ref=e564]: o
+          - generic [ref=e565]: "n"
+          - generic [ref=e566]: s
+        - generic [ref=e568]:
+          - generic [ref=e569]:
+            - button "View 1" [ref=e570] [cursor=pointer]:
+              - generic [ref=e572]: View 1
+            - button "View 2" [ref=e573] [cursor=pointer]:
+              - generic [ref=e575]: View 2
+          - generic [ref=e577]:
+            - heading "View 1" [level=3] [ref=e578]
+            - paragraph [ref=e579]: This is the first view with smooth slide-up transition.
+      - generic [ref=e580]:
+        - heading "S c r o l l - T r i g g e r e d A n i m a t i o n s" [level=2] [ref=e581]:
+          - generic [ref=e582]: S
+          - generic [ref=e583]: c
+          - generic [ref=e584]: r
+          - generic [ref=e585]: o
+          - generic [ref=e586]: l
+          - generic [ref=e587]: l
+          - generic [ref=e588]: "-"
+          - generic [ref=e589]: T
+          - generic [ref=e590]: r
+          - generic [ref=e591]: i
+          - generic [ref=e592]: g
+          - generic [ref=e593]: g
+          - generic [ref=e594]: e
+          - generic [ref=e595]: r
+          - generic [ref=e596]: e
+          - generic [ref=e597]: d
+          - generic [ref=e599]: A
+          - generic [ref=e600]: "n"
+          - generic [ref=e601]: i
+          - generic [ref=e602]: m
+          - generic [ref=e603]: a
+          - generic [ref=e604]: t
+          - generic [ref=e605]: i
+          - generic [ref=e606]: o
+          - generic [ref=e607]: "n"
+          - generic [ref=e608]: s
+        - generic [ref=e610]:
+          - generic [ref=e612]:
+            - heading "Reveal from Bottom" [level=4] [ref=e613]
+            - paragraph [ref=e614]: This card animates when scrolled into view
+          - generic [ref=e616]:
+            - heading "Reveal from Right" [level=4] [ref=e617]
+            - paragraph [ref=e618]: This card slides in from the right
+          - generic [ref=e620]:
+            - heading "Reveal from Left" [level=4] [ref=e621]
+            - paragraph [ref=e622]: This card slides in from the left
+          - generic [ref=e623]:
+            - heading "Staggered Scroll Reveal" [level=3] [ref=e624]
+            - generic [ref=e625]:
+              - paragraph [ref=e628]: First Item
+              - paragraph [ref=e631]: Second Item
+              - paragraph [ref=e634]: Third Item
+      - generic [ref=e635]:
+        - heading "M o d a l & T o a s t s" [level=2] [ref=e636]:
+          - generic [ref=e637]: M
+          - generic [ref=e638]: o
+          - generic [ref=e639]: d
+          - generic [ref=e640]: a
+          - generic [ref=e641]: l
+          - generic [ref=e643]: "&"
+          - generic [ref=e645]: T
+          - generic [ref=e646]: o
+          - generic [ref=e647]: a
+          - generic [ref=e648]: s
+          - generic [ref=e649]: t
+          - generic [ref=e650]: s
+        - generic [ref=e653]:
+          - button "Open Modal" [ref=e654] [cursor=pointer]:
+            - generic [ref=e656]: Open Modal
+          - button "Success Toast" [ref=e657] [cursor=pointer]:
+            - generic [ref=e659]: Success Toast
+          - button "Error Toast" [ref=e660] [cursor=pointer]:
+            - generic [ref=e662]: Error Toast
+          - button "Warning Toast" [ref=e663] [cursor=pointer]:
+            - generic [ref=e665]: Warning Toast
+          - button "Info Toast" [ref=e666] [cursor=pointer]:
+            - generic [ref=e668]: Info Toast
+      - paragraph [ref=e670]: Agent Console V2 - Built with Next.js, Framer Motion, and Tailwind CSS
+  - button "Open Next.js Dev Tools" [ref=e676] [cursor=pointer]:
+    - img [ref=e677]
+```
