@@ -38,64 +38,42 @@ export function MultipleChoiceInput({
   }
 
   const canSubmit = customAnswer.trim() || selectedOption
-  const isOptionSelected = isAnswered && options.some(opt => opt.value === selectedAnswer)
-  const isCustomAnswerSelected = isAnswered && !isOptionSelected && selectedAnswer
 
-  // Answered state - elegant with morphing highlight
+  // Answered state
   if (isAnswered) {
+    const isOptionSelected = options.some(opt => opt.value === selectedAnswer)
+    const isCustomAnswerSelected = !isOptionSelected && !!selectedAnswer
+
     return (
       <div className="space-y-0 bg-gray-50 rounded-lg overflow-hidden border border-gray-200">
         {options.map((option, index) => {
           const isSelected = option.value === selectedAnswer
-          const isLast = index === options.length - 1
           return (
             <div key={option.id}>
               <motion.div
                 initial={{ opacity: 0, x: -10 }}
                 animate={{ opacity: 1, x: 0 }}
-                transition={{ 
-                  delay: index * 0.05,
-                  ...springPresets.gentle 
-                }}
+                transition={{ delay: index * 0.05, ...springPresets.gentle }}
                 className="relative overflow-hidden"
               >
-                {/* Wipe highlight background - right to left */}
                 {isSelected && (
                   <motion.div
                     className="absolute inset-0 bg-gradient-to-r from-blue-50 to-blue-100"
                     initial={{ scaleX: 0 }}
                     animate={{ scaleX: 1 }}
-                    transition={{
-                      duration: 0.5,
-                      ease: [0.16, 1, 0.3, 1]
-                    }}
-                    style={{ 
-                      zIndex: 0,
-                      transformOrigin: 'right'
-                    }}
+                    transition={{ duration: 0.5, ease: [0.16, 1, 0.3, 1] }}
+                    style={{ zIndex: 0, transformOrigin: 'right' }}
                   />
                 )}
-                
-                <div className={`
-                  relative flex items-center gap-3 px-4 py-3
-                  transition-all duration-300
-                  ${isSelected ? '' : 'opacity-40'}
-                `} style={{ zIndex: 1 }}>
-                  {/* Radio circle morphs into checkmark */}
-                  <motion.div 
-                    className={`
-                      w-5 h-5 rounded-full flex items-center justify-center flex-shrink-0
-                      ${isSelected ? 'bg-blue-500' : 'bg-gray-200'}
-                    `}
+                <div
+                  className={`relative flex items-center gap-3 px-4 py-3 transition-all duration-300 ${isSelected ? '' : 'opacity-35'}`}
+                  style={{ zIndex: 1 }}
+                >
+                  <motion.div
+                    className={`w-5 h-5 rounded-full flex items-center justify-center flex-shrink-0 ${isSelected ? 'bg-blue-500' : 'bg-gray-200'}`}
                     initial={false}
-                    animate={{
-                      scale: isSelected ? [1, 1.3, 1] : 1,
-                      rotate: isSelected ? [0, 180, 360] : 0,
-                    }}
-                    transition={{ 
-                      duration: 0.6,
-                      ease: [0.34, 1.56, 0.64, 1] // Bouncy easing
-                    }}
+                    animate={{ scale: isSelected ? [1, 1.3, 1] : 1, rotate: isSelected ? [0, 180, 360] : 0 }}
+                    transition={{ duration: 0.6, ease: [0.34, 1.56, 0.64, 1] }}
                   >
                     <AnimatePresence mode="wait">
                       {isSelected && (
@@ -104,45 +82,81 @@ export function MultipleChoiceInput({
                           initial={{ scale: 0, rotate: -180, opacity: 0 }}
                           animate={{ scale: 1, rotate: 0, opacity: 1 }}
                           exit={{ scale: 0, rotate: 180, opacity: 0 }}
-                          transition={{ 
-                            duration: 0.4,
-                            ease: [0.34, 1.56, 0.64, 1]
-                          }}
+                          transition={{ duration: 0.4, ease: [0.34, 1.56, 0.64, 1] }}
                         >
                           <Check className="w-3 h-3 text-white" strokeWidth={3} />
                         </motion.div>
                       )}
                     </AnimatePresence>
                   </motion.div>
-                  
                   <span className={`relative text-sm font-medium ${isSelected ? 'text-blue-700' : 'text-gray-500'}`} style={{ zIndex: 1 }}>
                     {option.label}
                   </span>
                 </div>
               </motion.div>
-              
-              {/* Gradient fade separator - elegant and modern */}
-              {!isLast && (
-                <div className="px-4 py-1">
-                  <div className="h-px w-full bg-gradient-to-r from-transparent via-gray-300 to-transparent" />
-                </div>
-              )}
+
+              <div className="px-4">
+                <div className="h-px w-full bg-gradient-to-r from-transparent via-gray-300 to-transparent" />
+              </div>
             </div>
           )
         })}
 
-        {isCustomAnswerSelected && (
-          <motion.div
-            initial={{ opacity: 0, scale: 0.95 }}
-            animate={{ opacity: 1, scale: 1 }}
-            transition={springPresets.gentle}
-            className="relative px-4 py-3 rounded-lg bg-gray-50 border-l-2 border-blue-400"
+        {/* Other row — always rendered, highlighted if custom answer was submitted */}
+        <div className="relative overflow-hidden">
+          {isCustomAnswerSelected && (
+            <motion.div
+              className="absolute inset-0 bg-gradient-to-r from-blue-50 to-indigo-50"
+              initial={{ scaleX: 0 }}
+              animate={{ scaleX: 1 }}
+              transition={{ duration: 0.5, ease: [0.16, 1, 0.3, 1] }}
+              style={{ zIndex: 0, transformOrigin: 'right' }}
+            />
+          )}
+          <div
+            className={`relative flex items-start gap-3 px-4 py-3 transition-all duration-300 ${!isCustomAnswerSelected ? 'opacity-35' : ''}`}
+            style={{ zIndex: 1 }}
           >
-            <div className="text-sm text-gray-800 whitespace-pre-wrap break-words leading-relaxed">
-              {selectedAnswer}
+            <motion.div
+              className={`w-5 h-5 rounded-full flex items-center justify-center flex-shrink-0 mt-0.5 ${
+                isCustomAnswerSelected ? 'bg-gradient-to-br from-blue-500 to-indigo-500' : 'bg-gray-200'
+              }`}
+              animate={{ scale: isCustomAnswerSelected ? [1, 1.3, 1] : 1 }}
+              transition={{ duration: 0.6, ease: [0.34, 1.56, 0.64, 1] }}
+            >
+              <AnimatePresence mode="wait">
+                {isCustomAnswerSelected && (
+                  <motion.div
+                    key="checkmark"
+                    initial={{ scale: 0, rotate: -180, opacity: 0 }}
+                    animate={{ scale: 1, rotate: 0, opacity: 1 }}
+                    exit={{ scale: 0, rotate: 180, opacity: 0 }}
+                    transition={{ duration: 0.4, ease: [0.34, 1.56, 0.64, 1] }}
+                  >
+                    <Check className="w-3 h-3 text-white" strokeWidth={3} />
+                  </motion.div>
+                )}
+              </AnimatePresence>
+            </motion.div>
+            <div className="flex-1">
+              <span className={`text-sm font-medium ${isCustomAnswerSelected ? 'text-blue-700' : 'text-gray-500'}`}>
+                Other
+              </span>
+              {isCustomAnswerSelected && (
+                <motion.div
+                  initial={{ opacity: 0, y: 4 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ delay: 0.2, duration: 0.3 }}
+                  className="mt-2 bg-white rounded-lg border border-blue-100 shadow-sm px-3 py-2"
+                >
+                  <p className="text-sm text-gray-700 leading-relaxed whitespace-pre-wrap break-words">
+                    {selectedAnswer}
+                  </p>
+                </motion.div>
+              )}
             </div>
-          </motion.div>
-        )}
+          </div>
+        </div>
       </div>
     )
   }
