@@ -2226,13 +2226,13 @@ This document breaks down the implementation into actionable tasks aligned with 
 **Requirements**: REQ-7 (Markdown and Code Rendering)
 
 **Acceptance Criteria**:
-- [x] Install react-markdown
-- [x] Install remark-gfm for GitHub Flavored Markdown
-- [x] Install remark-math and rehype-katex for math
-- [x] Configure markdown parser
-- [x] Create base MarkdownRenderer component
-- [x] Apply design system styles to all elements
-- [x] Write component tests
+- [ ] Install react-markdown
+- [ ] Install remark-gfm for GitHub Flavored Markdown
+- [ ] Install remark-math and rehype-katex for math
+- [ ] Configure markdown parser
+- [ ] Create base MarkdownRenderer component
+- [ ] Apply design system styles to all elements
+- [ ] Write component tests
 
 **Files to Create**:
 - `components/markdown/MarkdownRenderer.tsx`
@@ -2251,22 +2251,22 @@ This document breaks down the implementation into actionable tasks aligned with 
 **Design Reference**: See design.md "Component Specifications > Code Block Rendering"
 
 **Acceptance Criteria**:
-- [x] Install Shiki for syntax highlighting
-- [x] Lazy load Shiki on first code block render
-- [x] Display language label in header (11px uppercase, letter-spacing wide)
-- [x] Display copy button in header (28x28px, icon 14px)
-- [x] Apply syntax highlighting with theme matching
-- [x] Light theme: github-light
-- [x] Dark theme: github-dark
-- [x] Background: surface color
-- [x] Border: 1px solid border.subtle
-- [x] Border radius: 12px
-- [x] Padding: 16px
-- [x] Font: SF Mono, 13px, line-height 1.6
-- [x] Horizontal scroll for long lines
-- [x] Copy button: show checkmark for 2s after click
-- [x] Respect prefers-reduced-motion
-- [x] Write component tests
+- [ ] Install Shiki for syntax highlighting
+- [ ] Lazy load Shiki on first code block render
+- [ ] Display language label in header (11px uppercase, letter-spacing wide)
+- [ ] Display copy button in header (28x28px, icon 14px)
+- [ ] Apply syntax highlighting with theme matching
+- [ ] Light theme: github-light
+- [ ] Dark theme: github-dark
+- [ ] Background: surface color
+- [ ] Border: 1px solid border.subtle
+- [ ] Border radius: 12px
+- [ ] Padding: 16px
+- [ ] Font: SF Mono, 13px, line-height 1.6
+- [ ] Horizontal scroll for long lines
+- [ ] Copy button: show checkmark for 2s after click
+- [ ] Respect prefers-reduced-motion
+- [ ] Write component tests
 
 **Files to Create**:
 - `components/markdown/CodeBlock.tsx`
@@ -2283,13 +2283,13 @@ This document breaks down the implementation into actionable tasks aligned with 
 **Requirements**: REQ-7 (Markdown and Code Rendering)
 
 **Acceptance Criteria**:
-- [x] Background: surface color
-- [x] Padding: 2px 6px
-- [x] Border radius: 4px
-- [x] Font: SF Mono, 13px
-- [x] Color: text.primary
-- [x] Border: 1px solid border.subtle
-- [x] Write component tests
+- [ ] Background: surface color
+- [ ] Padding: 2px 6px
+- [ ] Border radius: 4px
+- [ ] Font: SF Mono, 13px
+- [ ] Color: text.primary
+- [ ] Border: 1px solid border.subtle
+- [ ] Write component tests
 
 **Files to Create**:
 - `components/markdown/InlineCode.tsx`
@@ -2305,13 +2305,13 @@ This document breaks down the implementation into actionable tasks aligned with 
 **Requirements**: REQ-7 (Markdown and Code Rendering)
 
 **Acceptance Criteria**:
-- [x] Left border: 2px solid primary
-- [x] Padding: 12px 16px
-- [x] Background: surface
-- [x] Font: 15px regular, italic
-- [x] Color: text.secondary
-- [x] Border radius: 8px
-- [x] Write component tests
+- [ ] Left border: 2px solid primary
+- [ ] Padding: 12px 16px
+- [ ] Background: surface
+- [ ] Font: 15px regular, italic
+- [ ] Color: text.secondary
+- [ ] Border radius: 8px
+- [ ] Write component tests
 
 **Files to Create**:
 - `components/markdown/Blockquote.tsx`
@@ -2327,15 +2327,15 @@ This document breaks down the implementation into actionable tasks aligned with 
 **Requirements**: REQ-7 (Markdown and Code Rendering)
 
 **Acceptance Criteria**:
-- [x] Border: 1px solid border.subtle
-- [x] Border radius: 12px
-- [x] Border collapse: separate
-- [x] Header: background surface, font semibold
-- [x] Rows: hover surfaceHover background
-- [x] Cell padding: 12px
-- [x] Alternating row colors (subtle)
-- [x] Horizontal scroll for wide tables
-- [x] Write component tests
+- [ ] Border: 1px solid border.subtle
+- [ ] Border radius: 12px
+- [ ] Border collapse: separate
+- [ ] Header: background surface, font semibold
+- [ ] Rows: hover surfaceHover background
+- [ ] Cell padding: 12px
+- [ ] Alternating row colors (subtle)
+- [ ] Horizontal scroll for wide tables
+- [ ] Write component tests
 
 **Files to Create**:
 - `components/markdown/Table.tsx`
@@ -2351,12 +2351,12 @@ This document breaks down the implementation into actionable tasks aligned with 
 **Requirements**: REQ-7 (Markdown and Code Rendering)
 
 **Acceptance Criteria**:
-- [x] Color: primary
-- [x] Hover: underline with slide-in animation
-- [x] External links: show external icon
-- [x] Visited links: slightly dimmed
-- [x] Focus: ring outline
-- [x] Write component tests
+- [ ] Color: primary
+- [ ] Hover: underline with slide-in animation
+- [ ] External links: show external icon
+- [ ] Visited links: slightly dimmed
+- [ ] Focus: ring outline
+- [ ] Write component tests
 
 **Files to Create**:
 - `components/markdown/Link.tsx`
@@ -2372,13 +2372,13 @@ This document breaks down the implementation into actionable tasks aligned with 
 **Requirements**: REQ-7 (Markdown and Code Rendering)
 
 **Acceptance Criteria**:
-- [x] Install KaTeX
-- [x] Render inline math within text
-- [x] Render block math centered with padding
-- [x] Block math: padding 16px, background surface, border radius 12px
-- [x] Match font size to surrounding text
-- [x] Handle rendering errors gracefully
-- [x] Write component tests
+- [ ] Install KaTeX
+- [ ] Render inline math within text
+- [ ] Render block math centered with padding
+- [ ] Block math: padding 16px, background surface, border radius 12px
+- [ ] Match font size to surrounding text
+- [ ] Handle rendering errors gracefully
+- [ ] Write component tests
 
 **Files to Create**:
 - `components/markdown/MathRenderer.tsx`
@@ -2395,17 +2395,17 @@ This document breaks down the implementation into actionable tasks aligned with 
 **Requirements**: REQ-7 (Markdown and Code Rendering)
 
 **Acceptance Criteria**:
-- [x] Install mermaid library
-- [x] Lazy load mermaid on first diagram render
-- [x] Render diagrams as SVG
-- [x] Center diagrams in container
-- [x] Background: surface color
-- [x] Padding: 24px
-- [x] Border radius: 12px
-- [x] Match theme (light/dark)
-- [x] Support zoom and pan interactions
-- [x] Handle rendering errors gracefully
-- [x] Write component tests
+- [ ] Install mermaid library
+- [ ] Lazy load mermaid on first diagram render
+- [ ] Render diagrams as SVG
+- [ ] Center diagrams in container
+- [ ] Background: surface color
+- [ ] Padding: 24px
+- [ ] Border radius: 12px
+- [ ] Match theme (light/dark)
+- [ ] Support zoom and pan interactions
+- [ ] Handle rendering errors gracefully
+- [ ] Write component tests
 
 **Files to Create**:
 - `components/markdown/MermaidDiagram.tsx`
@@ -2422,12 +2422,12 @@ This document breaks down the implementation into actionable tasks aligned with 
 **Requirements**: REQ-7 (Markdown and Code Rendering)
 
 **Acceptance Criteria**:
-- [x] Install DOMPurify
-- [x] Sanitize all HTML content before rendering
-- [x] Allow safe HTML tags (p, div, span, strong, em, etc.)
-- [x] Block script tags and event handlers
-- [x] Block iframe and embed tags
-- [x] Write sanitization tests
+- [ ] Install DOMPurify
+- [ ] Sanitize all HTML content before rendering
+- [ ] Allow safe HTML tags (p, div, span, strong, em, etc.)
+- [ ] Block script tags and event handlers
+- [ ] Block iframe and embed tags
+- [ ] Write sanitization tests
 
 **Files to Create**:
 - `lib/utils/sanitize.ts`
@@ -2446,22 +2446,22 @@ This document breaks down the implementation into actionable tasks aligned with 
 **Requirements**: REQ-10 (Agent Management)
 
 **Acceptance Criteria**:
-- [x] Width 560px, centered
-- [x] Title "Create New Agent" or "Edit Agent"
-- [x] Form fields: name, description, system prompt, model selection
-- [x] Name input: required, max 50 characters
-- [x] Description textarea: max 200 characters, auto-resize
-- [x] System prompt textarea: max 2000 characters, auto-resize
-- [x] Model dropdown: fetch from catalog API, searchable
-- [x] Validate all fields on blur and submit
-- [x] Show inline error messages with shake animation
-- [x] Disable submit while processing
-- [x] Show loading spinner on submit button
-- [x] Close modal on successful creation/update
-- [x] Show toast on success/error
-- [x] Liquid morph animation on open/close
-- [x] Respect prefers-reduced-motion
-- [x] Write component tests
+- [ ] Width 560px, centered
+- [ ] Title "Create New Agent" or "Edit Agent"
+- [ ] Form fields: name, description, system prompt, model selection
+- [ ] Name input: required, max 50 characters
+- [ ] Description textarea: max 200 characters, auto-resize
+- [ ] System prompt textarea: max 2000 characters, auto-resize
+- [ ] Model dropdown: fetch from catalog API, searchable
+- [ ] Validate all fields on blur and submit
+- [ ] Show inline error messages with shake animation
+- [ ] Disable submit while processing
+- [ ] Show loading spinner on submit button
+- [ ] Close modal on successful creation/update
+- [ ] Show toast on success/error
+- [ ] Liquid morph animation on open/close
+- [ ] Respect prefers-reduced-motion
+- [ ] Write component tests
 
 **Files to Create**:
 - `components/modals/AgentModal.tsx`
@@ -2478,18 +2478,18 @@ This document breaks down the implementation into actionable tasks aligned with 
 **Requirements**: REQ-10 (Agent Management), REQ-11 (Session Management)
 
 **Acceptance Criteria**:
-- [x] Width 480px, centered
-- [x] Display warning icon (24px, error color) with pulse animation
-- [x] Display confirmation message
-- [x] Display item name being deleted (bold)
-- [x] Cancel button (secondary variant)
-- [x] Delete button (danger variant)
-- [x] Close on cancel
-- [x] Execute delete action on confirm
-- [x] Show toast on success/error
-- [x] Liquid morph animation on open/close
-- [x] Respect prefers-reduced-motion
-- [x] Write component tests
+- [ ] Width 480px, centered
+- [ ] Display warning icon (24px, error color) with pulse animation
+- [ ] Display confirmation message
+- [ ] Display item name being deleted (bold)
+- [ ] Cancel button (secondary variant)
+- [ ] Delete button (danger variant)
+- [ ] Close on cancel
+- [ ] Execute delete action on confirm
+- [ ] Show toast on success/error
+- [ ] Liquid morph animation on open/close
+- [ ] Respect prefers-reduced-motion
+- [ ] Write component tests
 
 **Files to Create**:
 - `components/modals/ConfirmModal.tsx`
@@ -2506,17 +2506,17 @@ This document breaks down the implementation into actionable tasks aligned with 
 **Requirements**: REQ-25 (Keyboard Shortcuts)
 
 **Acceptance Criteria**:
-- [x] Width 560px, centered
-- [x] Title "Keyboard Shortcuts"
-- [x] Display shortcuts in table format
-- [x] Columns: Action, Shortcut
-- [x] Group shortcuts by category (Navigation, Chat, General)
-- [x] Style keyboard keys with kbd element (surface background, border)
-- [x] Open with Cmd/Ctrl+/
-- [x] Close with Escape
-- [x] Liquid morph animation on open/close
-- [x] Respect prefers-reduced-motion
-- [x] Write component tests
+- [ ] Width 560px, centered
+- [ ] Title "Keyboard Shortcuts"
+- [ ] Display shortcuts in table format
+- [ ] Columns: Action, Shortcut
+- [ ] Group shortcuts by category (Navigation, Chat, General)
+- [ ] Style keyboard keys with kbd element (surface background, border)
+- [ ] Open with Cmd/Ctrl+/
+- [ ] Close with Escape
+- [ ] Liquid morph animation on open/close
+- [ ] Respect prefers-reduced-motion
+- [ ] Write component tests
 
 **Files to Create**:
 - `components/modals/ShortcutsModal.tsx`
@@ -2533,17 +2533,17 @@ This document breaks down the implementation into actionable tasks aligned with 
 **Requirements**: REQ-14 (Theme Support)
 
 **Acceptance Criteria**:
-- [x] Width 560px, centered
-- [x] Title "Settings"
-- [x] Tabs: Appearance, Sounds, Accessibility
-- [x] Appearance: theme selection, custom cursor toggle
-- [x] Sounds: enable/disable, volume slider
-- [x] Accessibility: reduced motion toggle, font size
-- [x] Save settings to localStorage
-- [x] Apply settings immediately
-- [x] Liquid morph animation on open/close
-- [x] Respect prefers-reduced-motion
-- [x] Write component tests
+- [ ] Width 560px, centered
+- [ ] Title "Settings"
+- [ ] Tabs: Appearance, Sounds, Accessibility
+- [ ] Appearance: theme selection, custom cursor toggle
+- [ ] Sounds: enable/disable, volume slider
+- [ ] Accessibility: reduced motion toggle, font size
+- [ ] Save settings to localStorage
+- [ ] Apply settings immediately
+- [ ] Liquid morph animation on open/close
+- [ ] Respect prefers-reduced-motion
+- [ ] Write component tests
 
 **Files to Create**:
 - `components/modals/SettingsModal.tsx`
@@ -2566,15 +2566,15 @@ This document breaks down the implementation into actionable tasks aligned with 
 **Design Reference**: See design.md "Theme Transition Effects > Ripple Theme Transition"
 
 **Acceptance Criteria**:
-- [x] Calculate ripple origin from toggle button position
-- [x] Create expanding circle with clip-path
-- [x] Animate from 0 to full viewport diagonal (duration: 600ms)
-- [x] Use easeInOut easing
-- [x] Apply new theme colors inside ripple
-- [x] Remove ripple element after animation
-- [x] Only run on theme toggle click (not system change)
-- [x] Respect prefers-reduced-motion (instant transition)
-- [x] Write component tests
+- [ ] Calculate ripple origin from toggle button position
+- [ ] Create expanding circle with clip-path
+- [ ] Animate from 0 to full viewport diagonal (duration: 600ms)
+- [ ] Use easeInOut easing
+- [ ] Apply new theme colors inside ripple
+- [ ] Remove ripple element after animation
+- [ ] Only run on theme toggle click (not system change)
+- [ ] Respect prefers-reduced-motion (instant transition)
+- [ ] Write component tests
 
 **Files to Create**:
 - `components/effects/RippleThemeTransition.tsx`
@@ -2593,16 +2593,16 @@ This document breaks down the implementation into actionable tasks aligned with 
 **Design Reference**: See design.md "Theme Transition Effects > Particle Theme Transition"
 
 **Acceptance Criteria**:
-- [x] Generate 20-30 particles at random positions
-- [x] Particles: small circles (4-8px), primary color
-- [x] Animate particles floating upward with random drift
-- [x] Fade out particles as they rise
-- [x] Duration: 800ms
-- [x] Stagger particle animations (20ms delay)
-- [x] Remove particles after animation
-- [x] Only run on theme toggle click
-- [x] Respect prefers-reduced-motion (skip effect)
-- [x] Write component tests
+- [ ] Generate 20-30 particles at random positions
+- [ ] Particles: small circles (4-8px), primary color
+- [ ] Animate particles floating upward with random drift
+- [ ] Fade out particles as they rise
+- [ ] Duration: 800ms
+- [ ] Stagger particle animations (20ms delay)
+- [ ] Remove particles after animation
+- [ ] Only run on theme toggle click
+- [ ] Respect prefers-reduced-motion (skip effect)
+- [ ] Write component tests
 
 **Files to Create**:
 - `components/effects/ParticleThemeTransition.tsx`
@@ -2621,13 +2621,13 @@ This document breaks down the implementation into actionable tasks aligned with 
 **Design Reference**: See design.md "Theme Transition Effects"
 
 **Acceptance Criteria**:
-- [x] Identify key UI elements (sidebar, chat, cards)
-- [x] Animate color changes with stagger (50ms delay between elements)
-- [x] Use spring physics for color interpolation
-- [x] Animate from old theme colors to new theme colors
-- [x] Duration: 400ms per element
-- [x] Respect prefers-reduced-motion (instant transition)
-- [x] Write component tests
+- [ ] Identify key UI elements (sidebar, chat, cards)
+- [ ] Animate color changes with stagger (50ms delay between elements)
+- [ ] Use spring physics for color interpolation
+- [ ] Animate from old theme colors to new theme colors
+- [ ] Duration: 400ms per element
+- [ ] Respect prefers-reduced-motion (instant transition)
+- [ ] Write component tests
 
 **Files to Create**:
 - `components/effects/StaggeredMorphTransition.tsx`
@@ -2648,16 +2648,16 @@ This document breaks down the implementation into actionable tasks aligned with 
 **Design Reference**: See design.md "Loading States & Skeletons"
 
 **Acceptance Criteria**:
-- [x] Create base Skeleton component with shimmer animation
-- [x] Shimmer: gradient moves from left to right (duration: 1.5s, infinite)
-- [x] Create AgentCardSkeleton (matches AgentCard dimensions)
-- [x] Create SessionItemSkeleton (matches SessionItem dimensions)
-- [x] Create MessageSkeleton (matches Message dimensions)
-- [x] Create PlanningCardSkeleton (matches PlanningCard dimensions)
-- [x] Background: surface color
-- [x] Shimmer gradient: subtle highlight
-- [x] Respect prefers-reduced-motion (static, no shimmer)
-- [x] Write component tests
+- [ ] Create base Skeleton component with shimmer animation
+- [ ] Shimmer: gradient moves from left to right (duration: 1.5s, infinite)
+- [ ] Create AgentCardSkeleton (matches AgentCard dimensions)
+- [ ] Create SessionItemSkeleton (matches SessionItem dimensions)
+- [ ] Create MessageSkeleton (matches Message dimensions)
+- [ ] Create PlanningCardSkeleton (matches PlanningCard dimensions)
+- [ ] Background: surface color
+- [ ] Shimmer gradient: subtle highlight
+- [ ] Respect prefers-reduced-motion (static, no shimmer)
+- [ ] Write component tests
 
 **Files to Create**:
 - `components/common/Skeleton.tsx`
@@ -2677,15 +2677,15 @@ This document breaks down the implementation into actionable tasks aligned with 
 **Requirements**: REQ-20 (Error Handling)
 
 **Acceptance Criteria**:
-- [x] Catch errors in component tree
-- [x] Display error UI with friendly message
-- [x] Display error icon (48px, error color)
-- [x] Provide "Try again" button
-- [x] Provide "Report issue" button (optional)
-- [x] Log errors to console (and error tracking service if configured)
-- [x] Reset error state on retry
-- [x] Animate error UI with fade-in
-- [x] Write component tests
+- [ ] Catch errors in component tree
+- [ ] Display error UI with friendly message
+- [ ] Display error icon (48px, error color)
+- [ ] Provide "Try again" button
+- [ ] Provide "Report issue" button (optional)
+- [ ] Log errors to console (and error tracking service if configured)
+- [ ] Reset error state on retry
+- [ ] Animate error UI with fade-in
+- [ ] Write component tests
 
 **Files to Create**:
 - `components/common/ErrorBoundary.tsx`
@@ -2702,15 +2702,15 @@ This document breaks down the implementation into actionable tasks aligned with 
 **Requirements**: REQ-20 (Error Handling)
 
 **Acceptance Criteria**:
-- [x] Display when backend is unreachable
-- [x] Show error icon (48px, error color) with pulse animation
-- [x] Show friendly error message
-- [x] Provide "Retry" button
-- [x] Attempt reconnection on retry
-- [x] Show connection status indicator (connecting, connected, disconnected)
-- [x] Animate with fade-in and slide-up
-- [x] Respect prefers-reduced-motion
-- [x] Write component tests
+- [ ] Display when backend is unreachable
+- [ ] Show error icon (48px, error color) with pulse animation
+- [ ] Show friendly error message
+- [ ] Provide "Retry" button
+- [ ] Attempt reconnection on retry
+- [ ] Show connection status indicator (connecting, connected, disconnected)
+- [ ] Animate with fade-in and slide-up
+- [ ] Respect prefers-reduced-motion
+- [ ] Write component tests
 
 **Files to Create**:
 - `components/common/ConnectionError.tsx`
@@ -2729,14 +2729,14 @@ This document breaks down the implementation into actionable tasks aligned with 
 **Design Reference**: See design.md "Error States & Empty States"
 
 **Acceptance Criteria**:
-- [x] Create EmptyAgentList component
-- [x] Create EmptySessionList component
-- [x] Create EmptyChatView component
-- [x] Each: icon (48px, text.tertiary), heading, description, CTA button
-- [x] Friendly, encouraging copy
-- [x] Animate with fade-in and scale
-- [x] Respect prefers-reduced-motion
-- [x] Write component tests
+- [ ] Create EmptyAgentList component
+- [ ] Create EmptySessionList component
+- [ ] Create EmptyChatView component
+- [ ] Each: icon (48px, text.tertiary), heading, description, CTA button
+- [ ] Friendly, encouraging copy
+- [ ] Animate with fade-in and scale
+- [ ] Respect prefers-reduced-motion
+- [ ] Write component tests
 
 **Files to Create**:
 - `components/sidebar/EmptyAgentList.tsx`
@@ -2756,13 +2756,13 @@ This document breaks down the implementation into actionable tasks aligned with 
 **Design Reference**: See design.md "Error States & Empty States > Offline Banner"
 
 **Acceptance Criteria**:
-- [x] Display at top of viewport when offline
-- [x] Show offline icon and message
-- [x] Amber background with gradient
-- [x] Slide down animation on appear
-- [x] Auto-dismiss when back online
-- [x] Respect prefers-reduced-motion
-- [x] Write component tests
+- [ ] Display at top of viewport when offline
+- [ ] Show offline icon and message
+- [ ] Amber background with gradient
+- [ ] Slide down animation on appear
+- [ ] Auto-dismiss when back online
+- [ ] Respect prefers-reduced-motion
+- [ ] Write component tests
 
 **Files to Create**:
 - `components/common/OfflineBanner.tsx`
@@ -2783,14 +2783,14 @@ This document breaks down the implementation into actionable tasks aligned with 
 **Design Reference**: See design.md "Scroll Animations > Fade In on Scroll"
 
 **Acceptance Criteria**:
-- [x] Use useInView hook to detect viewport entry
-- [x] Animate opacity 0 to 1
-- [x] Animate y from 20px to 0
-- [x] Duration: 400ms
-- [x] Trigger once (don't re-animate on scroll back)
-- [x] Apply to message list items, agent cards, session items
-- [x] Respect prefers-reduced-motion
-- [x] Write component tests
+- [ ] Use useInView hook to detect viewport entry
+- [ ] Animate opacity 0 to 1
+- [ ] Animate y from 20px to 0
+- [ ] Duration: 400ms
+- [ ] Trigger once (don't re-animate on scroll back)
+- [ ] Apply to message list items, agent cards, session items
+- [ ] Respect prefers-reduced-motion
+- [ ] Write component tests
 
 **Files to Create**:
 - `components/common/FadeInOnScroll.tsx`
@@ -2808,12 +2808,12 @@ This document breaks down the implementation into actionable tasks aligned with 
 **Design Reference**: See design.md "Scroll Animations"
 
 **Acceptance Criteria**:
-- [x] Use Framer Motion staggerChildren
-- [x] Delay: 50ms between items
-- [x] Apply to agent list, session list, message list
-- [x] Combine with fade-in animation
-- [x] Respect prefers-reduced-motion
-- [x] Write component tests
+- [ ] Use Framer Motion staggerChildren
+- [ ] Delay: 50ms between items
+- [ ] Apply to agent list, session list, message list
+- [ ] Combine with fade-in animation
+- [ ] Respect prefers-reduced-motion
+- [ ] Write component tests
 
 **Files to Modify**:
 - `components/sidebar/AgentList.tsx`
@@ -2833,13 +2833,13 @@ This document breaks down the implementation into actionable tasks aligned with 
 **Design Reference**: See design.md "Scroll Animations > Parallax"
 
 **Acceptance Criteria**:
-- [x] Use useTransform with scroll position
-- [x] Apply to blob backgrounds
-- [x] Different scroll speeds for different layers
-- [x] Subtle effect (max 100px movement)
-- [x] Only on desktop (pointer: fine)
-- [x] Respect prefers-reduced-motion
-- [x] Write component tests
+- [ ] Use useTransform with scroll position
+- [ ] Apply to blob backgrounds
+- [ ] Different scroll speeds for different layers
+- [ ] Subtle effect (max 100px movement)
+- [ ] Only on desktop (pointer: fine)
+- [ ] Respect prefers-reduced-motion
+- [ ] Write component tests
 
 **Files to Create**:
 - `components/effects/ParallaxBackground.tsx`
@@ -2857,14 +2857,14 @@ This document breaks down the implementation into actionable tasks aligned with 
 **Design Reference**: See design.md "Micro-Interactions Library > Ripple"
 
 **Acceptance Criteria**:
-- [x] Create ripple element at click position
-- [x] Animate scale from 0 to 2
-- [x] Animate opacity from 0.5 to 0
-- [x] Duration: 600ms
-- [x] Remove ripple element after animation
-- [x] Apply to all buttons
-- [x] Respect prefers-reduced-motion
-- [x] Write component tests
+- [ ] Create ripple element at click position
+- [ ] Animate scale from 0 to 2
+- [ ] Animate opacity from 0.5 to 0
+- [ ] Duration: 600ms
+- [ ] Remove ripple element after animation
+- [ ] Apply to all buttons
+- [ ] Respect prefers-reduced-motion
+- [ ] Write component tests
 
 **Files to Create**:
 - `components/effects/RippleEffect.tsx`
@@ -2883,14 +2883,14 @@ This document breaks down the implementation into actionable tasks aligned with 
 **Design Reference**: See design.md "Micro-Interactions Library > Checkbox"
 
 **Acceptance Criteria**:
-- [x] Checkbox: 20x20px, border radius 4px
-- [x] Unchecked: border only
-- [x] Checked: primary background, white checkmark
-- [x] Checkmark draws in with path animation (stroke-dashoffset)
-- [x] Duration: 300ms
-- [x] Bounce effect on check
-- [x] Respect prefers-reduced-motion
-- [x] Write component tests
+- [ ] Checkbox: 20x20px, border radius 4px
+- [ ] Unchecked: border only
+- [ ] Checked: primary background, white checkmark
+- [ ] Checkmark draws in with path animation (stroke-dashoffset)
+- [ ] Duration: 300ms
+- [ ] Bounce effect on check
+- [ ] Respect prefers-reduced-motion
+- [ ] Write component tests
 
 **Files to Create**:
 - `components/common/Checkbox.tsx`
@@ -2909,14 +2909,14 @@ This document breaks down the implementation into actionable tasks aligned with 
 **Design Reference**: See design.md "Micro-Interactions Library > Toggle"
 
 **Acceptance Criteria**:
-- [x] Switch: 44x24px, border radius full
-- [x] Knob: 20x20px circle
-- [x] Off: gray background, knob on left
-- [x] On: primary background, knob on right
-- [x] Knob slides with spring physics
-- [x] Background color transitions smoothly
-- [x] Respect prefers-reduced-motion
-- [x] Write component tests
+- [ ] Switch: 44x24px, border radius full
+- [ ] Knob: 20x20px circle
+- [ ] Off: gray background, knob on left
+- [ ] On: primary background, knob on right
+- [ ] Knob slides with spring physics
+- [ ] Background color transitions smoothly
+- [ ] Respect prefers-reduced-motion
+- [ ] Write component tests
 
 **Files to Create**:
 - `components/common/Toggle.tsx`
@@ -2935,13 +2935,13 @@ This document breaks down the implementation into actionable tasks aligned with 
 **Design Reference**: See design.md "Micro-Interactions Library > Counter"
 
 **Acceptance Criteria**:
-- [x] Animate from 0 (or previous value) to target value
-- [x] Use easeOut easing
-- [x] Duration: 800ms
-- [x] Support decimal places
-- [x] Apply to planning card statistics
-- [x] Respect prefers-reduced-motion (instant)
-- [x] Write component tests
+- [ ] Animate from 0 (or previous value) to target value
+- [ ] Use easeOut easing
+- [ ] Duration: 800ms
+- [ ] Support decimal places
+- [ ] Apply to planning card statistics
+- [ ] Respect prefers-reduced-motion (instant)
+- [ ] Write component tests
 
 **Files to Create**:
 - `components/common/AnimatedCounter.tsx`
@@ -2960,14 +2960,14 @@ This document breaks down the implementation into actionable tasks aligned with 
 **Design Reference**: See design.md "Micro-Interactions Library > Progress Ring"
 
 **Acceptance Criteria**:
-- [x] SVG circle with stroke-dasharray animation
-- [x] Animate from 0% to target percentage
-- [x] Duration: 1000ms
-- [x] Use easeOut easing
-- [x] Display percentage in center
-- [x] Support custom colors
-- [x] Respect prefers-reduced-motion
-- [x] Write component tests
+- [ ] SVG circle with stroke-dasharray animation
+- [ ] Animate from 0% to target percentage
+- [ ] Duration: 1000ms
+- [ ] Use easeOut easing
+- [ ] Display percentage in center
+- [ ] Support custom colors
+- [ ] Respect prefers-reduced-motion
+- [ ] Write component tests
 
 **Files to Create**:
 - `components/common/ProgressRing.tsx`
@@ -2984,12 +2984,12 @@ This document breaks down the implementation into actionable tasks aligned with 
 **Requirements**: REQ-4 (Animation System)
 
 **Acceptance Criteria**:
-- [x] Animate y from 0 to -2px on hover
-- [x] Animate shadow from md to lg on hover
-- [x] Use spring physics
-- [x] Apply to agent cards, session items, planning card
-- [x] Respect prefers-reduced-motion
-- [x] Write component tests
+- [ ] Animate y from 0 to -2px on hover
+- [ ] Animate shadow from md to lg on hover
+- [ ] Use spring physics
+- [ ] Apply to agent cards, session items, planning card
+- [ ] Respect prefers-reduced-motion
+- [ ] Write component tests
 
 **Files to Create**:
 - `lib/hooks/useHoverLift.ts`
@@ -3007,15 +3007,15 @@ This document breaks down the implementation into actionable tasks aligned with 
 **Requirements**: REQ-24 (Accessibility)
 
 **Acceptance Criteria**:
-- [x] Create SkipLinks component
-- [x] Add "Skip to main content" link
-- [x] Add "Skip to navigation" link
-- [x] Position absolute, top-left
-- [x] Hidden by default (sr-only class)
-- [x] Visible on focus (remove sr-only)
-- [x] Style with primary background, white text
-- [x] Padding 8px 16px, border radius 8px
-- [x] Write component tests
+- [ ] Create SkipLinks component
+- [ ] Add "Skip to main content" link
+- [ ] Add "Skip to navigation" link
+- [ ] Position absolute, top-left
+- [ ] Hidden by default (sr-only class)
+- [ ] Visible on focus (remove sr-only)
+- [ ] Style with primary background, white text
+- [ ] Padding 8px 16px, border radius 8px
+- [ ] Write component tests
 
 **Files to Create**:
 - `components/common/SkipLinks.tsx`
@@ -3032,13 +3032,13 @@ This document breaks down the implementation into actionable tasks aligned with 
 **Requirements**: REQ-24 (Accessibility)
 
 **Acceptance Criteria**:
-- [x] Create LiveRegion component
-- [x] Support polite and assertive priorities
-- [x] Add to chat for streaming messages
-- [x] Add to sidebar for agent/session changes
-- [x] Add to forms for validation errors
-- [x] Add to toasts for notifications
-- [x] Write component tests
+- [ ] Create LiveRegion component
+- [ ] Support polite and assertive priorities
+- [ ] Add to chat for streaming messages
+- [ ] Add to sidebar for agent/session changes
+- [ ] Add to forms for validation errors
+- [ ] Add to toasts for notifications
+- [ ] Write component tests
 
 **Files to Create**:
 - `components/common/LiveRegion.tsx`
@@ -3055,12 +3055,12 @@ This document breaks down the implementation into actionable tasks aligned with 
 **Requirements**: REQ-24 (Accessibility)
 
 **Acceptance Criteria**:
-- [x] Add 2px outline in primary color for all focusable elements
-- [x] Ensure focus indicators are visible in both themes
-- [x] Test keyboard navigation through all interactive elements
-- [x] Verify logical tab order
-- [x] Add focus-visible styles (hide on mouse click, show on keyboard)
-- [x] Write accessibility tests
+- [ ] Add 2px outline in primary color for all focusable elements
+- [ ] Ensure focus indicators are visible in both themes
+- [ ] Test keyboard navigation through all interactive elements
+- [ ] Verify logical tab order
+- [ ] Add focus-visible styles (hide on mouse click, show on keyboard)
+- [ ] Write accessibility tests
 
 **Files to Modify**:
 - `app/globals.css`
@@ -3077,14 +3077,14 @@ This document breaks down the implementation into actionable tasks aligned with 
 **Requirements**: REQ-24 (Accessibility)
 
 **Acceptance Criteria**:
-- [x] Use nav element for sidebar
-- [x] Use main element for chat interface
-- [x] Use article element for messages
-- [x] Use button element for all clickable actions (not div)
-- [x] Add proper heading hierarchy (h1, h2, h3)
-- [x] Add ARIA labels for icon-only buttons
-- [x] Add ARIA descriptions where needed
-- [x] Write accessibility tests
+- [ ] Use nav element for sidebar
+- [ ] Use main element for chat interface
+- [ ] Use article element for messages
+- [ ] Use button element for all clickable actions (not div)
+- [ ] Add proper heading hierarchy (h1, h2, h3)
+- [ ] Add ARIA labels for icon-only buttons
+- [ ] Add ARIA descriptions where needed
+- [ ] Write accessibility tests
 
 **Files to Modify**:
 - All component files
@@ -3100,16 +3100,16 @@ This document breaks down the implementation into actionable tasks aligned with 
 **Requirements**: REQ-24 (Accessibility), REQ-25 (Keyboard Shortcuts)
 
 **Acceptance Criteria**:
-- [x] Implement Cmd/Ctrl+K for search focus
-- [x] Implement Cmd/Ctrl+N for new chat
-- [x] Implement Cmd/Ctrl+B for toggle sidebar
-- [x] Implement Escape for closing modals
-- [x] Implement Cmd/Ctrl+Enter for sending messages
-- [x] Implement arrow keys for sidebar navigation
-- [x] Implement Tab/Shift+Tab for focus navigation
-- [x] Implement Cmd/Ctrl+/ for shortcuts help
-- [x] Test all shortcuts in both themes
-- [x] Write keyboard navigation tests
+- [ ] Implement Cmd/Ctrl+K for search focus
+- [ ] Implement Cmd/Ctrl+N for new chat
+- [ ] Implement Cmd/Ctrl+B for toggle sidebar
+- [ ] Implement Escape for closing modals
+- [ ] Implement Cmd/Ctrl+Enter for sending messages
+- [ ] Implement arrow keys for sidebar navigation
+- [ ] Implement Tab/Shift+Tab for focus navigation
+- [ ] Implement Cmd/Ctrl+/ for shortcuts help
+- [ ] Test all shortcuts in both themes
+- [ ] Write keyboard navigation tests
 
 **Files to Modify**:
 - `app/layout.tsx` (global shortcuts)
@@ -3126,15 +3126,15 @@ This document breaks down the implementation into actionable tasks aligned with 
 **Requirements**: REQ-24 (Accessibility)
 
 **Acceptance Criteria**:
-- [x] Test with VoiceOver (macOS)
-- [x] Test with NVDA (Windows)
-- [x] Test with JAWS (Windows)
-- [x] Ensure all interactive elements are announced
-- [x] Ensure all images have alt text
-- [x] Ensure all form inputs have labels
-- [x] Ensure all buttons have accessible names
-- [x] Fix all identified issues
-- [x] Document screen reader support
+- [ ] Test with VoiceOver (macOS)
+- [ ] Test with NVDA (Windows)
+- [ ] Test with JAWS (Windows)
+- [ ] Ensure all interactive elements are announced
+- [ ] Ensure all images have alt text
+- [ ] Ensure all form inputs have labels
+- [ ] Ensure all buttons have accessible names
+- [ ] Fix all identified issues
+- [ ] Document screen reader support
 
 **Estimated Time**: 8 hours
 
@@ -3147,12 +3147,12 @@ This document breaks down the implementation into actionable tasks aligned with 
 **Requirements**: REQ-24 (Accessibility)
 
 **Acceptance Criteria**:
-- [x] Test all text colors against backgrounds
-- [x] Ensure 4.5:1 contrast for normal text
-- [x] Ensure 3:1 contrast for large text (18px+)
-- [x] Test in both light and dark themes
-- [x] Fix any failing combinations
-- [x] Document contrast ratios
+- [ ] Test all text colors against backgrounds
+- [ ] Ensure 4.5:1 contrast for normal text
+- [ ] Ensure 3:1 contrast for large text (18px+)
+- [ ] Test in both light and dark themes
+- [ ] Fix any failing combinations
+- [ ] Document contrast ratios
 
 **Estimated Time**: 4 hours
 
@@ -3165,13 +3165,13 @@ This document breaks down the implementation into actionable tasks aligned with 
 **Requirements**: REQ-24 (Accessibility), REQ-28 (Testing)
 
 **Acceptance Criteria**:
-- [x] Install axe-core and jest-axe
-- [x] Run axe audit on all components
-- [x] Fix all critical violations
-- [x] Fix all serious violations
-- [x] Document moderate violations
-- [x] Achieve 0 critical/serious violations
-- [x] Write accessibility tests for all components
+- [ ] Install axe-core and jest-axe
+- [ ] Run axe audit on all components
+- [ ] Fix all critical violations
+- [ ] Fix all serious violations
+- [ ] Document moderate violations
+- [ ] Achieve 0 critical/serious violations
+- [ ] Write accessibility tests for all components
 
 **Files to Create**:
 - `lib/test-utils/accessibility.ts`
@@ -3189,15 +3189,15 @@ This document breaks down the implementation into actionable tasks aligned with 
 **Requirements**: REQ-23 (Performance)
 
 **Acceptance Criteria**:
-- [x] Lazy load MarkdownRenderer
-- [x] Lazy load CodeBlock
-- [x] Lazy load MermaidDiagram
-- [x] Lazy load MathRenderer
-- [x] Lazy load Shiki syntax highlighter
-- [x] Lazy load emoji picker
-- [x] Add Suspense boundaries with skeleton loaders
-- [x] Measure bundle size reduction
-- [x] Write performance tests
+- [ ] Lazy load MarkdownRenderer
+- [ ] Lazy load CodeBlock
+- [ ] Lazy load MermaidDiagram
+- [ ] Lazy load MathRenderer
+- [ ] Lazy load Shiki syntax highlighter
+- [ ] Lazy load emoji picker
+- [ ] Add Suspense boundaries with skeleton loaders
+- [ ] Measure bundle size reduction
+- [ ] Write performance tests
 
 **Files to Modify**:
 - `components/markdown/MarkdownRenderer.tsx`
@@ -3215,14 +3215,14 @@ This document breaks down the implementation into actionable tasks aligned with 
 **Requirements**: REQ-23 (Performance)
 
 **Acceptance Criteria**:
-- [x] Memoize Message component
-- [x] Memoize AgentCard component
-- [x] Memoize SessionItem component
-- [x] Memoize CodeBlock component
-- [x] Memoize TaskItem component
-- [x] Add custom comparison functions where needed
-- [x] Measure re-render reduction with React DevTools
-- [x] Write performance tests
+- [ ] Memoize Message component
+- [ ] Memoize AgentCard component
+- [ ] Memoize SessionItem component
+- [ ] Memoize CodeBlock component
+- [ ] Memoize TaskItem component
+- [ ] Add custom comparison functions where needed
+- [ ] Measure re-render reduction with React DevTools
+- [ ] Write performance tests
 
 **Files to Modify**:
 - `components/chat/Message.tsx`
@@ -3242,14 +3242,14 @@ This document breaks down the implementation into actionable tasks aligned with 
 **Requirements**: REQ-23 (Performance)
 
 **Acceptance Criteria**:
-- [x] Install @tanstack/react-virtual
-- [x] Implement virtual scrolling in MessageList (100+ messages)
-- [x] Implement virtual scrolling in SessionList (100+ sessions)
-- [x] Estimate item heights dynamically
-- [x] Overscan 5 items above/below viewport
-- [x] Maintain scroll position on new items
-- [x] Test with 500+ items
-- [x] Write performance tests
+- [ ] Install @tanstack/react-virtual
+- [ ] Implement virtual scrolling in MessageList (100+ messages)
+- [ ] Implement virtual scrolling in SessionList (100+ sessions)
+- [ ] Estimate item heights dynamically
+- [ ] Overscan 5 items above/below viewport
+- [ ] Maintain scroll position on new items
+- [ ] Test with 500+ items
+- [ ] Write performance tests
 
 **Files to Modify**:
 - `components/chat/MessageList.tsx`
@@ -3266,13 +3266,13 @@ This document breaks down the implementation into actionable tasks aligned with 
 **Requirements**: REQ-23 (Performance)
 
 **Acceptance Criteria**:
-- [x] Replace img tags with Next.js Image
-- [x] Add width and height attributes
-- [x] Enable lazy loading
-- [x] Add blur placeholder
-- [x] Optimize avatar images
-- [x] Measure loading time improvement
-- [x] Write performance tests
+- [ ] Replace img tags with Next.js Image
+- [ ] Add width and height attributes
+- [ ] Enable lazy loading
+- [ ] Add blur placeholder
+- [ ] Optimize avatar images
+- [ ] Measure loading time improvement
+- [ ] Write performance tests
 
 **Files to Modify**:
 - `components/common/Avatar.tsx`
@@ -3289,13 +3289,13 @@ This document breaks down the implementation into actionable tasks aligned with 
 **Requirements**: REQ-23 (Performance)
 
 **Acceptance Criteria**:
-- [x] Add search input to sidebar
-- [x] Debounce search with 300ms delay
-- [x] Filter agents/sessions locally first
-- [x] Call API for server-side search if needed
-- [x] Show loading indicator during search
-- [x] Debounce message input for typing indicator
-- [x] Write performance tests
+- [ ] Add search input to sidebar
+- [ ] Debounce search with 300ms delay
+- [ ] Filter agents/sessions locally first
+- [ ] Call API for server-side search if needed
+- [ ] Show loading indicator during search
+- [ ] Debounce message input for typing indicator
+- [ ] Write performance tests
 
 **Files to Create**:
 - `components/sidebar/SearchInput.tsx`
@@ -3311,13 +3311,13 @@ This document breaks down the implementation into actionable tasks aligned with 
 **Requirements**: REQ-23 (Performance)
 
 **Acceptance Criteria**:
-- [x] Ensure all animations use transform and opacity only
-- [x] Add will-change hints for animated elements
-- [x] Remove will-change after animation completes
-- [x] Use GPU-accelerated properties
-- [x] Test animations on low-end devices
-- [x] Measure frame rate with Chrome DevTools
-- [x] Optimize any animations below 60fps
+- [ ] Ensure all animations use transform and opacity only
+- [ ] Add will-change hints for animated elements
+- [ ] Remove will-change after animation completes
+- [ ] Use GPU-accelerated properties
+- [ ] Test animations on low-end devices
+- [ ] Measure frame rate with Chrome DevTools
+- [ ] Optimize any animations below 60fps
 
 **Estimated Time**: 4 hours
 
@@ -3330,13 +3330,13 @@ This document breaks down the implementation into actionable tasks aligned with 
 **Requirements**: REQ-23 (Performance)
 
 **Acceptance Criteria**:
-- [x] Run bundle analyzer
-- [x] Identify large dependencies
-- [x] Replace heavy dependencies with lighter alternatives
-- [x] Remove unused code
-- [x] Measure bundle size reduction
-- [x] Document bundle size metrics
-- [x] Set up bundle size monitoring
+- [ ] Run bundle analyzer
+- [ ] Identify large dependencies
+- [ ] Replace heavy dependencies with lighter alternatives
+- [ ] Remove unused code
+- [ ] Measure bundle size reduction
+- [ ] Document bundle size metrics
+- [ ] Set up bundle size monitoring
 
 **Files to Create**:
 - `docs/BUNDLE_SIZE.md`
@@ -3352,15 +3352,15 @@ This document breaks down the implementation into actionable tasks aligned with 
 **Requirements**: REQ-23 (Performance)
 
 **Acceptance Criteria**:
-- [x] Measure First Contentful Paint (FCP)
-- [x] Measure Time to Interactive (TTI)
-- [x] Measure Largest Contentful Paint (LCP)
-- [x] Measure Cumulative Layout Shift (CLS)
-- [x] Run Lighthouse audit
-- [x] Achieve FCP < 1.5s on 3G
-- [x] Achieve LCP < 2.5s
-- [x] Achieve Lighthouse score > 90
-- [x] Document performance metrics
+- [ ] Measure First Contentful Paint (FCP)
+- [ ] Measure Time to Interactive (TTI)
+- [ ] Measure Largest Contentful Paint (LCP)
+- [ ] Measure Cumulative Layout Shift (CLS)
+- [ ] Run Lighthouse audit
+- [ ] Achieve FCP < 1.5s on 3G
+- [ ] Achieve LCP < 2.5s
+- [ ] Achieve Lighthouse score > 90
+- [ ] Document performance metrics
 
 **Files to Create**:
 - `lib/utils/performance.ts`
@@ -3379,17 +3379,17 @@ This document breaks down the implementation into actionable tasks aligned with 
 **Requirements**: REQ-28 (Testing)
 
 **Acceptance Criteria**:
-- [x] Test all Button variants and states
-- [x] Test all Input variants and validation
-- [x] Test Modal open/close and focus trap
-- [x] Test Toast auto-dismiss and stacking
-- [x] Test all sidebar components
-- [x] Test all chat components
-- [x] Test all markdown components
-- [x] Test all tool execution components
-- [x] Test all confirmation components
-- [x] Achieve 80%+ code coverage for components
-- [x] All tests pass
+- [ ] Test all Button variants and states
+- [ ] Test all Input variants and validation
+- [ ] Test Modal open/close and focus trap
+- [ ] Test Toast auto-dismiss and stacking
+- [ ] Test all sidebar components
+- [ ] Test all chat components
+- [ ] Test all markdown components
+- [ ] Test all tool execution components
+- [ ] Test all confirmation components
+- [ ] Achieve 80%+ code coverage for components
+- [ ] All tests pass
 
 **Files**: All `.test.tsx` files
 
@@ -3404,15 +3404,15 @@ This document breaks down the implementation into actionable tasks aligned with 
 **Requirements**: REQ-28 (Testing)
 
 **Acceptance Criteria**:
-- [x] Test UI store state transitions
-- [x] Test agent store CRUD operations
-- [x] Test session store CRUD operations with hierarchy
-- [x] Test chat store message handling and streaming
-- [x] Test planning store task updates
-- [x] Test optimistic updates
-- [x] Test error handling and rollback
-- [x] Test localStorage persistence
-- [x] All tests pass
+- [ ] Test UI store state transitions
+- [ ] Test agent store CRUD operations
+- [ ] Test session store CRUD operations with hierarchy
+- [ ] Test chat store message handling and streaming
+- [ ] Test planning store task updates
+- [ ] Test optimistic updates
+- [ ] Test error handling and rollback
+- [ ] Test localStorage persistence
+- [ ] All tests pass
 
 **Files**: All store `.test.ts` files
 
@@ -3427,15 +3427,15 @@ This document breaks down the implementation into actionable tasks aligned with 
 **Requirements**: REQ-28 (Testing)
 
 **Acceptance Criteria**:
-- [x] Test all agent API methods
-- [x] Test all session API methods
-- [x] Test message API methods
-- [x] Test SSE streaming and event handling
-- [x] Test confirmation API methods
-- [x] Test retry logic
-- [x] Test error handling
-- [x] Mock API responses
-- [x] All tests pass
+- [ ] Test all agent API methods
+- [ ] Test all session API methods
+- [ ] Test message API methods
+- [ ] Test SSE streaming and event handling
+- [ ] Test confirmation API methods
+- [ ] Test retry logic
+- [ ] Test error handling
+- [ ] Mock API responses
+- [ ] All tests pass
 
 **Files**: All API `.test.ts` files
 
@@ -3450,17 +3450,17 @@ This document breaks down the implementation into actionable tasks aligned with 
 **Requirements**: REQ-28 (Testing)
 
 **Acceptance Criteria**:
-- [x] Install Playwright
-- [x] Test agent creation flow
-- [x] Test agent editing flow
-- [x] Test agent deletion flow
-- [x] Test session creation flow
-- [x] Test message sending flow
-- [x] Test tool execution display
-- [x] Test confirmation request flow
-- [x] Test theme switching
-- [x] Test responsive behavior (mobile/desktop)
-- [x] All tests pass
+- [ ] Install Playwright
+- [ ] Test agent creation flow
+- [ ] Test agent editing flow
+- [ ] Test agent deletion flow
+- [ ] Test session creation flow
+- [ ] Test message sending flow
+- [ ] Test tool execution display
+- [ ] Test confirmation request flow
+- [ ] Test theme switching
+- [ ] Test responsive behavior (mobile/desktop)
+- [ ] All tests pass
 
 **Files to Create**:
 - `e2e/agent-management.spec.ts`
@@ -3481,12 +3481,12 @@ This document breaks down the implementation into actionable tasks aligned with 
 **Requirements**: REQ-28 (Testing)
 
 **Acceptance Criteria**:
-- [x] Test all components with axe
-- [x] Test keyboard navigation
-- [x] Test screen reader announcements
-- [x] Test focus management
-- [x] Test color contrast
-- [x] All tests pass with 0 violations
+- [ ] Test all components with axe
+- [ ] Test keyboard navigation
+- [ ] Test screen reader announcements
+- [ ] Test focus management
+- [ ] Test color contrast
+- [ ] All tests pass with 0 violations
 
 **Files**: All component `.test.tsx` files
 
@@ -3501,13 +3501,13 @@ This document breaks down the implementation into actionable tasks aligned with 
 **Requirements**: REQ-28 (Testing)
 
 **Acceptance Criteria**:
-- [x] Install Playwright or Percy
-- [x] Capture screenshots of all major views
-- [x] Test light and dark themes
-- [x] Test responsive breakpoints
-- [x] Set up baseline images
-- [x] Configure CI/CD integration
-- [x] All tests pass
+- [ ] Install Playwright or Percy
+- [ ] Capture screenshots of all major views
+- [ ] Test light and dark themes
+- [ ] Test responsive breakpoints
+- [ ] Set up baseline images
+- [ ] Configure CI/CD integration
+- [ ] All tests pass
 
 **Files to Create**:
 - `e2e/visual-regression.spec.ts`
@@ -3525,13 +3525,13 @@ This document breaks down the implementation into actionable tasks aligned with 
 **Requirements**: REQ-28 (Testing)
 
 **Acceptance Criteria**:
-- [x] Test on Chrome (latest)
-- [x] Test on Firefox (latest)
-- [x] Test on Safari (latest)
-- [x] Test on Edge (latest)
-- [x] Fix any browser-specific issues
-- [x] Document browser support
-- [x] Test all animations in each browser
+- [ ] Test on Chrome (latest)
+- [ ] Test on Firefox (latest)
+- [ ] Test on Safari (latest)
+- [ ] Test on Edge (latest)
+- [ ] Fix any browser-specific issues
+- [ ] Document browser support
+- [ ] Test all animations in each browser
 
 **Estimated Time**: 6 hours
 
@@ -3544,13 +3544,13 @@ This document breaks down the implementation into actionable tasks aligned with 
 **Requirements**: REQ-13 (Responsive Design), REQ-28 (Testing)
 
 **Acceptance Criteria**:
-- [x] Test on iPhone (iOS Safari)
-- [x] Test on Android (Chrome)
-- [x] Test portrait and landscape orientations
-- [x] Test touch interactions
-- [x] Test swipe gestures
-- [x] Test pull-to-refresh
-- [x] Fix any mobile-specific issues
+- [ ] Test on iPhone (iOS Safari)
+- [ ] Test on Android (Chrome)
+- [ ] Test portrait and landscape orientations
+- [ ] Test touch interactions
+- [ ] Test swipe gestures
+- [ ] Test pull-to-refresh
+- [ ] Fix any mobile-specific issues
 
 **Estimated Time**: 6 hours
 
@@ -3563,15 +3563,15 @@ This document breaks down the implementation into actionable tasks aligned with 
 **Requirements**: REQ-27 (Component Architecture)
 
 **Acceptance Criteria**:
-- [x] Document component API with JSDoc
-- [x] Create README with setup instructions
-- [x] Document design system usage
-- [x] Document state management patterns
-- [x] Document API integration
-- [x] Document animation system
-- [x] Create contributing guidelines
-- [x] Document deployment process
-- [x] Create user guide
+- [ ] Document component API with JSDoc
+- [ ] Create README with setup instructions
+- [ ] Document design system usage
+- [ ] Document state management patterns
+- [ ] Document API integration
+- [ ] Document animation system
+- [ ] Create contributing guidelines
+- [ ] Document deployment process
+- [ ] Create user guide
 
 **Files to Create**:
 - `README.md`
@@ -3593,14 +3593,14 @@ This document breaks down the implementation into actionable tasks aligned with 
 **Requirements**: REQ-23 (Performance)
 
 **Acceptance Criteria**:
-- [x] Configure Next.js for production
-- [x] Enable compression
-- [x] Optimize bundle size
-- [x] Configure caching headers
-- [x] Set up environment variables
-- [x] Test production build locally
-- [x] Measure bundle size and performance
-- [x] Configure CDN for static assets
+- [ ] Configure Next.js for production
+- [ ] Enable compression
+- [ ] Optimize bundle size
+- [ ] Configure caching headers
+- [ ] Set up environment variables
+- [ ] Test production build locally
+- [ ] Measure bundle size and performance
+- [ ] Configure CDN for static assets
 
 **Files to Modify**:
 - `next.config.js`
@@ -3617,16 +3617,16 @@ This document breaks down the implementation into actionable tasks aligned with 
 **Requirements**: General deployment
 
 **Acceptance Criteria**:
-- [x] Choose hosting platform (Vercel recommended)
-- [x] Configure deployment settings
-- [x] Set up environment variables
-- [x] Configure custom domain (if applicable)
-- [x] Set up CI/CD pipeline
-- [x] Deploy to staging environment
-- [x] Test staging deployment
-- [x] Deploy to production
-- [x] Verify production deployment
-- [x] Set up monitoring and error tracking
+- [ ] Choose hosting platform (Vercel recommended)
+- [ ] Configure deployment settings
+- [ ] Set up environment variables
+- [ ] Configure custom domain (if applicable)
+- [ ] Set up CI/CD pipeline
+- [ ] Deploy to staging environment
+- [ ] Test staging deployment
+- [ ] Deploy to production
+- [ ] Verify production deployment
+- [ ] Set up monitoring and error tracking
 
 **Estimated Time**: 6 hours
 
@@ -3639,13 +3639,13 @@ This document breaks down the implementation into actionable tasks aligned with 
 **Requirements**: All requirements
 
 **Acceptance Criteria**:
-- [x] Test all features end-to-end
-- [x] Test all user flows
-- [x] Test all edge cases
-- [x] Fix all critical bugs
-- [x] Fix all high-priority bugs
-- [x] Document known issues
-- [x] Create bug fix plan for remaining issues
+- [ ] Test all features end-to-end
+- [ ] Test all user flows
+- [ ] Test all edge cases
+- [ ] Fix all critical bugs
+- [ ] Fix all high-priority bugs
+- [ ] Document known issues
+- [ ] Create bug fix plan for remaining issues
 
 **Estimated Time**: 10 hours
 
