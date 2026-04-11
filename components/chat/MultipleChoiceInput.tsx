@@ -30,6 +30,7 @@ export function MultipleChoiceInput({
     if (!answer) return
 
     setIsSubmitting(true)
+    
     try {
       await onSubmit(answer)
     } finally {
@@ -45,7 +46,7 @@ export function MultipleChoiceInput({
     const isCustomAnswerSelected = !isOptionSelected && !!selectedAnswer
 
     return (
-      <div className="space-y-0 bg-gray-50 rounded-lg overflow-hidden border border-gray-200">
+      <div className="space-y-0 bg-surface rounded-lg overflow-hidden border border-border shadow-sm">
         {options.map((option, index) => {
           const isSelected = option.value === selectedAnswer
           return (
@@ -58,19 +59,19 @@ export function MultipleChoiceInput({
               >
                 {isSelected && (
                   <motion.div
-                    className="absolute inset-0 bg-gradient-to-r from-blue-50 to-blue-100"
+                    className="absolute inset-0 bg-gradient-to-r from-blue-500/10 to-blue-500/5"
                     initial={{ scaleX: 0 }}
                     animate={{ scaleX: 1 }}
                     transition={{ duration: 0.5, ease: [0.16, 1, 0.3, 1] }}
-                    style={{ zIndex: 0, transformOrigin: 'right' }}
+                    style={{ zIndex: 0, transformOrigin: 'left' }}
                   />
                 )}
                 <div
-                  className={`relative flex items-center gap-3 px-4 py-3 transition-all duration-300 ${isSelected ? '' : 'opacity-35'}`}
+                  className={`relative flex items-center gap-3 px-4 py-3 transition-all duration-300 ${isSelected ? '' : 'opacity-50'}`}
                   style={{ zIndex: 1 }}
                 >
                   <motion.div
-                    className={`w-5 h-5 rounded-full flex items-center justify-center flex-shrink-0 ${isSelected ? 'bg-blue-500' : 'bg-gray-200'}`}
+                    className={`w-5 h-5 rounded-full flex items-center justify-center flex-shrink-0 ${isSelected ? 'bg-blue-500' : 'bg-border'}`}
                     initial={false}
                     animate={{ scale: isSelected ? [1, 1.3, 1] : 1, rotate: isSelected ? [0, 180, 360] : 0 }}
                     transition={{ duration: 0.6, ease: [0.34, 1.56, 0.64, 1] }}
@@ -89,37 +90,44 @@ export function MultipleChoiceInput({
                       )}
                     </AnimatePresence>
                   </motion.div>
-                  <span className={`relative text-sm font-medium ${isSelected ? 'text-blue-700' : 'text-gray-500'}`} style={{ zIndex: 1 }}>
+                  <span className={`relative text-sm font-medium ${isSelected ? 'text-blue-600' : 'text-text-secondary'}`} style={{ zIndex: 1 }}>
                     {option.label}
                   </span>
                 </div>
               </motion.div>
 
-              <div className="px-4">
-                <div className="h-px w-full bg-gradient-to-r from-transparent via-gray-300 to-transparent" />
-              </div>
+              {index < options.length - 1 && (
+                <div className="px-4">
+                  <div className="h-px w-full bg-border" />
+                </div>
+              )}
             </div>
           )
         })}
 
-        {/* Other row — always rendered, highlighted if custom answer was submitted */}
+        {/* Separator before Other */}
+        <div className="px-4">
+          <div className="h-px w-full bg-border" />
+        </div>
+
+        {/* Other row */}
         <div className="relative overflow-hidden">
           {isCustomAnswerSelected && (
             <motion.div
-              className="absolute inset-0 bg-gradient-to-r from-blue-50 to-indigo-50"
+              className="absolute inset-0 bg-gradient-to-r from-blue-500/10 to-indigo-500/5"
               initial={{ scaleX: 0 }}
               animate={{ scaleX: 1 }}
               transition={{ duration: 0.5, ease: [0.16, 1, 0.3, 1] }}
-              style={{ zIndex: 0, transformOrigin: 'right' }}
+              style={{ zIndex: 0, transformOrigin: 'left' }}
             />
           )}
           <div
-            className={`relative flex items-start gap-3 px-4 py-3 transition-all duration-300 ${!isCustomAnswerSelected ? 'opacity-35' : ''}`}
+            className={`relative flex items-start gap-3 px-4 py-3 transition-all duration-300 ${!isCustomAnswerSelected ? 'opacity-50' : ''}`}
             style={{ zIndex: 1 }}
           >
             <motion.div
               className={`w-5 h-5 rounded-full flex items-center justify-center flex-shrink-0 mt-0.5 ${
-                isCustomAnswerSelected ? 'bg-gradient-to-br from-blue-500 to-indigo-500' : 'bg-gray-200'
+                isCustomAnswerSelected ? 'bg-gradient-to-br from-blue-500 to-indigo-500' : 'bg-border'
               }`}
               animate={{ scale: isCustomAnswerSelected ? [1, 1.3, 1] : 1 }}
               transition={{ duration: 0.6, ease: [0.34, 1.56, 0.64, 1] }}
@@ -139,7 +147,7 @@ export function MultipleChoiceInput({
               </AnimatePresence>
             </motion.div>
             <div className="flex-1">
-              <span className={`text-sm font-medium ${isCustomAnswerSelected ? 'text-blue-700' : 'text-gray-500'}`}>
+              <span className={`text-sm font-medium ${isCustomAnswerSelected ? 'text-blue-600' : 'text-text-secondary'}`}>
                 Other
               </span>
               {isCustomAnswerSelected && (
@@ -147,9 +155,9 @@ export function MultipleChoiceInput({
                   initial={{ opacity: 0, y: 4 }}
                   animate={{ opacity: 1, y: 0 }}
                   transition={{ delay: 0.2, duration: 0.3 }}
-                  className="mt-2 bg-white rounded-lg border border-blue-100 shadow-sm px-3 py-2"
+                  className="mt-2"
                 >
-                  <p className="text-sm text-gray-700 leading-relaxed whitespace-pre-wrap break-words">
+                  <p className="text-sm text-text-primary leading-relaxed whitespace-pre-wrap break-words">
                     {selectedAnswer}
                   </p>
                 </motion.div>
@@ -162,12 +170,12 @@ export function MultipleChoiceInput({
   }
 
   // Pending state
-  const isOtherActive = customAnswer.trim().length > 0
+  const hasCustomAnswer = customAnswer.trim().length > 0
 
   return (
     <div className="space-y-3">
-      <div className="space-y-0 relative bg-gray-50 rounded-lg overflow-hidden border border-gray-200">
-        {options.map((option) => {
+      <div className="space-y-0 relative bg-surface rounded-lg overflow-hidden border border-border shadow-sm">
+        {options.map((option, index) => {
           const isSelected = selectedOption === option.value
           return (
             <div key={option.id} className="relative">
@@ -189,7 +197,7 @@ export function MultipleChoiceInput({
                 "
               >
                 <motion.div
-                  className="absolute inset-0 bg-white/50"
+                  className="absolute inset-0 bg-surface-hover"
                   initial={{ opacity: 0 }}
                   whileHover={{ opacity: 1 }}
                   transition={{ duration: 0.2 }}
@@ -200,15 +208,8 @@ export function MultipleChoiceInput({
                     className={`
                       w-5 h-5 rounded-full flex items-center justify-center
                       transition-all duration-200
-                      ${isSelected ? 'bg-gradient-to-br from-blue-500 to-indigo-500' : 'bg-white ring-2 ring-gray-300'}
+                      ${isSelected ? 'bg-gradient-to-br from-blue-500 to-indigo-500 shadow-lg shadow-blue-500/50' : 'bg-surface ring-2 ring-border'}
                     `}
-                    animate={isSelected ? {
-                      boxShadow: [
-                        '0 0 0 0 rgba(59, 130, 246, 0.4)',
-                        '0 0 0 8px rgba(59, 130, 246, 0)',
-                      ],
-                    } : {}}
-                    transition={{ duration: 0.6, repeat: isSelected ? Infinity : 0 }}
                   >
                     <AnimatePresence>
                       {isSelected && (
@@ -224,27 +225,34 @@ export function MultipleChoiceInput({
                     </AnimatePresence>
                   </motion.div>
                 </div>
-                <span className={`relative text-sm font-medium transition-colors ${isSelected ? 'text-blue-700' : 'text-gray-900'}`} style={{ zIndex: 1 }}>
+                <span className={`relative text-sm font-medium transition-colors ${isSelected ? 'text-blue-600' : 'text-text-primary'}`} style={{ zIndex: 1 }}>
                   {option.label}
                 </span>
               </motion.button>
 
-              <div className="px-4">
-                <div className="h-px w-full bg-gradient-to-r from-transparent via-gray-300 to-transparent" />
-              </div>
+              {index < options.length - 1 && (
+                <div className="px-4">
+                  <div className="h-px w-full bg-border" />
+                </div>
+              )}
             </div>
           )
         })}
 
-        {/* Other row — always expanded */}
+        {/* Separator before Other */}
+        <div className="px-4">
+          <div className="h-px w-full bg-border" />
+        </div>
+
+        {/* Other row */}
         <div className="relative overflow-hidden">
-          {isOtherActive && (
+          {hasCustomAnswer && (
             <motion.div
-              className="absolute inset-0 bg-gradient-to-r from-blue-50 to-indigo-50"
+              className="absolute inset-0 bg-gradient-to-r from-blue-500/10 to-indigo-500/5"
               initial={{ scaleX: 0 }}
               animate={{ scaleX: 1 }}
               transition={{ duration: 0.3, ease: [0.16, 1, 0.3, 1] }}
-              style={{ transformOrigin: 'right', zIndex: 0 }}
+              style={{ transformOrigin: 'left', zIndex: 0 }}
             />
           )}
           <div className="relative flex items-start gap-3 px-4 py-3" style={{ zIndex: 1 }}>
@@ -253,11 +261,11 @@ export function MultipleChoiceInput({
                 className={`
                   w-5 h-5 rounded-full flex items-center justify-center
                   transition-all duration-200
-                  ${isOtherActive ? 'bg-gradient-to-br from-blue-500 to-indigo-500' : 'bg-white ring-2 ring-gray-300'}
+                  ${hasCustomAnswer ? 'bg-gradient-to-br from-blue-500 to-indigo-500' : 'bg-surface ring-2 ring-border'}
                 `}
               >
                 <AnimatePresence>
-                  {isOtherActive && (
+                  {hasCustomAnswer && (
                     <motion.div
                       initial={{ scale: 0, rotate: -90 }}
                       animate={{ scale: 1, rotate: 0 }}
@@ -271,7 +279,7 @@ export function MultipleChoiceInput({
               </motion.div>
             </div>
             <div className="flex-1">
-              <span className={`text-sm font-medium transition-colors ${isOtherActive ? 'text-blue-700' : 'text-gray-900'}`}>
+              <span className={`text-sm font-medium transition-colors ${hasCustomAnswer ? 'text-blue-600' : 'text-text-primary'}`}>
                 Other
               </span>
               <textarea
@@ -287,11 +295,11 @@ export function MultipleChoiceInput({
                 rows={2}
                 className="
                   mt-2 w-full px-3 py-2 rounded-lg
-                  bg-white
-                  border border-gray-200
-                  text-sm text-gray-900
-                  placeholder:text-gray-400
-                  focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent
+                  bg-surface
+                  border border-border
+                  text-sm text-text-primary
+                  placeholder:text-text-tertiary
+                  focus:outline-none focus:border-border
                   disabled:opacity-50 disabled:cursor-not-allowed
                   resize-none transition-all duration-200
                 "

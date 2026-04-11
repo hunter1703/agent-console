@@ -1,0 +1,120 @@
+<h2>Custom text input — 3 design directions</h2>
+<p class="subtitle">The current design is a plain textarea floating below the options. Pick the direction that feels best.</p>
+
+<div class="cards">
+
+  <!-- Option A: Other as a real option row -->
+  <div class="card" data-choice="a" onclick="toggleSelect(this)">
+    <div class="letter">A</div>
+    <div class="card-image" style="padding:16px;background:#f9fafb;">
+      <div style="border:1.5px solid #e5e7eb;border-radius:10px;overflow:hidden;font-family:system-ui,sans-serif;">
+        <!-- Options list -->
+        <div style="display:flex;align-items:center;gap:12px;padding:12px 16px;border-bottom:1px solid #f3f4f6;">
+          <div style="width:18px;height:18px;border-radius:50%;border:2px solid #d1d5db;flex-shrink:0;"></div>
+          <span style="font-size:13px;color:#111827;">Blue</span>
+        </div>
+        <div style="display:flex;align-items:center;gap:12px;padding:12px 16px;border-bottom:1px solid #f3f4f6;">
+          <div style="width:18px;height:18px;border-radius:50%;border:2px solid #d1d5db;flex-shrink:0;"></div>
+          <span style="font-size:13px;color:#111827;">Green</span>
+        </div>
+        <div style="display:flex;align-items:center;gap:12px;padding:12px 16px;border-bottom:1px solid #f3f4f6;">
+          <div style="width:18px;height:18px;border-radius:50%;border:2px solid #d1d5db;flex-shrink:0;"></div>
+          <span style="font-size:13px;color:#111827;">Purple</span>
+        </div>
+        <!-- "Other" is a native list item that expands -->
+        <div style="display:flex;align-items:flex-start;gap:12px;padding:12px 16px;background:#eff6ff;">
+          <div style="width:18px;height:18px;border-radius:50%;background:#3b82f6;display:flex;align-items:center;justify-content:center;flex-shrink:0;margin-top:1px;">
+            <svg width="10" height="10" viewBox="0 0 10 10" fill="none"><polyline points="1.5,5 4,7.5 8.5,2.5" stroke="white" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>
+          </div>
+          <div style="flex:1;">
+            <span style="font-size:13px;color:#1d4ed8;font-weight:500;">Other…</span>
+            <!-- Expanded textarea inside the row -->
+            <div style="margin-top:8px;padding:8px 10px;background:white;border:1.5px solid #3b82f6;border-radius:6px;font-size:12px;color:#374151;">I think we should use a warm orange/amber scheme to match our brand</div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="card-body">
+      <h3>"Other" as a real list item</h3>
+      <p>Clicking "Other" selects it and reveals the textarea inline — same visual language as the other options.</p>
+    </div>
+  </div>
+
+  <!-- Option B: Compact composer bar -->
+  <div class="card" data-choice="b" onclick="toggleSelect(this)">
+    <div class="letter">B</div>
+    <div class="card-image" style="padding:16px;background:#f9fafb;">
+      <div style="font-family:system-ui,sans-serif;">
+        <!-- Options list -->
+        <div style="border:1.5px solid #e5e7eb;border-radius:10px;overflow:hidden;">
+          <div style="display:flex;align-items:center;gap:12px;padding:12px 16px;border-bottom:1px solid #f3f4f6;">
+            <div style="width:18px;height:18px;border-radius:50%;border:2px solid #d1d5db;flex-shrink:0;"></div>
+            <span style="font-size:13px;color:#111827;">Blue</span>
+          </div>
+          <div style="display:flex;align-items:center;gap:12px;padding:12px 16px;border-bottom:1px solid #f3f4f6;">
+            <div style="width:18px;height:18px;border-radius:50%;border:2px solid #d1d5db;flex-shrink:0;"></div>
+            <span style="font-size:13px;color:#111827;">Green</span>
+          </div>
+          <div style="display:flex;align-items:center;gap:12px;padding:12px 16px;">
+            <div style="width:18px;height:18px;border-radius:50%;border:2px solid #d1d5db;flex-shrink:0;"></div>
+            <span style="font-size:13px;color:#111827;">Purple</span>
+          </div>
+        </div>
+        <!-- Composer bar snapped to the bottom — iMessage-style -->
+        <div style="margin-top:8px;border:1.5px solid #3b82f6;border-radius:10px;background:white;display:flex;align-items:center;gap:8px;padding:10px 12px;">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#9ca3af" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 013 3L7 19l-4 1 1-4L16.5 3.5z"/></svg>
+          <span style="font-size:12px;color:#374151;flex:1;">I think we should use a warm orange/amber scheme…</span>
+          <div style="width:26px;height:26px;border-radius:50%;background:#3b82f6;display:flex;align-items:center;justify-content:center;flex-shrink:0;">
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="white"><path d="M2 12l20-10-10 20V12H2z"/></svg>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="card-body">
+      <h3>Compact composer bar</h3>
+      <p>A single-line input below the options with a send button — minimal footprint, expands on focus.</p>
+    </div>
+  </div>
+
+  <!-- Option C: Freeform replaces the list entirely -->
+  <div class="card" data-choice="c" onclick="toggleSelect(this)">
+    <div class="letter">C</div>
+    <div class="card-image" style="padding:16px;background:#f9fafb;">
+      <div style="font-family:system-ui,sans-serif;">
+        <!-- Options list -->
+        <div style="border:1.5px solid #e5e7eb;border-radius:10px;overflow:hidden;margin-bottom:8px;">
+          <div style="display:flex;align-items:center;gap:12px;padding:12px 16px;border-bottom:1px solid #f3f4f6;">
+            <div style="width:18px;height:18px;border-radius:50%;border:2px solid #d1d5db;flex-shrink:0;"></div>
+            <span style="font-size:13px;color:#111827;">Blue</span>
+          </div>
+          <div style="display:flex;align-items:center;gap:12px;padding:12px 16px;border-bottom:1px solid #f3f4f6;">
+            <div style="width:18px;height:18px;border-radius:50%;border:2px solid #d1d5db;flex-shrink:0;"></div>
+            <span style="font-size:13px;color:#111827;">Green</span>
+          </div>
+          <div style="display:flex;align-items:center;gap:12px;padding:12px 16px;">
+            <div style="width:18px;height:18px;border-radius:50%;border:2px solid #d1d5db;flex-shrink:0;"></div>
+            <span style="font-size:13px;color:#111827;">Purple</span>
+          </div>
+        </div>
+        <!-- Separator with label -->
+        <div style="display:flex;align-items:center;gap:8px;margin:8px 0;">
+          <div style="flex:1;height:1px;background:#e5e7eb;"></div>
+          <span style="font-size:10px;color:#9ca3af;letter-spacing:0.08em;text-transform:uppercase;">or write your own</span>
+          <div style="flex:1;height:1px;background:#e5e7eb;"></div>
+        </div>
+        <!-- Textarea styled like the option card -->
+        <div style="border:1.5px solid #3b82f6;border-radius:10px;overflow:hidden;background:white;">
+          <div style="padding:10px 14px;font-size:12px;color:#374151;line-height:1.5;min-height:40px;">I think we should use a warm orange/amber scheme to match our brand</div>
+          <div style="display:flex;justify-content:flex-end;padding:6px 10px;background:#f9fafb;border-top:1px solid #e5e7eb;">
+            <div style="padding:4px 14px;background:#3b82f6;border-radius:6px;font-size:11px;color:white;font-weight:500;">Submit</div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="card-body">
+      <h3>Labeled separator + styled card</h3>
+      <p>An "or write your own" divider separates the options from a textarea that looks like a card — not a raw input.</p>
+    </div>
+  </div>
+
+</div>

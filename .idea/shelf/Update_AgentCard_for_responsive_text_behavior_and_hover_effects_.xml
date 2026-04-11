@@ -1,0 +1,13 @@
+<changelist name="Update_AgentCard_for_responsive_text_behavior_and_hover_effects_" date="1775810969267" recycled="false">
+  <option name="PATH" value="$PROJECT_DIR$/.idea/shelf/Update_AgentCard_for_responsive_text_behavior_and_hover_effects_/shelved.patch" />
+  <option name="DESCRIPTION" value="Update AgentCard for responsive text behavior and hover effects." />
+  <binary>
+    <option name="BEFORE_PATH" value="agent-console-v2/app/favicon.ico" />
+  </binary>
+  <binary>
+    <option name="BEFORE_PATH" value="thought_dedup_check_rob.png" />
+  </binary>
+  <binary>
+    <option name="BEFORE_PATH" value="thought_dedup_robust.png" />
+  </binary>
+</changelist>

@@ -1,0 +1,13 @@
+<changelist name="Remove_the_unnecessary_files_and_focus_on_creating_a_meaningful_Git_stash_message_for_the_" date="1775810955021" recycled="false">
+  <option name="PATH" value="$PROJECT_DIR$/.idea/shelf/Remove_the_unnecessary_files_and_focus_on_creating_a_meaningful_Git_stash_message_for_the_/shelved.patch" />
+  <option name="DESCRIPTION" value="Remove the unnecessary files and focus on creating a meaningful Git stash message for the changes.   The stashed changes include: 1. Removal of an extensive `.gitignore` file containing rules for excluding build artifacts and node modules. 2. Deletion of test results indicating multiple failed tests. 3. Removal of the `planning-card-implementation.md` document and related planning card redesign documentation, indicating the process for fixing a task ID stitching bug and a complete visual rewrite of a component. 4. Various file deletions across different modules, including configuration files and component definitions.  Based on this context:  &quot;Remove old planning documents and test artifacts&quot;" />
+  <binary>
+    <option name="BEFORE_PATH" value="agent-console-v2/app/favicon.ico" />
+  </binary>
+  <binary>
+    <option name="BEFORE_PATH" value="thought_dedup_check_rob.png" />
+  </binary>
+  <binary>
+    <option name="BEFORE_PATH" value="thought_dedup_robust.png" />
+  </binary>
+</changelist>

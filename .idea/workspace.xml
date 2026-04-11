@@ -4,35 +4,44 @@
     <option name="autoReloadType" value="SELECTIVE" />
   </component>
   <component name="ChangeListManager">
-    <list default="true" id="199bf584-85f4-4797-8fa3-1b5e8df2ff10" name="Changes" comment="fixes">
-      <change beforePath="$PROJECT_DIR$/app/admin/agents/page.tsx" beforeDir="false" afterPath="$PROJECT_DIR$/app/admin/agents/page.tsx" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/app/admin/models/page.tsx" beforeDir="false" afterPath="$PROJECT_DIR$/app/admin/models/page.tsx" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/app/agents/[id]/page.tsx" beforeDir="false" afterPath="$PROJECT_DIR$/app/agents/[id]/page.tsx" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/app/globals.css" beforeDir="false" afterPath="$PROJECT_DIR$/app/globals.css" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/app/history/page.tsx" beforeDir="false" afterPath="$PROJECT_DIR$/app/history/page.tsx" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/app/layout.tsx" beforeDir="false" afterPath="$PROJECT_DIR$/app/layout.tsx" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/app/page.tsx" beforeDir="false" afterPath="$PROJECT_DIR$/app/page.tsx" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/components/AgentCard.tsx" beforeDir="false" afterPath="$PROJECT_DIR$/components/AgentCard.tsx" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/components/ChatWindow.tsx" beforeDir="false" afterPath="$PROJECT_DIR$/components/ChatWindow.tsx" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/components/EventTimeline.tsx" beforeDir="false" afterPath="$PROJECT_DIR$/components/EventTimeline.tsx" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/components/JsonForm.tsx" beforeDir="false" afterPath="$PROJECT_DIR$/components/JsonForm.tsx" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/components/MessageInput.tsx" beforeDir="false" afterPath="$PROJECT_DIR$/components/MessageInput.tsx" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/package-lock.json" beforeDir="false" afterPath="$PROJECT_DIR$/package-lock.json" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/package.json" beforeDir="false" afterPath="$PROJECT_DIR$/package.json" afterDir="false" />
+    <list default="true" id="199bf584-85f4-4797-8fa3-1b5e8df2ff10" name="Changes" comment="">
+      <change beforePath="$PROJECT_DIR$/agent-console-v2/app/globals.css" beforeDir="false" afterPath="$PROJECT_DIR$/agent-console-v2/app/globals.css" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/agent-console-v2/app/page.tsx" beforeDir="false" afterPath="$PROJECT_DIR$/agent-console-v2/app/page.tsx" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/agent-console-v2/types/planning.ts" beforeDir="false" afterPath="$PROJECT_DIR$/agent-console-v2/types/planning.ts" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/lib/constants/animations.ts" beforeDir="false" afterPath="$PROJECT_DIR$/lib/constants/animations.ts" afterDir="false" />
     </list>
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
     <option name="HIGHLIGHT_NON_ACTIVE_CHANGELIST" value="false" />
     <option name="LAST_RESOLUTION" value="IGNORE" />
   </component>
+  <component name="EmbeddingIndexingInfo">
+    <option name="cachedIndexableFilesCount" value="371" />
+  </component>
   <component name="Git.Settings">
     <option name="RECENT_GIT_ROOT_PATH" value="$PROJECT_DIR$" />
   </component>
+  <component name="GitHubPullRequestSearchHistory"><![CDATA[{
+  "lastFilter": {
+    "state": "OPEN",
+    "assignee": "hunter1703"
+  }
+}]]></component>
+  <component name="GithubPullRequestsUISettings"><![CDATA[{
+  "selectedUrlAndAccountId": {
+    "url": "https://github.com/hunter1703/agent-console.git",
+    "accountId": "8e6670a0-0352-44c3-b4bf-e53f83954422"
+  }
+}]]></component>
   <component name="MacroExpansionManager">
     <option name="directoryName" value="jnz38mj6" />
   </component>
   <component name="MarkdownSettingsMigration">
     <option name="stateVersion" value="1" />
+  </component>
+  <component name="McpProjectServerCommands">
+    <commands />
+    <urls />
   </component>
   <component name="ProjectColorInfo">{
   &quot;associatedIndex&quot;: 4
@@ -66,12 +75,6 @@
     </key>
   </component>
   <component name="RunManager">
-    <configuration default="true" type="JetRunConfigurationType">
-      <module name="agent-console" />
-      <method v="2">
-        <option name="Make" enabled="true" />
-      </method>
-    </configuration>
     <configuration default="true" type="KotlinStandaloneScriptRunConfigurationType">
       <module name="agent-console" />
       <option name="filePath" />
@@ -118,5 +121,13 @@
     <MESSAGE value="init" />
     <MESSAGE value="fixes" />
     <option name="LAST_COMMIT_MESSAGE" value="fixes" />
+  </component>
+  <component name="github-copilot-workspace">
+    <instructionFileLocations>
+      <option value=".github/instructions" />
+    </instructionFileLocations>
+    <promptFileLocations>
+      <option value=".github/prompts" />
+    </promptFileLocations>
   </component>
 </project>

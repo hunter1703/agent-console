@@ -111,6 +111,19 @@ export const fadeIn: Variants = {
   exit: { opacity: 0 },
 }
 
+export const fadeOut: Variants = {
+  initial: { opacity: 1 },
+  animate: { opacity: 0 },
+  exit: { opacity: 0 },
+}
+
+// Poof out - scale down and fade (for dismissed elements)
+export const poofOut: Variants = {
+  initial: { opacity: 1, scale: 1 },
+  animate: { opacity: 0, scale: 0.8 },
+  exit: { opacity: 0, scale: 0.8 },
+}
+
 // Slide animations
 export const slideUp: Variants = {
   initial: { opacity: 0, y: 20 },

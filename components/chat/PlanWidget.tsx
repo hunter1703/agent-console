@@ -1,0 +1,392 @@
+'use client'
+
+/**
+ * Plan Widget - Hierarchical Navigation with Clean Design
+ * 
+ * Features:
+ * - Drill-down navigation through task hierarchy
+ * - Clean, compact presentation
+ * - Smooth slide animations
+ * - Breadcrumb navigation
+ * - Progress tracking at each level
+ */
+
+import { motion, AnimatePresence } from 'framer-motion'
+import { useState, useEffect } from 'react'
+import useMeasure from 'react-use-measure'
+import { useReducedMotion } from '@/lib/hooks/useReducedMotion'
+import { cn } from '@/lib/utils'
+import type { Plan, Task } from '@/types/planning'
+
+export interface PlanWidgetProps {
+  plan: Plan
+  onTaskClick?: (taskId: string) => void
+}
+
+export function PlanWidget({ plan, onTaskClick }: PlanWidgetProps) {
+  const [focusedTaskId, setFocusedTaskId] = useState<string | null>(null)
+  const [navigationHistory, setNavigationHistory] = useState<(string | null)[]>([null])
+  const [slideDirection, setSlideDirection] = useState<'left' | 'right'>('left')
+  const prefersReducedMotion = useReducedMotion()
+  const [ref, bounds] = useMeasure()
+
+  // Get current context
+  const focusedTask = focusedTaskId ? plan.tasks.find(t => t.taskId === focusedTaskId) : null
+  const currentTasks = focusedTaskId 
+    ? plan.tasks.filter(t => t.parentId === focusedTaskId)
+    : plan.tasks.filter(t => !t.parentId)
+
+  // Get parent task for back button
+  const parentTaskId = navigationHistory.length > 1 ? navigationHistory[navigationHistory.length - 2] : null
+  const parentTask = parentTaskId ? plan.tasks.find(t => t.taskId === parentTaskId) : null
+
+  const stats = {
+    total: currentTasks.length,
+    completed: currentTasks.filter(t => t.status === 'COMPLETED').length,
+    inProgress: currentTasks.filter(t => t.status === 'IN_PROGRESS').length,
+  }
+
+  const progress = stats.total > 0 ? (stats.completed / stats.total) * 100 : 0
+
+  // Smooth color interpolation based on progress
+  const getProgressColor = (progress: number): string => {
+    // Indigo -> Amber -> Green
+    const indigo = { r: 99, g: 102, b: 241 }   // #6366f1
+    const amber = { r: 245, g: 158, b: 11 }    // #f59e0b
+    const green = { r: 16, g: 185, b: 129 }    // #10b981
+
+    let r: number, g: number, b: number
+
+    if (progress < 50) {
+      // Interpolate between indigo and amber (0-50%)
+      const t = progress / 50
+      r = Math.round(indigo.r + (amber.r - indigo.r) * t)
+      g = Math.round(indigo.g + (amber.g - indigo.g) * t)
+      b = Math.round(indigo.b + (amber.b - indigo.b) * t)
+    } else {
+      // Interpolate between amber and green (50-100%)
+      const t = (progress - 50) / 50
+      r = Math.round(amber.r + (green.r - amber.r) * t)
+      g = Math.round(amber.g + (green.g - amber.g) * t)
+      b = Math.round(amber.b + (green.b - amber.b) * t)
+    }
+
+    return `rgb(${r}, ${g}, ${b})`
+  }
+
+  const handleTaskClick = (task: Task) => {
+    setSlideDirection('left')
+    setFocusedTaskId(task.taskId)
+    setNavigationHistory([...navigationHistory, task.taskId])
+    onTaskClick?.(task.taskId)
+  }
+
+  const handleNavigateUp = () => {
+    if (navigationHistory.length > 1) {
+      setSlideDirection('right')
+      const newHistory = [...navigationHistory]
+      newHistory.pop()
+      setNavigationHistory(newHistory)
+      setFocusedTaskId(newHistory[newHistory.length - 1])
+    }
+  }
+
+  return (
+    <div className="advanced-widget relative max-w-md">
+      {/* Floating back button - top left, outside card */}
+      <AnimatePresence initial={false}>
+        {focusedTaskId && (
+          <motion.button
+            initial={{ opacity: 0, x: -20 }}
+            animate={{ opacity: 1, x: 0 }}
+            exit={{ opacity: 0, x: -20 }}
+            transition={{ duration: 0.2, ease: 'easeOut' }}
+            onClick={handleNavigateUp}
+            className="absolute left-0 top-6 z-10 cursor-pointer -translate-x-full pr-3"
+          >
+            <motion.div
+              className="flex items-center bg-slate-800 hover:bg-slate-700 rounded-full border border-slate-600 shadow-lg relative"
+              initial={false}
+              animate="collapsed"
+              whileHover="expanded"
+              variants={{
+                collapsed: { width: '40px' },
+                expanded: { width: 'auto' }
+              }}
+              transition={{ duration: 0.25, ease: [0.32, 0.72, 0, 1] }}
+            >
+              {/* Arrow icon - always visible, positioned on the right */}
+              <div className="absolute right-0 flex items-center justify-center w-10 h-10">
+                <svg className="w-5 h-5 text-slate-300 group-hover:text-white transition-colors" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M15 19l-7-7 7-7" />
+                </svg>
+              </div>
+              
+              {/* Text - appears on hover from the left */}
+              <motion.div
+                variants={{
+                  collapsed: { opacity: 0, width: 0 },
+                  expanded: { opacity: 1, width: 'auto' }
+                }}
+                transition={{ duration: 0.2, ease: 'easeOut' }}
+                className="pl-4 pr-12 py-2.5 overflow-hidden"
+              >
+                <span className="text-sm font-semibold text-white whitespace-nowrap">
+                  {parentTask ? parentTask.name : 'Plan'}
+                </span>
+              </motion.div>
+            </motion.div>
+          </motion.button>
+        )}
+      </AnimatePresence>
+
+      {/* Stacked card depth effect */}
+      <div className="absolute inset-0 -z-10">
+        <div
+          className="absolute inset-0 bg-slate-800/40 rounded-2xl border border-slate-700/40"
+          style={{ transform: 'translateY(6px) scale(0.97)' }}
+        />
+        <div
+          className="absolute inset-0 bg-slate-800/60 rounded-2xl border border-slate-700/60"
+          style={{ transform: 'translateY(3px) scale(0.985)' }}
+        />
+      </div>
+
+      {/* Main card with animated height */}
+      <motion.div 
+        className="relative bg-slate-900 rounded-2xl border-2 border-slate-700 shadow-2xl overflow-hidden"
+        animate={{ height: bounds.height > 0 ? bounds.height : 'auto' }}
+        transition={{ 
+          duration: 0.3,
+          ease: [0.32, 0.72, 0, 1]
+        }}
+      >
+        {/* Content wrapper for measurement */}
+        <div ref={ref}>
+          {/* Header */}
+          <AnimatePresence mode="wait" initial={false}>
+          <motion.div
+            layout
+            key={focusedTaskId || 'plan'}
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            transition={{ 
+              layout: { duration: 0.3, ease: [0.32, 0.72, 0, 1] },
+              opacity: { duration: 0.15, ease: 'easeInOut' }
+            }}
+            className="p-5"
+          >
+            <div className="flex items-start justify-between gap-4 mb-4">
+              {/* Title & meta - theme-aware */}
+              <div className="flex-1 min-w-0">
+                <h4 className="text-lg font-extrabold text-white truncate leading-tight mb-2">
+                  {focusedTask ? focusedTask.name : plan.title}
+                </h4>
+                <p className="text-sm text-slate-300 line-clamp-2 leading-relaxed font-medium">
+                  {focusedTask ? focusedTask.goal : plan.goal}
+                </p>
+              </div>
+
+              {/* Circular progress indicator - smooth color transition */}
+              <motion.div
+                key={`progress-${focusedTaskId}-${stats.completed}`}
+                className="relative w-14 h-14 flex-shrink-0"
+                initial={{ scale: 0.8, opacity: 0, rotate: -90 }}
+                animate={{ scale: 1, opacity: 1, rotate: 0 }}
+                transition={{ duration: 0.4, ease: [0.34, 1.56, 0.64, 1] }}
+              >
+                <svg className="w-full h-full -rotate-90">
+                  <circle
+                    cx="28"
+                    cy="28"
+                    r="24"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth="5"
+                    className="text-slate-200 dark:text-slate-700"
+                  />
+                  <motion.circle
+                    cx="28"
+                    cy="28"
+                    r="24"
+                    fill="none"
+                    strokeWidth="5"
+                    strokeLinecap="round"
+                    strokeDasharray={`${2 * Math.PI * 24}`}
+                    initial={{ strokeDashoffset: 2 * Math.PI * 24 }}
+                    animate={{ 
+                      strokeDashoffset: 2 * Math.PI * 24 * (1 - progress / 100),
+                      stroke: getProgressColor(progress)
+                    }}
+                    transition={{ 
+                      strokeDashoffset: { duration: 0.8, ease: [0.16, 1, 0.3, 1] },
+                      stroke: { duration: 0.6, ease: 'easeInOut' }
+                    }}
+                  />
+                </svg>
+                <div className="absolute inset-0 flex items-center justify-center text-sm font-extrabold text-white tabular-nums">
+                  {Math.round(progress)}%
+                </div>
+              </motion.div>
+            </div>
+
+            {/* Task details - more visible */}
+            {focusedTask && (
+              <div className="space-y-2.5 mb-4 text-xs">
+                {focusedTask.description && (
+                  <div className="text-sm leading-relaxed p-3 bg-slate-800/50 rounded-lg border border-slate-700">
+                    <span className="text-slate-300 font-bold">Details:</span>{' '}
+                    <span className="text-slate-400">{focusedTask.description}</span>
+                  </div>
+                )}
+                {focusedTask.result && (
+                  <div className="text-sm p-3 bg-green-900/20 rounded-lg border border-green-800 leading-relaxed shadow-sm">
+                    <span className="text-green-300 font-bold">Result:</span>{' '}
+                    <span className="text-green-400">{focusedTask.result}</span>
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* Task list */}
+            <div className="space-y-2">
+              <AnimatePresence mode="wait" initial={false}>
+                <motion.div
+                  key={`tasks-${focusedTaskId}`}
+                  initial={{ opacity: 0 }}
+                  animate={{ opacity: 1 }}
+                  exit={{ opacity: 0 }}
+                  transition={{ duration: 0.12 }}
+                  className="space-y-2"
+                >
+                  {currentTasks.length === 0 ? (
+                    <div className="text-center py-6 text-xs text-text-tertiary font-medium">
+                      No subtasks
+                    </div>
+                  ) : (
+                    currentTasks.map((task, index) => {
+                      const hasChildren = plan.tasks.some(t => t.parentId === task.taskId)
+                      
+                      return (
+                        <motion.button
+                          key={task.taskId}
+                          initial={{ opacity: 0 }}
+                          animate={{ opacity: 1 }}
+                          transition={{ delay: index * 0.03, duration: 0.2 }}
+                          onClick={() => handleTaskClick(task)}
+                          className="group relative w-full cursor-pointer"
+                        >
+                          <div className="flex items-center gap-3 p-3 rounded-xl hover:bg-slate-800/50 transition-all duration-200 border border-transparent hover:border-slate-700 hover:shadow-md">
+                            {/* Status indicator with animated icons - larger and bolder */}
+                            <div className="w-6 h-6 flex-shrink-0 flex items-center justify-center">
+                              {task.status === 'COMPLETED' ? (
+                                <motion.div
+                                  initial={{ scale: 0, rotate: -180 }}
+                                  animate={{ scale: 1, rotate: 0 }}
+                                  transition={{ duration: 0.5, ease: [0.34, 1.56, 0.64, 1] }}
+                                  className="w-5 h-5 rounded-full bg-green-500 flex items-center justify-center shadow-sm"
+                                >
+                                  <motion.svg
+                                    className="w-3 h-3 text-white"
+                                    fill="none"
+                                    viewBox="0 0 24 24"
+                                    stroke="currentColor"
+                                    strokeWidth={3}
+                                    animate={{ 
+                                      scale: [1, 1.1, 1],
+                                    }}
+                                    transition={{ 
+                                      duration: 2,
+                                      repeat: Infinity,
+                                      ease: "easeInOut"
+                                    }}
+                                  >
+                                    <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+                                  </motion.svg>
+                                </motion.div>
+                              ) : task.status === 'IN_PROGRESS' ? (
+                                <motion.div
+                                  className="w-5 h-5 rounded-full border-[2.5px] border-amber-500 border-t-transparent shadow-sm"
+                                  animate={{ rotate: 360 }}
+                                  transition={{ 
+                                    duration: 1,
+                                    repeat: Infinity,
+                                    ease: "linear"
+                                  }}
+                                />
+                              ) : task.status === 'FAILED' ? (
+                                <motion.div
+                                  initial={{ scale: 0 }}
+                                  animate={{ scale: 1 }}
+                                  transition={{ duration: 0.3, ease: [0.34, 1.56, 0.64, 1] }}
+                                  className="w-5 h-5 rounded-full bg-red-500 flex items-center justify-center shadow-sm"
+                                >
+                                  <motion.svg
+                                    className="w-3 h-3 text-white"
+                                    fill="none"
+                                    viewBox="0 0 24 24"
+                                    stroke="currentColor"
+                                    strokeWidth={3}
+                                    animate={{ 
+                                      rotate: [0, 5, -5, 0],
+                                    }}
+                                    transition={{ 
+                                      duration: 2,
+                                      repeat: Infinity,
+                                      ease: "easeInOut"
+                                    }}
+                                  >
+                                    <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+                                  </motion.svg>
+                                </motion.div>
+                              ) : (
+                                <motion.div
+                                  className="w-5 h-5 rounded-full border-[2.5px] border-slate-300"
+                                  animate={{ 
+                                    scale: [1, 1.1, 1],
+                                    opacity: [0.5, 0.8, 0.5]
+                                  }}
+                                  transition={{ 
+                                    duration: 2,
+                                    repeat: Infinity,
+                                    ease: "easeInOut"
+                                  }}
+                                />
+                              )}
+                            </div>
+
+                            {/* Task name - bolder */}
+                            <span
+                              className={cn(
+                                "text-sm font-bold flex-1 truncate transition-all text-left",
+                                task.status === 'COMPLETED'
+                                  ? 'text-slate-500 line-through'
+                                  : 'text-white group-hover:text-indigo-400'
+                              )}
+                            >
+                              {task.name}
+                            </span>
+
+                            {/* Subtask count badge */}
+                            {hasChildren && (
+                              <span className="text-xs font-extrabold text-slate-200 bg-slate-800 px-2.5 py-1.5 rounded-lg border border-slate-700">
+                                {plan.tasks.filter(t => t.parentId === task.taskId && t.status === 'COMPLETED').length}/
+                                {plan.tasks.filter(t => t.parentId === task.taskId).length}
+                              </span>
+                            )}
+                          </div>
+                        </motion.button>
+                      )
+                    })
+                  )}
+                </motion.div>
+              </AnimatePresence>
+            </div>
+          </motion.div>
+        </AnimatePresence>
+        </div>
+      </motion.div>
+    </div>
+  )
+}

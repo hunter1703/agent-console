@@ -1,6 +1,25 @@
 @import "tailwindcss";
 
 /* ============================================================================
+   PERFORMANCE OPTIMIZATIONS
+   ============================================================================ */
+
+/* Smooth scrolling with GPU acceleration */
+html {
+  scroll-behavior: smooth;
+}
+
+body {
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+/* GPU acceleration for transforms and opacity */
+* {
+  will-change: auto;
+}
+
+/* ============================================================================
    THEME VARIABLES
    ============================================================================ */
 
