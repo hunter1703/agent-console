@@ -2,6 +2,9 @@
 
 import { MarkdownRenderer } from '@/components/markdown/MarkdownRenderer'
 import { motion } from 'framer-motion'
+import { useTheme } from 'next-themes'
+import { Sun, Moon } from 'lucide-react'
+import { useEffect, useState } from 'react'
 
 const demoContent = `
 # Markdown Renderer Demo
@@ -367,6 +370,14 @@ All components follow the design system with proper spacing, typography, and smo
 `
 
 export default function MarkdownDemoPage() {
+  const { theme, setTheme } = useTheme()
+  const [mounted, setMounted] = useState(false)
+
+  // Avoid hydration mismatch
+  useEffect(() => {
+    setMounted(true)
+  }, [])
+
   return (
     <div className="min-h-screen bg-background">
       {/* Header */}
@@ -375,13 +386,32 @@ export default function MarkdownDemoPage() {
         animate={{ opacity: 1, y: 0 }}
         className="border-b border-border-subtle bg-surface"
       >
-        <div className="max-w-4xl mx-auto px-6 py-4">
-          <h1 className="text-[24px] font-semibold text-text-primary">
-            Phase 11: Markdown & Rich Content Demo
-          </h1>
-          <p className="text-[15px] text-text-secondary mt-1">
-            Showcasing all markdown rendering capabilities
-          </p>
+        <div className="max-w-4xl mx-auto px-6 py-4 flex items-center justify-between">
+          <div>
+            <h1 className="text-[24px] font-semibold text-text-primary">
+              Phase 11: Markdown & Rich Content Demo
+            </h1>
+            <p className="text-[15px] text-text-secondary mt-1">
+              Showcasing all markdown rendering capabilities
+            </p>
+          </div>
+          
+          {/* Theme Switcher */}
+          {mounted && (
+            <motion.button
+              onClick={() => setTheme(theme === 'dark' ? 'light' : 'dark')}
+              className="flex items-center justify-center w-10 h-10 rounded-lg bg-surface-hover hover:bg-surface-elevated border border-border-subtle transition-colors cursor-pointer"
+              whileHover={{ scale: 1.05 }}
+              whileTap={{ scale: 0.95 }}
+              aria-label="Toggle theme"
+            >
+              {theme === 'dark' ? (
+                <Sun size={18} className="text-primary" />
+              ) : (
+                <Moon size={18} className="text-primary" />
+              )}
+            </motion.button>
+          )}
         </div>
       </motion.header>
 

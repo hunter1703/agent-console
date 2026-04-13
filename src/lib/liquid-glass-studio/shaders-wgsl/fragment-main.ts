@@ -121,7 +121,7 @@ fn safeNormalize(v: vec2f) -> vec2f {
 
 const D65_WHITE: vec3f = vec3f(0.95045592705, 1.0, 1.08905775076);
 
-// GLSL mat3 is column-major. For `v * M`, result[j] = dot(v, column[j]).
+// GLSL mat3 is column-major. For v * M, result[j] = dot(v, column[j]).
 // GLSL: mat3(col0.x,col0.y,col0.z, col1.x,col1.y,col1.z, col2.x,col2.y,col2.z)
 // RGB_TO_XYZ_M columns:
 const RGB_TO_XYZ_M_COL0: vec3f = vec3f(0.4124, 0.3576, 0.1805);

@@ -14,6 +14,8 @@ interface ChatState {
   isThinking: boolean
   thinkingMessage: string | null
   activeToolCalls: ToolCall[]
+  loading: boolean
+  error: string | null
   
   // Actions
   setMessages: (sessionId: string, messages: Message[]) => void
@@ -22,6 +24,11 @@ interface ChatState {
   appendToMessage: (sessionId: string, messageId: string, content: string) => void
   deleteMessage: (sessionId: string, messageId: string) => void
   clearMessages: (sessionId: string) => void
+  
+  // Async actions
+  fetchMessages: (sessionId: string) => Promise<void>
+  sendMessageAsync: (sessionId: string, content: string, parentMessageId?: string) => Promise<Message>
+  deleteMessageAsync: (sessionId: string, messageId: string) => Promise<void>
   
   // Streaming actions
   startStreaming: (sessionId: string, messageId: string) => void
@@ -47,6 +54,8 @@ export const useChatStore = create<ChatState>((set, get) => ({
   isThinking: false,
   thinkingMessage: null,
   activeToolCalls: [],
+  loading: false,
+  error: null,
   
   // Actions
   setMessages: (sessionId, messages) => set((state) => ({
@@ -108,6 +117,84 @@ export const useChatStore = create<ChatState>((set, get) => ({
       [sessionId]: [],
     },
   })),
+  
+  // Async actions
+  fetchMessages: async (sessionId) => {
+    set({ loading: true, error: null })
+    try {
+      const { messageService } = await import('@/lib/api/services')
+      const messages = await messageService.list(sessionId)
+      set((state) => ({
+        messagesBySession: {
+          ...state.messagesBySession,
+          [sessionId]: messages,
+        },
+        loading: false,
+      }))
+    } catch (error) {
+      set({ 
+        error: error instanceof Error ? error.message : 'Failed to fetch messages',
+        loading: false 
+      })
+    }
+  },
+  
+  sendMessageAsync: async (sessionId, content, parentMessageId) => {
+    set({ loading: true, error: null })
+    try {
+      const { messageService } = await import('@/lib/api/services')
+      const response = await messageService.send(sessionId, { content, parentMessageId })
+      
+      // Add user message
+      const userMessage: Message = {
+        id: response.userMessageId || `temp-${Date.now()}`,
+        sessionId,
+        role: 'user',
+        content,
+        createdAt: new Date().toISOString(),
+        parentMessageId,
+      }
+      
+      get().addMessage(sessionId, userMessage)
+      
+      // Add assistant message
+      const assistantMessage: Message = {
+        id: response.assistantMessageId || `temp-${Date.now()}-assistant`,
+        sessionId,
+        role: 'assistant',
+        content: response.content || '',
+        createdAt: new Date().toISOString(),
+        parentMessageId: userMessage.id,
+      }
+      
+      get().addMessage(sessionId, assistantMessage)
+      set({ loading: false })
+      
+      return assistantMessage
+    } catch (error) {
+      set({ 
+        error: error instanceof Error ? error.message : 'Failed to send message',
+        loading: false 
+      })
+      throw error
+    }
+  },
+  
+  deleteMessageAsync: async (sessionId, messageId) => {
+    set({ loading: true, error: null })
+    try {
+      const { messageService } = await import('@/lib/api/services')
+      await messageService.delete(sessionId, messageId)
+      get().deleteMessage(sessionId, messageId)
+      set({ loading: false })
+    } catch (error) {
+      set({ 
+        error: error instanceof Error ? error.message : 'Failed to delete message',
+        loading: false 
+      })
+      throw error
+    }
+  },
   
   // Streaming actions
   startStreaming: (sessionId, messageId) => set({ 

@@ -17,7 +17,7 @@
 
 import { motion, AnimatePresence } from 'framer-motion'
 import { Edit2, Trash2 } from 'lucide-react'
-import { useState } from 'react'
+import { useState, memo } from 'react'
 import { cn } from '@/lib/utils'
 import { springPresets } from '@/lib/constants/animations'
 import { Avatar } from '@/components/common/Avatar'
@@ -35,7 +35,19 @@ export interface AgentCardProps {
   className?: string
 }
 
-export function AgentCard({
+// Custom comparison function for memoization
+function arePropsEqual(prevProps: AgentCardProps, nextProps: AgentCardProps): boolean {
+  return (
+    prevProps.id === nextProps.id &&
+    prevProps.name === nextProps.name &&
+    prevProps.description === nextProps.description &&
+    prevProps.avatarUrl === nextProps.avatarUrl &&
+    prevProps.isActive === nextProps.isActive &&
+    prevProps.className === nextProps.className
+  )
+}
+
+const AgentCardComponent = function AgentCard({
   id,
   name,
   description,
@@ -56,6 +68,7 @@ export function AgentCard({
       onMouseEnter={() => setIsHovered(true)}
       onMouseLeave={() => setIsHovered(false)}
       onClick={onClick}
+      data-testid="agent-card"
       className={cn(
         'relative group',
         'p-4 rounded-xl',
@@ -139,3 +152,6 @@ export function AgentCard({
     </motion.div>
   )
 }
+
+// Export memoized component
+export const AgentCard = memo(AgentCardComponent, arePropsEqual)

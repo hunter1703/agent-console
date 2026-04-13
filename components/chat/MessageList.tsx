@@ -90,30 +90,6 @@ export function MessageList({
           </div>
         </div>
       )}
-
-      {/* Scroll to Bottom Button */}
-      {!isNearBottom && messages.length > 0 && (
-        <motion.button
-          initial={{ opacity: 0, scale: 0.8 }}
-          animate={{ opacity: 1, scale: 1 }}
-          exit={{ opacity: 0, scale: 0.8 }}
-          transition={shouldAnimate ? springPresets.snappy : { duration: 0 }}
-          onClick={scrollToBottom}
-          className={cn(
-            'fixed bottom-24 right-8',
-            'p-3 rounded-full',
-            'bg-primary text-white',
-            'shadow-lg hover:shadow-xl',
-            'hover:scale-110 active:scale-95',
-            'transition-all duration-200',
-            'cursor-pointer',
-            'z-10'
-          )}
-          aria-label="Scroll to bottom"
-        >
-          <ArrowDown size={20} />
-        </motion.button>
-      )}
     </div>
   )
 }

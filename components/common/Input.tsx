@@ -117,7 +117,7 @@ export const Input = forwardRef<HTMLInputElement, InputProps>(
               hasError
                 ? 'border-error focus:border-error'
                 : isFocused
-                ? 'border-primary shadow-lg shadow-primary/20'
+                ? 'border-primary'
                 : 'border-border-subtle hover:border-border-medium',
               // Disabled styles
               'disabled:opacity-50 disabled:bg-surface',
@@ -136,12 +136,6 @@ export const Input = forwardRef<HTMLInputElement, InputProps>(
               setHasValue(e.target.value.length > 0)
               props.onChange?.(e)
             }}
-            animate={{
-              boxShadow: isFocused
-                ? '0 0 0 2px var(--primary)'
-                : '0 0 0 0px var(--primary)',
-            }}
-            transition={springPresets.snappy}
             {...(props as any)}
           />
 
@@ -256,7 +250,7 @@ export const Textarea = forwardRef<HTMLTextAreaElement, TextareaProps>(
               hasError
                 ? 'border-error focus:border-error'
                 : isFocused
-                ? 'border-primary shadow-lg shadow-primary/20'
+                ? 'border-primary'
                 : 'border-border-subtle hover:border-border-medium',
               // Disabled styles
               'disabled:opacity-50 disabled:bg-surface',
@@ -284,12 +278,6 @@ export const Textarea = forwardRef<HTMLTextAreaElement, TextareaProps>(
               
               props.onChange?.(e)
             }}
-            animate={{
-              boxShadow: isFocused
-                ? '0 0 0 2px var(--primary)'
-                : '0 0 0 0px var(--primary)',
-            }}
-            transition={springPresets.snappy}
             {...(props as any)}
           />
 

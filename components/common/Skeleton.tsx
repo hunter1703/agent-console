@@ -3,69 +3,93 @@
 /**
  * Skeleton Loading Components
  * 
- * Skeleton screens for better loading states.
- * Provides visual feedback while content loads.
+ * Enhanced skeleton screens with shimmer animation for better loading states.
+ * Provides visual feedback while content loads with smooth wave effect.
  * 
  * Design Philosophy:
  * - Better UX than spinners
  * - Matches content structure
- * - Smooth pulse animation
+ * - Smooth shimmer animation
+ * - Respects prefers-reduced-motion
  */
 
 import { motion } from 'framer-motion'
+import { useEffect, useState } from 'react'
 import { cn } from '@/lib/utils'
 
 export interface SkeletonProps {
   className?: string
   animate?: boolean
+  width?: string | number
+  height?: string | number
+  borderRadius?: string | number
 }
 
-export function Skeleton({ className, animate = true }: SkeletonProps) {
+export function Skeleton({ 
+  className, 
+  animate = true, 
+  width, 
+  height, 
+  borderRadius = '8px' 
+}: SkeletonProps) {
+  const [prefersReducedMotion, setPrefersReducedMotion] = useState(false)
+
+  // Check for reduced motion preference
+  useEffect(() => {
+    const mediaQuery = window.matchMedia('(prefers-reduced-motion: reduce)')
+    setPrefersReducedMotion(mediaQuery.matches)
+
+    const handleChange = (e: MediaQueryListEvent) => {
+      setPrefersReducedMotion(e.matches)
+    }
+
+    mediaQuery.addEventListener('change', handleChange)
+    return () => mediaQuery.removeEventListener('change', handleChange)
+  }, [])
+
+  const shouldAnimate = animate && !prefersReducedMotion
+
   return (
-    <motion.div
-      className={cn('bg-surface rounded', className)}
-      animate={animate ? { opacity: [0.5, 1, 0.5] } : undefined}
-      transition={
-        animate
-          ? {
-              duration: 1.5,
-              repeat: Infinity,
-              ease: 'easeInOut',
-            }
-          : undefined
-      }
+    <div
+      className={cn(
+        'bg-surface',
+        shouldAnimate && 'skeleton-shimmer',
+        className
+      )}
+      data-testid="skeleton"
+      style={{
+        width,
+        height,
+        borderRadius,
+      }}
     />
   )
 }
 
 /**
- * Skeleton Card - For agent/session cards
+ * Skeleton Card - For agent/session cards (legacy - use specific skeletons)
  */
 export function SkeletonCard() {
   return (
     <div className="p-4 space-y-3">
       <div className="flex items-center gap-3">
-        <Skeleton className="w-10 h-10 rounded-full" />
+        <Skeleton 
+          width="40px" 
+          height="40px" 
+          borderRadius="50%"
+        />
         <div className="flex-1 space-y-2">
-          <Skeleton className="h-4 w-3/4" />
-          <Skeleton className="h-3 w-1/2" />
+          <Skeleton 
+            width="75%" 
+            height="16px" 
+            borderRadius="4px"
+          />
+          <Skeleton 
+            width="50%" 
+            height="12px" 
+            borderRadius="4px"
+          />
         </div>
-      </div>
-    </div>
-  )
-}
-
-/**
- * Skeleton Message - For chat messages
- */
-export function SkeletonMessage({ isUser = false }: { isUser?: boolean }) {
-  return (
-    <div className={cn('flex gap-3', isUser && 'flex-row-reverse')}>
-      <Skeleton className="w-8 h-8 rounded-full flex-shrink-0" />
-      <div className="flex-1 space-y-2 max-w-[70%]">
-        <Skeleton className="h-4 w-full" />
-        <Skeleton className="h-4 w-4/5" />
-        <Skeleton className="h-4 w-3/5" />
       </div>
     </div>
   )
@@ -93,10 +117,9 @@ export function SkeletonText({ lines = 3 }: { lines?: number }) {
       {Array.from({ length: lines }).map((_, i) => (
         <Skeleton
           key={i}
-          className={cn(
-            'h-4',
-            i === lines - 1 ? 'w-2/3' : 'w-full'
-          )}
+          width={i === lines - 1 ? '66%' : '100%'}
+          height="16px"
+          borderRadius="4px"
         />
       ))}
     </div>

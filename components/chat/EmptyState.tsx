@@ -13,12 +13,11 @@
  */
 
 import { motion } from 'framer-motion'
-import { Sparkles, Code, HelpCircle } from 'lucide-react'
+import { Sparkles, Code, HelpCircle, MessageSquare } from 'lucide-react'
 import { useState } from 'react'
 import { cn } from '@/lib/utils'
 import { springPresets } from '@/lib/constants/animations'
 import { useReducedMotion } from '@/lib/hooks/useReducedMotion'
-import { AnimatedEyes } from '@/components/common/AnimatedEyes'
 
 export interface SuggestedPrompt {
   icon: React.ReactNode
@@ -58,6 +57,7 @@ export function EmptyState({ onPromptClick, className }: EmptyStateProps) {
       initial={{ opacity: 0, scale: 0.95 }}
       animate={{ opacity: 1, scale: 1 }}
       transition={shouldAnimate ? springPresets.default : { duration: 0 }}
+      data-testid="empty-chat"
       className={cn(
         'flex flex-col items-center justify-center',
         'text-center max-w-md mx-auto',
@@ -65,14 +65,16 @@ export function EmptyState({ onPromptClick, className }: EmptyStateProps) {
         className
       )}
     >
-      {/* Animated Eyes */}
+      {/* Icon */}
       <motion.div
         initial={shouldAnimate ? { scale: 0, rotate: -180 } : false}
         animate={shouldAnimate ? { scale: 1, rotate: 0 } : { scale: 1, rotate: 0 }}
         transition={shouldAnimate ? { ...springPresets.snappy, delay: 0.2 } : { duration: 0 }}
         className="mb-8"
       >
-        <AnimatedEyes size="lg" showHearts={hoveredIndex !== null} />
+        <div className="flex items-center justify-center">
+          <MessageSquare size={40} className="text-primary" />
+        </div>
       </motion.div>
 
       {/* Heading with stagger animation */}
@@ -112,6 +114,7 @@ export function EmptyState({ onPromptClick, className }: EmptyStateProps) {
             onMouseEnter={() => setHoveredIndex(index)}
             onMouseLeave={() => setHoveredIndex(null)}
             onClick={() => onPromptClick?.(prompt.prompt)}
+            data-testid="suggested-prompt"
             className={cn(
               'w-full flex items-center gap-3 relative overflow-hidden',
               'p-4 rounded-xl',

@@ -58,12 +58,12 @@ export function Toggle({
         className={cn(
           'relative rounded-full transition-colors',
           track,
-          disabled && 'cursor-not-allowed'
+          disabled ? 'cursor-not-allowed' : 'cursor-pointer'
         )}
         animate={{
           backgroundColor: checked
             ? 'var(--color-primary)'
-            : 'var(--color-surface-hover)',
+            : 'var(--color-border-medium)',
         }}
         whileTap={!disabled ? { scale: 0.95 } : undefined}
         transition={springPresets.snappy}

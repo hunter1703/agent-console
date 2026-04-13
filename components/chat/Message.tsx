@@ -13,11 +13,15 @@
  * - Creative micro-animations
  * - Smooth, delightful interactions
  * - Generous whitespace
+ * 
+ * Performance:
+ * - Memoized to prevent unnecessary re-renders
+ * - Custom comparison function for optimal performance
  */
 
 import { motion, useInView } from 'framer-motion'
 import { Copy, Check } from 'lucide-react'
-import { useState, useRef } from 'react'
+import { useState, useRef, memo } from 'react'
 import { cn } from '@/lib/utils'
 import { springPresets } from '@/lib/constants/animations'
 import { Avatar } from '@/components/common/Avatar'
@@ -38,7 +42,7 @@ export interface MessageProps {
 }
 
 // Copy button component - reusable for both message types
-function CopyButton({
+const CopyButton = memo(function CopyButton({
   isCopied,
   onClick,
 }: {
@@ -81,7 +85,7 @@ function CopyButton({
       </motion.div>
     </motion.button>
   )
-}
+})
 
 // Message content wrapper - handles layout for both message types
 function MessageContent({
@@ -108,7 +112,21 @@ function MessageContent({
   )
 }
 
-export function Message({
+// Custom comparison function for memoization
+function arePropsEqual(prevProps: MessageProps, nextProps: MessageProps): boolean {
+  return (
+    prevProps.id === nextProps.id &&
+    prevProps.content === nextProps.content &&
+    prevProps.sender === nextProps.sender &&
+    prevProps.senderName === nextProps.senderName &&
+    prevProps.senderAvatar === nextProps.senderAvatar &&
+    prevProps.timestamp.getTime() === nextProps.timestamp.getTime() &&
+    prevProps.isClusteredWithPrevious === nextProps.isClusteredWithPrevious &&
+    prevProps.className === nextProps.className
+  )
+}
+
+const MessageComponent = function Message({
   id,
   content,
   sender,
@@ -169,6 +187,8 @@ export function Message({
       animate={shouldAnimate && isInView ? 'visible' : false}
       onMouseEnter={() => setIsHovered(true)}
       onMouseLeave={() => setIsHovered(false)}
+      data-role={sender === 'user' ? 'user' : 'assistant'}
+      data-message-id={id}
       className={cn(
         'flex gap-4 group relative',
         isClusteredWithPrevious ? 'mt-2' : 'mt-10',
@@ -254,3 +274,6 @@ export function Message({
     </motion.div>
   )
 }
+
+// Export memoized component
+export const Message = memo(MessageComponent, arePropsEqual)

@@ -2,6 +2,8 @@
 
 import { useEffect, useRef, useState } from 'react'
 import { useTheme } from 'next-themes'
+import { Copy, Check } from 'lucide-react'
+import { motion, AnimatePresence } from 'framer-motion'
 
 interface MermaidDiagramProps {
   chart: string
@@ -12,12 +14,12 @@ export function MermaidDiagram({ chart, className = '' }: MermaidDiagramProps) {
   const containerRef = useRef<HTMLDivElement>(null)
   const [error, setError] = useState<string | null>(null)
   const [isLoading, setIsLoading] = useState(true)
+  const [svgContent, setSvgContent] = useState<string>('')
+  const [copied, setCopied] = useState(false)
   const { theme } = useTheme()
 
   useEffect(() => {
     const renderDiagram = async () => {
-      if (!containerRef.current) return
-
       try {
         setIsLoading(true)
         setError(null)
@@ -39,10 +41,7 @@ export function MermaidDiagram({ chart, className = '' }: MermaidDiagramProps) {
         // Render the diagram
         const { svg } = await mermaid.render(id, chart)
 
-        if (containerRef.current) {
-          containerRef.current.innerHTML = svg
-        }
-
+        setSvgContent(svg)
         setIsLoading(false)
       } catch (err) {
         console.error('Failed to render Mermaid diagram:', err)
@@ -53,6 +52,16 @@ export function MermaidDiagram({ chart, className = '' }: MermaidDiagramProps) {
 
     renderDiagram()
   }, [chart, theme])
+
+  const handleCopy = async () => {
+    try {
+      await navigator.clipboard.writeText(chart)
+      setCopied(true)
+      setTimeout(() => setCopied(false), 2000)
+    } catch (error) {
+      console.error('Failed to copy diagram code:', error)
+    }
+  }
 
   if (error) {
     return (
@@ -67,25 +76,67 @@ export function MermaidDiagram({ chart, className = '' }: MermaidDiagramProps) {
   return (
     <div
       className={`
-        my-4 p-6
+        my-4
         bg-surface
         rounded-xl
         border border-border-subtle
-        flex items-center justify-center
-        overflow-x-auto
+        overflow-hidden
         ${className}
       `}
     >
-      {isLoading ? (
-        <div className="text-text-tertiary text-sm animate-pulse">
-          Loading diagram...
-        </div>
-      ) : (
-        <div
-          ref={containerRef}
-          className="mermaid-diagram w-full flex justify-center"
-        />
-      )}
+      {/* Header with copy button */}
+      <div className="flex items-center justify-between h-10 px-3 bg-gradient-to-r from-primary/10 via-primary/5 to-transparent border-b border-border backdrop-blur-sm">
+        <span className="text-[11px] uppercase tracking-wide text-primary font-semibold">
+          Mermaid Diagram
+        </span>
+        
+        <motion.button
+          onClick={handleCopy}
+          className="flex items-center justify-center w-7 h-7 rounded-md hover:bg-primary/10 transition-colors cursor-pointer"
+          whileHover={{ scale: 1.05 }}
+          whileTap={{ scale: 0.95 }}
+          aria-label={copied ? 'Copied' : 'Copy diagram code'}
+        >
+          <AnimatePresence mode="wait">
+            {copied ? (
+              <motion.div
+                key="check"
+                initial={{ opacity: 0, scale: 0.8 }}
+                animate={{ opacity: 1, scale: 1 }}
+                exit={{ opacity: 0, scale: 0.8 }}
+                transition={{ duration: 0.15 }}
+              >
+                <Check size={13} className="text-primary" />
+              </motion.div>
+            ) : (
+              <motion.div
+                key="copy"
+                initial={{ opacity: 0, scale: 0.8 }}
+                animate={{ opacity: 1, scale: 1 }}
+                exit={{ opacity: 0, scale: 0.8 }}
+                transition={{ duration: 0.15 }}
+              >
+                <Copy size={13} className="text-text-secondary hover:text-primary transition-colors" />
+              </motion.div>
+            )}
+          </AnimatePresence>
+        </motion.button>
+      </div>
+
+      {/* Diagram content */}
+      <div className="p-6 flex items-center justify-center overflow-x-auto">
+        {isLoading ? (
+          <div className="text-text-tertiary text-sm animate-pulse">
+            Loading diagram...
+          </div>
+        ) : (
+          <div
+            ref={containerRef}
+            className="mermaid-diagram w-full flex justify-center"
+            dangerouslySetInnerHTML={{ __html: svgContent }}
+          />
+        )}
+      </div>
     </div>
   )
 }

@@ -1,401 +1,320 @@
 /**
  * API Client
  * 
- * Base HTTP client for Agent Engine API.
+ * Base fetch wrapper for Agent Engine API with error handling, retries, and type safety.
+ * Integrates with existing environment configuration and follows established patterns.
  */
 
-import {
-  APIError,
-  NetworkError,
-  TimeoutError,
-  ValidationError,
-  UnauthorizedError,
-  NotFoundError,
-  ServerError,
-  parseAPIError,
-} from './errors'
-import { env } from '@/lib/config/env'
-import type {
-  Agent,
-  AgentRequest,
-  AgentResponse,
-  AgentListResponse,
-} from '@/types/agent'
-import type {
-  Session,
-  SessionRequest,
-  SessionResponse,
-  SessionListResponse,
-} from '@/types/session'
-import type {
-  Message,
-  MessageRequest,
-  MessageResponse,
-  SSEEvent,
-} from '@/types/message'
+import { API_CONFIG, getApiUrl, DEV_CONFIG } from '@/lib/config/env'
 
-export interface APIClientConfig {
-  baseURL?: string
-  timeout?: number
-  headers?: Record<string, string>
+// ============================================================================
+// Types
+// ============================================================================
+
+export interface ApiResponse<T = unknown> {
+  data: T
+  success: boolean
+  message?: string
+  error?: string
 }
 
-export class APIClient {
-  private baseURL: string
-  private timeout: number
-  private headers: Record<string, string>
-  private abortControllers: Map<string, AbortController>
+export interface ApiError {
+  message: string
+  code?: string
+  status?: number
+  details?: unknown
+}
 
-  constructor(config: APIClientConfig = {}) {
-    this.baseURL = config.baseURL || env.apiBaseUrl
-    this.timeout = config.timeout || env.apiTimeout
-    this.headers = {
-      'Content-Type': 'application/json',
-      'Accept': 'application/json',
-      ...config.headers,
+export interface RequestConfig extends RequestInit {
+  timeout?: number
+  retries?: number
+  retryDelay?: number
+}
+
+export interface RequestOptions extends RequestConfig {
+  sanitize?: boolean
+}
+
+// ============================================================================
+// Error Classes
+// ============================================================================
+
+export class ApiClientError extends Error {
+  constructor(
+    message: string,
+    public status?: number,
+    public code?: string,
+    public details?: unknown
+  ) {
+    super(message)
+    this.name = 'ApiClientError'
+  }
+}
+
+export class NetworkError extends ApiClientError {
+  constructor(message: string = 'Network request failed') {
+    super(message, 0, 'NETWORK_ERROR')
+    this.name = 'NetworkError'
+  }
+}
+
+export class TimeoutError extends ApiClientError {
+  constructor(message: string = 'Request timeout') {
+    super(message, 0, 'TIMEOUT_ERROR')
+    this.name = 'TimeoutError'
+  }
+}
+
+// ============================================================================
+// Utility Functions
+// ============================================================================
+
+/**
+ * Create timeout promise for fetch requests
+ */
+function createTimeoutPromise(timeout: number): Promise<never> {
+  return new Promise((_, reject) => {
+    setTimeout(() => reject(new TimeoutError()), timeout)
+  })
+}
+
+/**
+ * Sleep utility for retry delays
+ */
+function sleep(ms: number): Promise<void> {
+  return new Promise(resolve => setTimeout(resolve, ms))
+}
+
+/**
+ * Parse error response from API
+ */
+async function parseErrorResponse(response: Response): Promise<ApiError> {
+  try {
+    const errorData = await response.json()
+    return {
+      message: errorData.message || errorData.error || `HTTP ${response.status}`,
+      code: errorData.code,
+      status: response.status,
+      details: errorData
     }
-    this.abortControllers = new Map()
+  } catch {
+    return {
+      message: `HTTP ${response.status}: ${response.statusText}`,
+      status: response.status
+    }
+  }
+}
+
+// ============================================================================
+// Main API Client
+// ============================================================================
+
+/**
+ * Base API client with retry logic and error handling
+ */
+export class ApiClient {
+  private baseUrl: string
+  private defaultTimeout: number
+
+  constructor(baseUrl?: string, timeout?: number) {
+    this.baseUrl = baseUrl || API_CONFIG.url
+    this.defaultTimeout = timeout || API_CONFIG.timeout
   }
 
   /**
-   * Make HTTP request
+   * Make HTTP request with retry logic
    */
-  private async request<T>(
-    method: string,
-    path: string,
-    options: {
-      body?: any
-      headers?: Record<string, string>
-      timeout?: number
-      signal?: AbortSignal
-    } = {}
+  async request<T = unknown>(
+    endpoint: string,
+    config: RequestConfig = {}
   ): Promise<T> {
-    const url = `${this.baseURL}${path}`
-    const timeout = options.timeout || this.timeout
-
-    // Create abort controller for timeout
-    const controller = new AbortController()
-    const timeoutId = setTimeout(() => controller.abort(), timeout)
-
-    // Use provided signal or controller signal
-    const signal = options.signal || controller.signal
-
-    try {
-      const response = await fetch(url, {
-        method,
-        headers: {
-          ...this.headers,
-          ...options.headers,
-        },
-        body: options.body ? JSON.stringify(options.body) : undefined,
-        signal,
-      })
-
-      clearTimeout(timeoutId)
-
-      // Handle HTTP errors
-      if (!response.ok) {
-        const errorData = await response.json().catch(() => ({}))
-        
-        switch (response.status) {
-          case 400:
-            throw new ValidationError(
-              errorData.message || 'Invalid request',
-              errorData.details
-            )
-          case 401:
-            throw new UnauthorizedError(errorData.message)
-          case 404:
-            throw new NotFoundError(errorData.message)
-          case 500:
-          case 502:
-          case 503:
-            throw new ServerError(errorData.message)
-          default:
-            throw new APIError(
-              errorData.message || 'Request failed',
-              response.status,
-              errorData.code,
-              errorData.details
-            )
-        }
-      }
-
-      // Parse response
-      const data = await response.json()
-      return data as T
-    } catch (error: any) {
-      clearTimeout(timeoutId)
-      throw parseAPIError(error)
-    }
-  }
-
-  /**
-   * Cancel a request by key
-   */
-  cancelRequest(key: string) {
-    const controller = this.abortControllers.get(key)
-    if (controller) {
-      controller.abort()
-      this.abortControllers.delete(key)
-    }
-  }
-
-  /**
-   * Cancel all requests
-   */
-  cancelAllRequests() {
-    this.abortControllers.forEach((controller) => controller.abort())
-    this.abortControllers.clear()
-  }
-
-  // ============================================================================
-  // Agent API Methods
-  // ============================================================================
-
-  /**
-   * List all agents using catalog API
-   */
-  async listAgents(): Promise<Agent[]> {
-    const response = await this.request<any>('POST', '/v1/catalog/list', {
-      body: {
-        assetType: 'Agent',
-        query: {},
-        options: {}
-      }
-    })
-    // The response is a PaginatedResult with items array
-    return response?.items || response?.agents || []
-  }
-
-  /**
-   * Get agent by ID using catalog API
-   */
-  async getAgent(id: string): Promise<Agent> {
-    const response = await this.request<any>('GET', `/v1/catalog/Agent/${id}`)
-    return response
-  }
-
-  /**
-   * Create new agent
-   */
-  async createAgent(data: AgentRequest): Promise<Agent> {
-    const response = await this.request<Agent>('POST', '/v1/agent/', {
-      body: data,
-    })
-    return response
-  }
-
-  /**
-   * Update agent
-   */
-  async updateAgent(id: string, data: Partial<AgentRequest>): Promise<Agent> {
-    const response = await this.request<Agent>('PUT', `/v1/agent/${id}`, {
-      body: { ...data, id },
-    })
-    return response
-  }
-
-  /**
-   * Delete agent
-   */
-  async deleteAgent(id: string): Promise<void> {
-    await this.request('DELETE', `/v1/agent/${id}`)
-  }
-
-  // ============================================================================
-  // Session API Methods
-  // ============================================================================
-
-  /**
-   * List all sessions using catalog API
-   */
-  async listSessions(): Promise<Session[]> {
-    const response = await this.request<any>('POST', '/v1/catalog/list', {
-      body: {
-        assetType: 'AgentSession',
-        query: {},
-        options: {}
-      }
-    })
-    // The response is a PaginatedResult with items array
-    return response?.items || response?.sessions || []
-  }
-
-  /**
-   * Get session by ID
-   */
-  async getSession(id: string): Promise<Session> {
-    const response = await this.request<Session>('GET', `/v1/catalog/AgentSession/${id}`)
-    return response
-  }
-
-  /**
-   * Create new session
-   */
-  async createSession(data: SessionRequest): Promise<Session> {
-    // Sessions are created implicitly when sending first message
-    // For now, return a mock session
-    throw new Error('Session creation not yet implemented in backend')
-  }
-
-  /**
-   * Delete session
-   */
-  async deleteSession(id: string): Promise<void> {
-    await this.request('DELETE', `/v1/agent/session/${id}`)
-  }
-
-  // ============================================================================
-  // Message API Methods
-  // ============================================================================
-
-  /**
-   * Send message and stream response with automatic reconnection
-   */
-  async sendMessage(
-    sessionId: string,
-    data: MessageRequest,
-    onEvent: (event: SSEEvent) => void,
-    onError?: (error: APIError) => void,
-    options: {
-      maxRetries?: number
-      retryDelay?: number
-      onReconnect?: () => void
-    } = {}
-  ): Promise<void> {
     const {
-      maxRetries = 3,
+      timeout = this.defaultTimeout,
+      retries = 3,
       retryDelay = 1000,
-      onReconnect,
-    } = options
+      ...fetchConfig
+    } = config
 
-    let retryCount = 0
-    let lastEventId: string | undefined
+    const url = getApiUrl(endpoint)
+    
+    // Default headers
+    const headers = {
+      'Content-Type': 'application/json',
+      ...fetchConfig.headers
+    }
 
-    const attemptConnection = async (): Promise<void> => {
-      const url = `${this.baseURL}/v1/agent/session/${sessionId}/stream`
-      const controller = new AbortController()
-      const requestKey = `stream-${sessionId}`
-      
-      this.abortControllers.set(requestKey, controller)
+    let lastError: Error
 
+    for (let attempt = 0; attempt <= retries; attempt++) {
       try {
-        const response = await fetch(url, {
-          method: 'POST',
-          headers: {
-            ...this.headers,
-            'Accept': 'text/event-stream',
-            ...(lastEventId && { 'Last-Event-ID': lastEventId }),
-          },
-          body: JSON.stringify(data),
-          signal: controller.signal,
+        if (DEV_CONFIG.debug && attempt > 0) {
+          console.log(`API retry attempt ${attempt} for ${endpoint}`)
+        }
+
+        // Create fetch promise with timeout
+        const fetchPromise = fetch(url, {
+          ...fetchConfig,
+          headers
         })
 
+        const timeoutPromise = createTimeoutPromise(timeout)
+        const response = await Promise.race([fetchPromise, timeoutPromise])
+
+        // Handle HTTP errors
         if (!response.ok) {
-          const errorData = await response.json().catch(() => ({}))
-          throw new APIError(
-            errorData.message || 'Stream failed',
-            response.status,
-            errorData.code
-          )
+          const error = await parseErrorResponse(response)
+          throw new ApiClientError(error.message, error.status, error.code, error.details)
         }
 
-        // Reset retry count on successful connection
-        retryCount = 0
-
-        // Read SSE stream
-        const reader = response.body?.getReader()
-        const decoder = new TextDecoder()
-
-        if (!reader) {
-          throw new Error('Response body is not readable')
-        }
-
-        let buffer = ''
-
-        while (true) {
-          const { done, value } = await reader.read()
-          
-          if (done) break
-
-          buffer += decoder.decode(value, { stream: true })
-          const lines = buffer.split('\n')
-          buffer = lines.pop() || ''
-
-          for (const line of lines) {
-            if (line.startsWith('data: ')) {
-              const data = line.slice(6)
-              
-              if (data === '[DONE]') {
-                continue
-              }
-
-              try {
-                const event = JSON.parse(data) as SSEEvent
-                
-                // Store event ID for reconnection
-                if ('id' in event) {
-                  lastEventId = (event as any).id
-                }
-                
-                onEvent(event)
-              } catch (error) {
-                console.error('Failed to parse SSE event:', error)
-              }
-            }
-          }
-        }
-      } catch (error: any) {
-        // Don't retry if manually cancelled
-        if (error.name === 'AbortError') {
-          return
-        }
-
-        const apiError = parseAPIError(error)
-        
-        // Retry on network errors or 5xx status codes
-        const shouldRetry = 
-          (apiError instanceof NetworkError || 
-           apiError instanceof ServerError ||
-           apiError.statusCode === 429) &&
-          retryCount < maxRetries
-
-        if (shouldRetry) {
-          retryCount++
-          const delay = retryDelay * Math.pow(2, retryCount - 1) // Exponential backoff
-          
-          console.log(`Reconnecting in ${delay}ms (attempt ${retryCount}/${maxRetries})...`)
-          
-          await new Promise(resolve => setTimeout(resolve, delay))
-          
-          if (onReconnect) {
-            onReconnect()
-          }
-          
-          return attemptConnection()
+        // Parse response
+        const contentType = response.headers.get('content-type')
+        if (contentType?.includes('application/json')) {
+          return await response.json()
         } else {
-          if (onError) {
-            onError(apiError)
-          } else {
-            throw apiError
-          }
+          return response.text() as T
         }
-      } finally {
-        this.abortControllers.delete(requestKey)
+
+      } catch (error) {
+        lastError = error instanceof Error ? error : new Error(String(error))
+
+        // Don't retry on client errors (4xx) or timeout errors
+        if (
+          error instanceof ApiClientError && 
+          error.status && 
+          error.status >= 400 && 
+          error.status < 500
+        ) {
+          throw error
+        }
+
+        if (error instanceof TimeoutError) {
+          throw error
+        }
+
+        // Don't retry on last attempt
+        if (attempt === retries) {
+          break
+        }
+
+        // Wait before retry with exponential backoff
+        await sleep(retryDelay * Math.pow(2, attempt))
       }
     }
 
-    return attemptConnection()
+    // If we get here, all retries failed
+    throw lastError instanceof ApiClientError 
+      ? lastError 
+      : new NetworkError(lastError.message)
   }
 
   /**
-   * Cancel message stream
+   * GET request
    */
-  cancelMessageStream(sessionId: string) {
-    this.cancelRequest(`stream-${sessionId}`)
+  async get<T = unknown>(endpoint: string, config?: RequestConfig): Promise<T> {
+    return this.request<T>(endpoint, { ...config, method: 'GET' })
+  }
+
+  /**
+   * POST request
+   */
+  async post<T = unknown>(
+    endpoint: string, 
+    data?: unknown, 
+    config?: RequestConfig
+  ): Promise<T> {
+    return this.request<T>(endpoint, {
+      ...config,
+      method: 'POST',
+      body: data ? JSON.stringify(data) : undefined
+    })
+  }
+
+  /**
+   * PUT request
+   */
+  async put<T = unknown>(
+    endpoint: string, 
+    data?: unknown, 
+    config?: RequestConfig
+  ): Promise<T> {
+    return this.request<T>(endpoint, {
+      ...config,
+      method: 'PUT',
+      body: data ? JSON.stringify(data) : undefined
+    })
+  }
+
+  /**
+   * DELETE request
+   */
+  async delete<T = unknown>(endpoint: string, config?: RequestConfig): Promise<T> {
+    return this.request<T>(endpoint, { ...config, method: 'DELETE' })
+  }
+
+  /**
+   * PATCH request
+   */
+  async patch<T = unknown>(
+    endpoint: string, 
+    data?: unknown, 
+    config?: RequestConfig
+  ): Promise<T> {
+    return this.request<T>(endpoint, {
+      ...config,
+      method: 'PATCH',
+      body: data ? JSON.stringify(data) : undefined
+    })
   }
 }
 
-// Export singleton instance
-export const apiClient = new APIClient()
+// ============================================================================
+// Default Instance
+// ============================================================================
+
+/**
+ * Default API client instance
+ */
+export const apiClient = new ApiClient()
+
+// ============================================================================
+// Convenience Functions
+// ============================================================================
+
+/**
+ * Quick GET request
+ */
+export const get = <T = unknown>(endpoint: string, config?: RequestConfig): Promise<T> =>
+  apiClient.get<T>(endpoint, config)
+
+/**
+ * Quick POST request
+ */
+export const post = <T = unknown>(
+  endpoint: string, 
+  data?: unknown, 
+  config?: RequestConfig
+): Promise<T> => apiClient.post<T>(endpoint, data, config)
+
+/**
+ * Quick PUT request
+ */
+export const put = <T = unknown>(
+  endpoint: string, 
+  data?: unknown, 
+  config?: RequestConfig
+): Promise<T> => apiClient.put<T>(endpoint, data, config)
+
+/**
+ * Quick DELETE request
+ */
+export const del = <T = unknown>(endpoint: string, config?: RequestConfig): Promise<T> =>
+  apiClient.delete<T>(endpoint, config)
+
+/**
+ * Quick PATCH request
+ */
+export const patch = <T = unknown>(
+  endpoint: string, 
+  data?: unknown, 
+  config?: RequestConfig
+): Promise<T> => apiClient.patch<T>(endpoint, data, config)

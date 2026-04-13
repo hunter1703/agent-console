@@ -26,6 +26,9 @@ interface SessionState {
   setLoading: (loading: boolean) => void
   setError: (error: string | null) => void
   fetchSessions: (agentId?: string) => Promise<void>
+  createSessionAsync: (data: { agentId: string; title?: string; parentSessionId?: string }) => Promise<Session>
+  updateSessionAsync: (id: string, updates: Partial<Session>) => Promise<void>
+  deleteSessionAsync: (id: string) => Promise<void>
   
   // Selectors
   getSessionById: (id: string) => Session | undefined
@@ -95,18 +98,81 @@ export const useSessionStore = create<SessionState>((set, get) => ({
   fetchSessions: async (agentId?: string) => {
     set({ loading: true, error: null })
     try {
-      const { apiClient } = await import('@/lib/api/client')
-      const sessions = await apiClient.listSessions()
-      // Filter by agentId if provided
-      const filteredSessions = agentId 
-        ? sessions.filter(s => s.agentId === agentId)
-        : sessions
-      set({ sessions: filteredSessions, loading: false })
+      const { sessionService } = await import('@/lib/api/services')
+      const sessions = await sessionService.list(agentId)
+      set({ sessions, loading: false })
     } catch (error) {
       set({ 
         error: error instanceof Error ? error.message : 'Failed to fetch sessions',
         loading: false 
       })
+    }
+  },
+  
+  createSessionAsync: async (data) => {
+    set({ loading: true, error: null })
+    try {
+      const { sessionService } = await import('@/lib/api/services')
+      const session = await sessionService.create(data)
+      set((state) => ({
+        sessions: [...state.sessions, session],
+        loading: false,
+      }))
+      return session
+    } catch (error) {
+      set({ 
+        error: error instanceof Error ? error.message : 'Failed to create session',
+        loading: false 
+      })
+      throw error
+    }
+  },
+  
+  updateSessionAsync: async (id, updates) => {
+    set({ loading: true, error: null })
+    try {
+      const { sessionService } = await import('@/lib/api/services')
+      const updatedSession = await sessionService.update(id, updates)
+      set((state) => ({
+        sessions: state.sessions.map((session) =>
+          session.id === id ? updatedSession : session
+        ),
+        loading: false,
+      }))
+    } catch (error) {
+      set({ 
+        error: error instanceof Error ? error.message : 'Failed to update session',
+        loading: false 
+      })
+      throw error
+    }
+  },
+  
+  deleteSessionAsync: async (id) => {
+    set({ loading: true, error: null })
+    try {
+      const { sessionService } = await import('@/lib/api/services')
+      await sessionService.delete(id)
+      set((state) => {
+        // Also delete child sessions
+        const childIds = state.sessions
+          .filter((s) => s.parentSessionId === id)
+          .map((s) => s.id)
+        
+        const idsToDelete = new Set([id, ...childIds])
+        
+        return {
+          sessions: state.sessions.filter((s) => !idsToDelete.has(s.id)),
+          selectedSessionId: state.selectedSessionId === id ? null : state.selectedSessionId,
+          loading: false,
+        }
+      })
+    } catch (error) {
+      set({ 
+        error: error instanceof Error ? error.message : 'Failed to delete session',
+        loading: false 
+      })
+      throw error
     }
   },
   

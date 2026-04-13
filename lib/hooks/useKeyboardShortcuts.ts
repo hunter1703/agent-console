@@ -1,70 +1,99 @@
+'use client'
+
 /**
  * useKeyboardShortcuts Hook
  * 
- * Manages keyboard shortcuts with cross-platform modifier key support.
+ * Manages global keyboard shortcuts for the application.
+ * Handles platform-specific modifiers (Cmd on Mac, Ctrl on Windows/Linux).
+ * 
+ * Usage:
+ * useKeyboardShortcuts([
+ *   { key: 'k', modifiers: ['meta'], action: () => openSearch() },
+ *   { key: 'n', modifiers: ['meta'], action: () => newChat() },
+ * ])
  */
-
-'use client'
 
 import { useEffect, useCallback } from 'react'
 
 export interface KeyboardShortcut {
   key: string
-  ctrl?: boolean
-  shift?: boolean
-  alt?: boolean
-  meta?: boolean
-  callback: (event: KeyboardEvent) => void
-  preventDefault?: boolean
-}
-
-interface UseKeyboardShortcutsOptions {
-  shortcuts: KeyboardShortcut[]
+  modifiers?: ('meta' | 'ctrl' | 'shift' | 'alt')[]
+  action: () => void
+  description?: string
   enabled?: boolean
 }
 
-export function useKeyboardShortcuts({ shortcuts, enabled = true }: UseKeyboardShortcutsOptions) {
+export function useKeyboardShortcuts(shortcuts: KeyboardShortcut[]) {
   const handleKeyDown = useCallback(
     (event: KeyboardEvent) => {
-      if (!enabled) return
-
       for (const shortcut of shortcuts) {
-        const keyMatch = event.key.toLowerCase() === shortcut.key.toLowerCase()
-        
-        // Handle ctrl/meta cross-platform compatibility
-        const hasCtrlOrMeta = event.ctrlKey || event.metaKey
-        const ctrlMatch = shortcut.ctrl !== undefined 
-          ? (shortcut.ctrl ? hasCtrlOrMeta : !hasCtrlOrMeta)
-          : true
-        
-        const shiftMatch = shortcut.shift !== undefined
-          ? (shortcut.shift ? event.shiftKey : !event.shiftKey)
-          : true
-        
-        const altMatch = shortcut.alt !== undefined
-          ? (shortcut.alt ? event.altKey : !event.altKey)
-          : true
-        
-        const metaMatch = shortcut.meta !== undefined
-          ? (shortcut.meta ? event.metaKey : !event.metaKey)
-          : true
+        // Skip if disabled
+        if (shortcut.enabled === false) continue
 
-        if (keyMatch && ctrlMatch && shiftMatch && altMatch && metaMatch) {
-          if (shortcut.preventDefault !== false) {
-            event.preventDefault()
-          }
-          shortcut.callback(event)
-          break
-        }
+        // Check if key matches
+        if (event.key.toLowerCase() !== shortcut.key.toLowerCase()) continue
+
+        // Check modifiers
+        const modifiers = shortcut.modifiers || []
+        const metaPressed = event.metaKey || event.ctrlKey // Cmd on Mac, Ctrl on Windows
+        const shiftPressed = event.shiftKey
+        const altPressed = event.altKey
+
+        const requiresMeta = modifiers.includes('meta') || modifiers.includes('ctrl')
+        const requiresShift = modifiers.includes('shift')
+        const requiresAlt = modifiers.includes('alt')
+
+        // Check if all required modifiers are pressed
+        if (requiresMeta && !metaPressed) continue
+        if (requiresShift && !shiftPressed) continue
+        if (requiresAlt && !altPressed) continue
+
+        // Check if no extra modifiers are pressed
+        if (!requiresMeta && metaPressed) continue
+        if (!requiresShift && shiftPressed) continue
+        if (!requiresAlt && altPressed) continue
+
+        // Prevent default and execute action
+        event.preventDefault()
+        shortcut.action()
+        break
       }
     },
-    [shortcuts, enabled]
+    [shortcuts]
   )
 
   useEffect(() => {
-    if (!enabled) return
-
     window.addEventListener('keydown', handleKeyDown)
     return () => window.removeEventListener('keydown', handleKeyDown)
-  }, [handleKeyDown, enabled])
+  }, [handleKeyDown])
+}
+
+/**
+ * Get platform-specific modifier key name
+ */
+export function getModifierKey(): string {
+  if (typeof window === 'undefined') return 'Ctrl'
+  return navigator.platform.toLowerCase().includes('mac') ? '⌘' : 'Ctrl'
+}
+
+/**
+ * Format shortcut for display
+ */
+export function formatShortcut(shortcut: KeyboardShortcut): string {
+  const modifierKey = getModifierKey()
+  const parts: string[] = []
+
+  if (shortcut.modifiers?.includes('meta') || shortcut.modifiers?.includes('ctrl')) {
+    parts.push(modifierKey)
+  }
+  if (shortcut.modifiers?.includes('shift')) {
+    parts.push('Shift')
+  }
+  if (shortcut.modifiers?.includes('alt')) {
+    parts.push('Alt')
+  }
+
+  parts.push(shortcut.key.toUpperCase())
+
+  return parts.join('+')
 }

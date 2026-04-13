@@ -14,6 +14,7 @@
 
 import { motion, useInView } from 'framer-motion'
 import { ReactNode, useRef } from 'react'
+import React from 'react'
 import { cn } from '@/lib/utils'
 import { springPresets } from '@/lib/constants/animations'
 
@@ -86,7 +87,7 @@ export function ScrollStagger({
   staggerDelay = 0.1,
   once = true,
 }: {
-  children: ReactNode[]
+  children: ReactNode
   className?: string
   staggerDelay?: number
   once?: boolean
@@ -113,6 +114,9 @@ export function ScrollStagger({
     },
   }
 
+  // Convert children to array and filter out falsy values
+  const childrenArray = React.Children.toArray(children).filter(Boolean)
+
   return (
     <motion.div
       ref={ref}
@@ -121,7 +125,7 @@ export function ScrollStagger({
       animate={isInView ? 'visible' : 'hidden'}
       variants={containerVariants}
     >
-      {children.map((child, index) => (
+      {childrenArray.map((child, index) => (
         <motion.div key={index} variants={itemVariants}>
           {child}
         </motion.div>

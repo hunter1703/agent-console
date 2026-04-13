@@ -14,6 +14,7 @@
 
 import { motion } from 'framer-motion'
 import { HTMLAttributes } from 'react'
+import Image from 'next/image'
 import { cn } from '@/lib/utils'
 import { springPresets } from '@/lib/constants/animations'
 
@@ -58,11 +59,22 @@ export function Avatar({
 
   const initials = getInitials(name)
 
+  // Size dimensions for Next.js Image
+  const sizeDimensions = {
+    sm: 32,
+    md: 40,
+    lg: 48,
+  }
+
   const content = src ? (
-    <img
+    <Image
       src={src}
       alt={name}
+      width={sizeDimensions[size]}
+      height={sizeDimensions[size]}
       className="w-full h-full object-cover"
+      loading="lazy"
+      quality={85}
     />
   ) : (
     <span>{initials}</span>

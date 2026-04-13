@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, memo } from 'react'
 import { Check, Copy } from 'lucide-react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { codeToHtml } from 'shiki'
@@ -11,7 +11,16 @@ interface CodeBlockProps {
   className?: string
 }
 
-export function CodeBlock({ code, language = 'text', className = '' }: CodeBlockProps) {
+// Custom comparison function for memoization
+function arePropsEqual(prevProps: CodeBlockProps, nextProps: CodeBlockProps): boolean {
+  return (
+    prevProps.code === nextProps.code &&
+    prevProps.language === nextProps.language &&
+    prevProps.className === nextProps.className
+  )
+}
+
+const CodeBlockComponent = function CodeBlock({ code, language = 'text', className = '' }: CodeBlockProps) {
   const [copied, setCopied] = useState(false)
   const [highlightedCode, setHighlightedCode] = useState<string>('')
   const [isLoading, setIsLoading] = useState(true)
@@ -24,7 +33,7 @@ export function CodeBlock({ code, language = 'text', className = '' }: CodeBlock
           lang: language,
           themes: {
             light: 'github-light',
-            dark: 'github-dark',
+            dark: 'tokyo-night',
           },
         })
         setHighlightedCode(html)
@@ -51,16 +60,16 @@ export function CodeBlock({ code, language = 'text', className = '' }: CodeBlock
   }
 
   return (
-    <div className={`code-block-wrapper rounded-xl border border-border-subtle overflow-hidden ${className}`}>
-      {/* Header */}
-      <div className="flex items-center justify-between h-8 px-3 bg-surface border-b border-border-subtle">
-        <span className="text-[11px] uppercase tracking-wide text-text-tertiary font-medium">
+    <div className={`code-block-wrapper rounded-xl border-2 border-border overflow-hidden shadow-sm ${className}`}>
+      {/* Header with gradient */}
+      <div className="flex items-center justify-between h-10 px-3 bg-gradient-to-r from-primary/10 via-primary/5 to-transparent border-b border-border backdrop-blur-sm">
+        <span className="text-[11px] uppercase tracking-wide text-primary font-semibold">
           {language}
         </span>
         
         <motion.button
           onClick={handleCopy}
-          className="flex items-center justify-center w-7 h-7 rounded-md hover:bg-surface-hover transition-colors"
+          className="flex items-center justify-center w-7 h-7 rounded-md hover:bg-primary/10 transition-colors cursor-pointer"
           whileHover={{ scale: 1.05 }}
           whileTap={{ scale: 0.95 }}
           aria-label={copied ? 'Copied' : 'Copy code'}
@@ -74,7 +83,7 @@ export function CodeBlock({ code, language = 'text', className = '' }: CodeBlock
                 exit={{ opacity: 0, scale: 0.8 }}
                 transition={{ duration: 0.15 }}
               >
-                <Check size={14} className="text-text-primary" />
+                <Check size={13} className="text-primary" />
               </motion.div>
             ) : (
               <motion.div
@@ -84,22 +93,22 @@ export function CodeBlock({ code, language = 'text', className = '' }: CodeBlock
                 exit={{ opacity: 0, scale: 0.8 }}
                 transition={{ duration: 0.15 }}
               >
-                <Copy size={14} className="text-text-secondary" />
+                <Copy size={13} className="text-text-secondary hover:text-primary transition-colors" />
               </motion.div>
             )}
           </AnimatePresence>
         </motion.button>
       </div>
 
-      {/* Code content */}
-      <div className="overflow-x-auto bg-surface">
+      {/* Code content - let Shiki handle the background colors */}
+      <div className="overflow-x-auto relative">
         {isLoading ? (
-          <div className="p-4 font-mono text-[13px] leading-relaxed text-text-primary">
+          <div className="p-4 font-mono text-[13px] leading-relaxed text-text-primary bg-[#f6f8fa] dark:bg-[#1a1b26]">
             <div className="animate-pulse">Loading...</div>
           </div>
         ) : (
           <div
-            className="code-content p-4 font-mono text-[13px] leading-relaxed"
+            className="code-content [&_pre]:!p-4 [&_pre]:!m-0 [&_pre]:!font-mono [&_pre]:!text-[13px] [&_pre]:!leading-relaxed"
             dangerouslySetInnerHTML={{ __html: highlightedCode }}
           />
         )}
@@ -118,3 +127,6 @@ function escapeHtml(text: string): string {
   }
   return text.replace(/[&<>"']/g, (m) => map[m])
 }
+
+// Export memoized component
+export const CodeBlock = memo(CodeBlockComponent, arePropsEqual)

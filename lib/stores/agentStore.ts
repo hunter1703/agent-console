@@ -23,6 +23,9 @@ interface AgentState {
   setLoading: (loading: boolean) => void
   setError: (error: string | null) => void
   fetchAgents: () => Promise<void>
+  createAgentAsync: (data: Omit<Agent, 'id' | 'createdAt' | 'updatedAt'>) => Promise<Agent>
+  updateAgentAsync: (id: string, updates: Partial<Agent>) => Promise<void>
+  deleteAgentAsync: (id: string) => Promise<void>
   
   // Selectors
   getAgentById: (id: string) => Agent | undefined
@@ -66,14 +69,72 @@ export const useAgentStore = create<AgentState>((set, get) => ({
   fetchAgents: async () => {
     set({ loading: true, error: null })
     try {
-      const { apiClient } = await import('@/lib/api/client')
-      const agents = await apiClient.listAgents()
+      const { agentService } = await import('@/lib/api/services')
+      const agents = await agentService.list()
       set({ agents, loading: false })
     } catch (error) {
       set({ 
         error: error instanceof Error ? error.message : 'Failed to fetch agents',
         loading: false 
       })
+    }
+  },
+  
+  createAgentAsync: async (data) => {
+    set({ loading: true, error: null })
+    try {
+      const { agentService } = await import('@/lib/api/services')
+      const agent = await agentService.create(data)
+      set((state) => ({
+        agents: [...state.agents, agent],
+        loading: false,
+      }))
+      return agent
+    } catch (error) {
+      set({ 
+        error: error instanceof Error ? error.message : 'Failed to create agent',
+        loading: false 
+      })
+      throw error
+    }
+  },
+  
+  updateAgentAsync: async (id, updates) => {
+    set({ loading: true, error: null })
+    try {
+      const { agentService } = await import('@/lib/api/services')
+      const updatedAgent = await agentService.update(id, updates)
+      set((state) => ({
+        agents: state.agents.map((agent) =>
+          agent.id === id ? updatedAgent : agent
+        ),
+        loading: false,
+      }))
+    } catch (error) {
+      set({ 
+        error: error instanceof Error ? error.message : 'Failed to update agent',
+        loading: false 
+      })
+      throw error
+    }
+  },
+  
+  deleteAgentAsync: async (id) => {
+    set({ loading: true, error: null })
+    try {
+      const { agentService } = await import('@/lib/api/services')
+      await agentService.delete(id)
+      set((state) => ({
+        agents: state.agents.filter((agent) => agent.id !== id),
+        selectedAgentId: state.selectedAgentId === id ? null : state.selectedAgentId,
+        loading: false,
+      }))
+    } catch (error) {
+      set({ 
+        error: error instanceof Error ? error.message : 'Failed to delete agent',
+        loading: false 
+      })
+      throw error
     }
   },
   
