@@ -42,7 +42,7 @@ export const useUIStore = create<UIState>()(
       // Initial state
       sidebarView: 'chats',
       sidebarCollapsed: false,
-      sidebarOpen: false,
+      sidebarOpen: true, // Show sidebar by default since it's now always an overlay
       
       activeModal: null,
       modalData: null,

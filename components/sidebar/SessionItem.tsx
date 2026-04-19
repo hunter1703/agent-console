@@ -18,15 +18,14 @@ import { ChevronRight, Trash2 } from 'lucide-react'
 import { useState, memo } from 'react'
 import { cn } from '@/lib/utils'
 import { springPresets } from '@/lib/constants/animations'
-import { Avatar } from '@/components/common/Avatar'
 import { formatRelativeTime } from '@/lib/utils/formatDate'
 import { useReducedMotion } from '@/lib/hooks/useReducedMotion'
 
 export interface SessionItemProps {
   id: string
+  sessionTitle: string
   agentName: string
   agentId?: string
-  agentAvatarUrl?: string
   lastMessage?: string
   lastActivity: Date
   childCount?: number
@@ -45,9 +44,9 @@ export interface SessionItemProps {
 function arePropsEqual(prevProps: SessionItemProps, nextProps: SessionItemProps): boolean {
   return (
     prevProps.id === nextProps.id &&
+    prevProps.sessionTitle === nextProps.sessionTitle &&
     prevProps.agentName === nextProps.agentName &&
     prevProps.agentId === nextProps.agentId &&
-    prevProps.agentAvatarUrl === nextProps.agentAvatarUrl &&
     prevProps.lastMessage === nextProps.lastMessage &&
     prevProps.lastActivity.getTime() === nextProps.lastActivity.getTime() &&
     prevProps.childCount === nextProps.childCount &&
@@ -60,9 +59,9 @@ function arePropsEqual(prevProps: SessionItemProps, nextProps: SessionItemProps)
 
 const SessionItemComponent = function SessionItem({
   id,
+  sessionTitle,
   agentName,
   agentId,
-  agentAvatarUrl,
   lastMessage,
   lastActivity,
   childCount = 0,
@@ -80,9 +79,9 @@ const SessionItemComponent = function SessionItem({
   const { shouldAnimate } = useReducedMotion()
   const hasChildren = childCount > 0
 
-  // Generate a consistent color for the agent based on agentId
-  const getAgentColor = (agentId?: string) => {
-    if (!agentId) return 'bg-gray-500'
+  // Generate a consistent color for the agent based on agent name (similar to sessions page)
+  const getAgentColor = (agentName: string) => {
+    if (!agentName || agentName === 'Unknown Agent' || agentName === 'Loading...') return 'bg-gray-500'
     
     const colors = [
       'bg-blue-500',
@@ -97,16 +96,16 @@ const SessionItemComponent = function SessionItem({
       'bg-cyan-500'
     ]
     
-    // Simple hash function to get consistent color for same agentId
+    // Simple hash function to get consistent color for same agent name
     let hash = 0
-    for (let i = 0; i < agentId.length; i++) {
-      hash = ((hash << 5) - hash + agentId.charCodeAt(i)) & 0xffffffff
+    for (let i = 0; i < agentName.length; i++) {
+      hash = ((hash << 5) - hash + agentName.charCodeAt(i)) & 0xffffffff
     }
     return colors[Math.abs(hash) % colors.length]
   }
 
   // Calculate left padding based on depth
-  const leftPadding = 12 + depth * 16
+  const leftPadding = 8 + depth * 16
 
   return (
     <div className={cn('relative', className)} data-testid={dataTestId}>
@@ -129,14 +128,6 @@ const SessionItemComponent = function SessionItem({
           <div className="absolute left-0 top-1.5 bottom-1.5 w-0.5 bg-primary rounded-full z-10" />
         )}
 
-        {/* Agent indicator - colored left border */}
-        <div 
-          className={cn(
-            "absolute left-0 top-2 bottom-2 w-1 rounded-r-full opacity-60",
-            getAgentColor(agentId)
-          )}
-        />
-
         {/* Visual layer: receives hover animation */}
         <motion.div
           onClick={onClick}
@@ -144,13 +135,13 @@ const SessionItemComponent = function SessionItem({
           transition={springPresets.snappy}
           data-testid="recent-session"
           className={cn(
-            'relative cursor-pointer py-2.5 rounded-lg',
+            'relative cursor-pointer py-3 rounded-lg',
             'transition-colors duration-150',
-            isActive ? 'bg-primary/8 pl-3' : 'hover:bg-surface-hover',
+            isActive ? 'bg-primary/8 pl-2' : 'hover:bg-surface-hover',
           )}
           style={{
-            paddingLeft: isActive ? Math.max(12, leftPadding) : leftPadding,
-            paddingRight: 40, // reserve space for delete button
+            paddingLeft: isActive ? Math.max(8, leftPadding) : leftPadding,
+            paddingRight: 32, // reserve space for delete button
             boxShadow: isActive
               ? '0 1px 6px rgba(245, 158, 11, 0.08)'
               : isHovered
@@ -158,7 +149,7 @@ const SessionItemComponent = function SessionItem({
               : undefined,
           }}
         >
-          <div className="flex items-center gap-2.5">
+          <div className="flex items-center gap-3 pointer-events-none">
             {/* Expand/collapse chevron */}
             {hasChildren && (
               <button
@@ -166,7 +157,7 @@ const SessionItemComponent = function SessionItem({
                   e.stopPropagation()
                   onToggleExpand?.()
                 }}
-                className="flex-shrink-0 w-5 h-5 flex items-center justify-center rounded text-text-tertiary hover:text-text-primary hover:bg-surface-elevated transition-colors cursor-pointer"
+                className="flex-shrink-0 w-5 h-5 flex items-center justify-center rounded text-text-tertiary hover:text-text-primary hover:bg-surface-elevated transition-colors cursor-pointer pointer-events-auto"
                 aria-label={isExpanded ? 'Collapse' : 'Expand'}
                 aria-expanded={isExpanded}
               >
@@ -179,9 +170,6 @@ const SessionItemComponent = function SessionItem({
               </button>
             )}
 
-            {/* Avatar */}
-            <Avatar src={agentAvatarUrl} name={agentName} size="sm" variant="agent" />
-
             {/* Text content */}
             <div className="flex-1 min-w-0">
               <div className="flex items-center gap-1.5">
@@ -189,29 +177,29 @@ const SessionItemComponent = function SessionItem({
                   className="text-xs font-semibold text-text-primary truncate leading-snug"
                   data-testid="session-name"
                 >
-                  {agentName}
+                  {sessionTitle}
                 </h4>
-                {agentId && (
-                  <span className={cn(
-                    "flex-shrink-0 px-1.5 py-0.5 text-[9px] font-semibold text-white rounded-full leading-none",
-                    getAgentColor(agentId)
-                  )}>
-                    {agentId.slice(0, 2).toUpperCase()}
-                  </span>
-                )}
                 {hasChildren && (
                   <span className="flex-shrink-0 px-1 py-0.5 text-[9px] font-semibold text-text-tertiary bg-surface-elevated rounded-full leading-none">
                     {childCount}
                   </span>
                 )}
               </div>
+              <div className="flex items-center gap-2 mt-1">
+                <span className={cn(
+                  "px-2 py-0.5 text-[10px] font-medium text-white rounded-full whitespace-nowrap inline-block",
+                  getAgentColor(agentName)
+                )}>
+                  {agentName}
+                </span>
+              </div>
               {lastMessage && (
-                <p className="text-[11px] text-text-secondary truncate mt-0.5 leading-snug">
+                <p className="text-[10px] text-text-tertiary truncate mt-1 leading-snug">
                   {lastMessage}
                 </p>
               )}
               <p 
-                className="text-[10px] text-text-tertiary mt-0.5 font-medium tracking-tight"
+                className="text-[10px] text-text-tertiary mt-1 font-medium tracking-tight"
                 data-testid="session-timestamp"
               >
                 {formatRelativeTime(lastActivity)}
@@ -237,7 +225,7 @@ const SessionItemComponent = function SessionItem({
                 'p-1.5 rounded-lg text-text-tertiary z-10',
                 'hover:text-error hover:bg-error/10',
                 'transition-colors duration-150',
-                'cursor-pointer',
+                'cursor-pointer pointer-events-auto',
               )}
               aria-label="Delete session"
             >

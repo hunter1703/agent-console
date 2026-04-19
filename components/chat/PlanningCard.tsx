@@ -67,7 +67,7 @@ export function PlanningCard({ plan, className = '' }: PlanningCardProps) {
         }}
         transition={{
           duration: 8,
-          repeat: Infinity,
+          repeat: prefersReducedMotion ? 0 : Infinity,
           ease: 'easeInOut',
         }}
         style={{

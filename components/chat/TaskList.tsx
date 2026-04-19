@@ -37,7 +37,7 @@ function TaskTreeNode({ task, index }: { task: TaskWithChildren; index: number }
       {task.children.length > 0 && (
         <div className="task-children">
           {task.children.map((child, i) => (
-            <TaskTreeNode key={child.taskId} task={child} index={i} />
+            <TaskTreeNode key={child.taskId || `child-${task.taskId}-${i}`} task={child} index={i} />
           ))}
         </div>
       )}
@@ -59,7 +59,7 @@ export function TaskList({ tasks, className = '' }: TaskListProps) {
   return (
     <div className={`task-list space-y-1 ${className}`}>
       {taskTree.map((task, index) => (
-        <TaskTreeNode key={task.taskId} task={task} index={index} />
+        <TaskTreeNode key={task.taskId || `task-${index}`} task={task} index={index} />
       ))}
     </div>
   )

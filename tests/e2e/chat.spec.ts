@@ -464,4 +464,317 @@ test.describe('Chat Interface', () => {
     // Verify message was sent
     await expect(page.getByText('Accessibility test message')).toBeVisible()
   })
+
+  test('should support multi-turn conversations', async ({ page }) => {
+    const messageInput = page.getByPlaceholder(/type your message/i)
+    const sendButton = page.getByRole('button', { name: /send/i })
+    
+    // Ensure input is ready
+    await expect(messageInput).toBeEnabled({ timeout: 15000 })
+    
+    // First turn
+    await messageInput.fill('Tell me about cats')
+    await sendButton.click()
+    
+    // Wait for user message to appear
+    await expect(page.getByText('Tell me about cats')).toBeVisible()
+    
+    // Wait for assistant response
+    await expect(page.locator('[data-role="assistant"]').first()).toBeVisible({ timeout: 45000 })
+    
+    // Wait for input to be enabled again
+    await expect(messageInput).toBeEnabled({ timeout: 15000 })
+    
+    // Second turn
+    await messageInput.fill('What about dogs?')
+    await sendButton.click()
+    
+    // Wait for second user message
+    await expect(page.getByText('What about dogs?')).toBeVisible()
+    
+    // Wait for second assistant response
+    await expect(page.locator('[data-role="assistant"]').nth(1)).toBeVisible({ timeout: 45000 })
+    
+    // Wait for input to be enabled again
+    await expect(messageInput).toBeEnabled({ timeout: 15000 })
+    
+    // Third turn
+    await messageInput.fill('Compare them')
+    await sendButton.click()
+    
+    // Wait for third user message
+    await expect(page.getByText('Compare them')).toBeVisible()
+    
+    // Wait for third assistant response
+    await expect(page.locator('[data-role="assistant"]').nth(2)).toBeVisible({ timeout: 45000 })
+    
+    // Verify all messages are still visible (conversation history)
+    await expect(page.getByText('Tell me about cats')).toBeVisible()
+    await expect(page.getByText('What about dogs?')).toBeVisible()
+    await expect(page.getByText('Compare them')).toBeVisible()
+    
+    // Verify we have 3 user messages and 3 assistant messages
+    const userMessages = page.locator('[data-role="user"]')
+    const assistantMessages = page.locator('[data-role="assistant"]')
+    
+    await expect(userMessages).toHaveCount(3)
+    await expect(assistantMessages).toHaveCount(3)
+  })
+
+  test('should persist and display messages when reopening a session', async ({ page }) => {
+    const messageInput = page.getByPlaceholder(/type your message/i)
+    const sendButton = page.getByRole('button', { name: /send/i })
+    
+    // Ensure input is ready
+    await expect(messageInput).toBeEnabled({ timeout: 15000 })
+    
+    // Send first message
+    await messageInput.fill('First message in session')
+    await sendButton.click()
+    
+    // Wait for user message
+    await expect(page.getByText('First message in session')).toBeVisible()
+    
+    // Wait for assistant response
+    await expect(page.locator('[data-role="assistant"]').first()).toBeVisible({ timeout: 45000 })
+    
+    // Wait for input to be enabled
+    await expect(messageInput).toBeEnabled({ timeout: 15000 })
+    
+    // Send second message
+    await messageInput.fill('Second message in session')
+    await sendButton.click()
+    
+    // Wait for second user message
+    await expect(page.getByText('Second message in session')).toBeVisible()
+    
+    // Wait for second assistant response
+    await expect(page.locator('[data-role="assistant"]').nth(1)).toBeVisible({ timeout: 45000 })
+    
+    // Get the current session ID from URL
+    const currentUrl = page.url()
+    const sessionId = currentUrl.match(/\/session\/([^\/]+)/)?.[1]
+    
+    expect(sessionId).toBeTruthy()
+    
+    // Navigate away to dashboard
+    await page.goto('/dashboard')
+    await expect(page.locator('h1')).toContainText(/dashboard/i)
+    
+    // Navigate back to the session
+    await page.goto(`/session/${sessionId}`)
+    
+    // Wait for page to load
+    await expect(page.locator('h1').first()).toBeVisible({ timeout: 15000 })
+    
+    // Verify all messages are still visible
+    await expect(page.getByText('First message in session')).toBeVisible({ timeout: 10000 })
+    await expect(page.getByText('Second message in session')).toBeVisible({ timeout: 10000 })
+    
+    // Verify assistant responses are still visible
+    const assistantMessages = page.locator('[data-role="assistant"]')
+    await expect(assistantMessages).toHaveCount(2, { timeout: 10000 })
+    
+    // Verify we can continue the conversation
+    await expect(messageInput).toBeEnabled({ timeout: 15000 })
+    await messageInput.fill('Third message after reopening')
+    await sendButton.click()
+    
+    // Verify new message appears
+    await expect(page.getByText('Third message after reopening')).toBeVisible()
+  })
+
+  test('should display planning cards when planning tools are invoked', async ({ page }) => {
+    const messageInput = page.getByPlaceholder(/type your message/i)
+    const sendButton = page.getByRole('button', { name: /send/i })
+    
+    // Ensure input is ready
+    await expect(messageInput).toBeEnabled({ timeout: 15000 })
+    
+    // Send a message that triggers planning
+    await messageInput.fill('Create a plan for a 3-chapter mystery story')
+    await sendButton.click()
+    
+    // Wait for user message
+    await expect(page.getByText('Create a plan for a 3-chapter mystery story')).toBeVisible()
+    
+    // Wait for planning card to appear (with generous timeout for backend processing)
+    const planningCard = page.locator('[data-testid="planning-card"]').first()
+    await expect(planningCard).toBeVisible({ timeout: 60000 })
+    
+    // Verify planning card has title
+    const planTitle = planningCard.locator('[data-testid="plan-title"]')
+    await expect(planTitle).toBeVisible()
+    await expect(planTitle).toContainText(/mystery|story|plan/i)
+    
+    // Verify planning card has tasks
+    const tasks = planningCard.locator('[data-testid="task-item"]')
+    await expect(tasks.first()).toBeVisible()
+    
+    // Verify at least 3 tasks (for 3 chapters)
+    const taskCount = await tasks.count()
+    expect(taskCount).toBeGreaterThanOrEqual(3)
+    
+    // Verify task status indicators are present
+    const taskStatuses = planningCard.locator('[data-testid="task-status"]')
+    await expect(taskStatuses.first()).toBeVisible()
+    
+    // Verify planning card can be collapsed/expanded
+    const collapseButton = planningCard.locator('button[aria-label*="collapse"], button[aria-label*="expand"]').first()
+    if (await collapseButton.isVisible()) {
+      await collapseButton.click()
+      
+      // Tasks should be hidden after collapse
+      await expect(tasks.first()).not.toBeVisible({ timeout: 2000 })
+      
+      // Click again to expand
+      await collapseButton.click()
+      
+      // Tasks should be visible again
+      await expect(tasks.first()).toBeVisible({ timeout: 2000 })
+    }
+  })
+
+  test('should update planning cards as tasks progress', async ({ page }) => {
+    const messageInput = page.getByPlaceholder(/type your message/i)
+    const sendButton = page.getByRole('button', { name: /send/i })
+    
+    // Ensure input is ready
+    await expect(messageInput).toBeEnabled({ timeout: 15000 })
+    
+    // Send a message that triggers planning
+    await messageInput.fill('Create a plan for writing a short story and execute it')
+    await sendButton.click()
+    
+    // Wait for user message
+    await expect(page.getByText(/create a plan for writing a short story/i)).toBeVisible()
+    
+    // Wait for planning card to appear
+    const planningCard = page.locator('[data-testid="planning-card"]').first()
+    await expect(planningCard).toBeVisible({ timeout: 60000 })
+    
+    // Check initial task statuses - should have at least one pending task
+    const pendingTasks = planningCard.locator('[data-testid="task-status"][data-status="pending"]')
+    const initialPendingCount = await pendingTasks.count()
+    expect(initialPendingCount).toBeGreaterThan(0)
+    
+    // Wait for tasks to start progressing (in_progress status)
+    const inProgressTasks = planningCard.locator('[data-testid="task-status"][data-status="in_progress"]')
+    await expect(inProgressTasks.first()).toBeVisible({ timeout: 30000 })
+    
+    // Wait for at least one task to complete
+    const completedTasks = planningCard.locator('[data-testid="task-status"][data-status="completed"]')
+    await expect(completedTasks.first()).toBeVisible({ timeout: 60000 })
+    
+    // Verify the planning card footer shows progress
+    const footer = planningCard.locator('[data-testid="planning-footer"]')
+    if (await footer.isVisible()) {
+      // Should show something like "2/5 tasks completed"
+      await expect(footer).toContainText(/\d+\/\d+|completed|progress/i)
+    }
+  })
+
+  test('should display confirmation requests and handle responses', async ({ page }) => {
+    const messageInput = page.getByPlaceholder(/type your message/i)
+    const sendButton = page.getByRole('button', { name: /send/i })
+    
+    // Ensure input is ready
+    await expect(messageInput).toBeEnabled({ timeout: 15000 })
+    
+    // Send a message that might trigger a confirmation
+    // Note: This depends on the agent being configured to request confirmations
+    await messageInput.fill('Delete all my files and start fresh')
+    await sendButton.click()
+    
+    // Wait for user message
+    await expect(page.getByText(/delete all my files/i)).toBeVisible()
+    
+    // Wait for potential confirmation request (with timeout)
+    const confirmationCard = page.locator('[data-testid="confirmation-request"]').first()
+    
+    // Only proceed with test if confirmation appears
+    if (await confirmationCard.isVisible({ timeout: 30000 })) {
+      // Verify confirmation has prompt
+      const confirmationPrompt = confirmationCard.locator('[data-testid="confirmation-prompt"]')
+      await expect(confirmationPrompt).toBeVisible()
+      await expect(confirmationPrompt).toContainText(/confirm|proceed|sure|delete/i)
+      
+      // Verify confirmation has action buttons
+      const yesButton = confirmationCard.getByRole('button', { name: /yes|confirm|proceed/i })
+      const noButton = confirmationCard.getByRole('button', { name: /no|cancel|decline/i })
+      
+      await expect(yesButton).toBeVisible()
+      await expect(noButton).toBeVisible()
+      
+      // Click no to decline
+      await noButton.click()
+      
+      // Confirmation should be marked as handled
+      await expect(confirmationCard.locator('[data-status="rejected"]')).toBeVisible({ timeout: 10000 })
+      
+      // Input should be enabled again
+      await expect(messageInput).toBeEnabled({ timeout: 15000 })
+    } else {
+      // If no confirmation appears, that's also valid - just log it
+      console.log('No confirmation request triggered for this prompt')
+    }
+  })
+
+  test('should start new chat with same agent when clicking New Chat button', async ({ page }) => {
+    const messageInput = page.getByPlaceholder(/type your message/i)
+    const sendButton = page.getByRole('button', { name: /send/i })
+    
+    // Ensure input is ready
+    await expect(messageInput).toBeEnabled({ timeout: 15000 })
+    
+    // Send a message to create a conversation
+    await messageInput.fill('Hello, this is my first message')
+    await sendButton.click()
+    
+    // Wait for user message
+    await expect(page.getByText('Hello, this is my first message')).toBeVisible()
+    
+    // Wait for assistant response
+    await expect(page.locator('[data-role="assistant"]').first()).toBeVisible({ timeout: 45000 })
+    
+    // Get the current agent ID from URL
+    const currentUrl = page.url()
+    const agentIdMatch = currentUrl.match(/[?&]agent=([^&]+)/)
+    const currentAgentId = agentIdMatch ? agentIdMatch[1] : storyAgentId
+    
+    // Wait for New Chat button to appear (it only shows when there are messages)
+    const newChatButton = page.getByRole('button', { name: /new chat/i })
+    await expect(newChatButton).toBeVisible({ timeout: 10000 })
+    
+    // Click New Chat button
+    await newChatButton.click()
+    
+    // Wait for navigation to complete
+    await page.waitForURL(/\/chat\?agent=/, { timeout: 10000 })
+    
+    // Verify we're on the chat page with the same agent
+    const newUrl = page.url()
+    expect(newUrl).toContain('/chat?agent=')
+    expect(newUrl).toContain(currentAgentId)
+    
+    // Verify we're NOT on the dashboard
+    expect(newUrl).not.toContain('/dashboard')
+    
+    // Verify the chat is empty (no previous messages)
+    await expect(page.getByText('Hello, this is my first message')).not.toBeVisible({ timeout: 5000 })
+    
+    // Verify the message input is ready for a new conversation
+    await expect(messageInput).toBeEnabled({ timeout: 15000 })
+    await expect(messageInput).toHaveValue('')
+    
+    // Verify we can send a new message in the fresh chat
+    await messageInput.fill('This is a new conversation')
+    await sendButton.click()
+    
+    // Verify the new message appears
+    await expect(page.getByText('This is a new conversation')).toBeVisible()
+    
+    // Verify we get a response
+    await expect(page.locator('[data-role="assistant"]').first()).toBeVisible({ timeout: 45000 })
+  })
 })

@@ -89,14 +89,19 @@ export function formatDate(date: Date | string | number): string {
 }
 
 /**
- * Format duration in seconds to human-readable string (e.g., "2m 30s", "1h 1m 5s")
+ * Format duration in seconds to human-readable string (e.g., "2m 30s", "1h 1m 5s", "0.5s")
  */
 export function formatDuration(seconds: number): string {
   if (seconds === 0) return '0s'
   
+  // Handle sub-second durations
+  if (seconds < 1) {
+    return `${seconds.toFixed(3)}s`
+  }
+  
   const hours = Math.floor(seconds / 3600)
   const minutes = Math.floor((seconds % 3600) / 60)
-  const secs = seconds % 60
+  const secs = Math.floor(seconds % 60)
   
   const parts: string[] = []
   

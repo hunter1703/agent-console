@@ -63,6 +63,12 @@ export default function DashboardPage() {
   }
 
   const handleAgentClick = (agentId: string) => {
+    // Clear any existing sessions to ensure we start a fresh chat
+    const { useChatStore } = require('@/lib/store/chat')
+    const chatStore = useChatStore.getState()
+    chatStore.clearAllSessions()
+    
+    // Navigate to new chat with the selected agent
     router.push(`/chat?agent=${agentId}`)
   }
 

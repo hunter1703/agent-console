@@ -6,7 +6,7 @@
  */
 
 import { QueryClient, DefaultOptions } from '@tanstack/react-query'
-import { ApiClientError, NetworkError, TimeoutError } from '@/lib/api/client'
+import { APIError } from '@/lib/api/client'
 import { DEV_CONFIG } from '@/lib/config/env'
 
 // ============================================================================
@@ -27,12 +27,7 @@ const defaultQueryOptions: DefaultOptions = {
     // Retry configuration
     retry: (failureCount, error) => {
       // Don't retry client errors (4xx)
-      if (error instanceof ApiClientError && error.status && error.status < 500) {
-        return false
-      }
-      
-      // Don't retry timeout errors
-      if (error instanceof TimeoutError) {
+      if (error instanceof APIError && error.status && error.status < 500) {
         return false
       }
       
@@ -54,9 +49,9 @@ const defaultQueryOptions: DefaultOptions = {
   },
   
   mutations: {
-    // Retry mutations for network/server errors only
+    // Retry mutations for server errors only
     retry: (failureCount, error) => {
-      if (error instanceof NetworkError && failureCount < 2) {
+      if (error instanceof APIError && error.status >= 500 && failureCount < 2) {
         return true
       }
       return false

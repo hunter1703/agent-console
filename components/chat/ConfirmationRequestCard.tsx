@@ -35,8 +35,8 @@ function ConfirmationRequestCardComponent({
 
   const handleConfirm = async (answer?: string) => {
     if (!sessionId) {
-      // Demo mode - just update local state
-      updateConfirmation(confirmation.id, 'confirmed', answer)
+      // Demo mode - just hide the confirmation
+      updateConfirmation(confirmation.id, 'rejected')
       return
     }
 
@@ -45,7 +45,7 @@ function ConfirmationRequestCardComponent({
     
     try {
       await handleConfirmation(sessionId, confirmation.id, true, answer)
-      updateConfirmation(confirmation.id, 'confirmed', answer)
+      // Don't hide confirmation here - let SSE event update the status to show resolved state
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to submit confirmation')
       console.error('Confirmation error:', err)
@@ -56,7 +56,7 @@ function ConfirmationRequestCardComponent({
 
   const handleReject = async () => {
     if (!sessionId) {
-      // Demo mode - just update local state
+      // Demo mode - just hide the confirmation
       updateConfirmation(confirmation.id, 'rejected')
       return
     }
@@ -66,7 +66,7 @@ function ConfirmationRequestCardComponent({
     
     try {
       await handleConfirmation(sessionId, confirmation.id, false)
-      updateConfirmation(confirmation.id, 'rejected')
+      // Don't hide confirmation here - let SSE event update the status to show resolved state
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to submit confirmation')
       console.error('Confirmation error:', err)

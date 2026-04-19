@@ -1,320 +1,188 @@
 /**
  * API Client
  * 
- * Base fetch wrapper for Agent Engine API with error handling, retries, and type safety.
- * Integrates with existing environment configuration and follows established patterns.
+ * Centralized HTTP client with retry logic, error handling, and type safety.
+ * Based on Open WebUI's consistent error handling pattern.
  */
 
-import { API_CONFIG, getApiUrl, DEV_CONFIG } from '@/lib/config/env'
+const sleep = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
 
-// ============================================================================
-// Types
-// ============================================================================
-
-export interface ApiResponse<T = unknown> {
-  data: T
-  success: boolean
-  message?: string
-  error?: string
-}
-
-export interface ApiError {
-  message: string
-  code?: string
-  status?: number
-  details?: unknown
-}
-
-export interface RequestConfig extends RequestInit {
-  timeout?: number
-  retries?: number
-  retryDelay?: number
-}
-
-export interface RequestOptions extends RequestConfig {
-  sanitize?: boolean
-}
-
-// ============================================================================
-// Error Classes
-// ============================================================================
-
-export class ApiClientError extends Error {
+export class APIError extends Error {
   constructor(
     message: string,
-    public status?: number,
-    public code?: string,
-    public details?: unknown
+    public status: number,
+    public details?: any
   ) {
-    super(message)
-    this.name = 'ApiClientError'
+    super(message);
+    this.name = 'APIError';
   }
 }
 
-export class NetworkError extends ApiClientError {
-  constructor(message: string = 'Network request failed') {
-    super(message, 0, 'NETWORK_ERROR')
-    this.name = 'NetworkError'
-  }
-}
-
-export class TimeoutError extends ApiClientError {
-  constructor(message: string = 'Request timeout') {
-    super(message, 0, 'TIMEOUT_ERROR')
-    this.name = 'TimeoutError'
-  }
-}
-
-// ============================================================================
-// Utility Functions
-// ============================================================================
-
-/**
- * Create timeout promise for fetch requests
- */
-function createTimeoutPromise(timeout: number): Promise<never> {
-  return new Promise((_, reject) => {
-    setTimeout(() => reject(new TimeoutError()), timeout)
-  })
+export interface FetchOptions extends RequestInit {
+  retries?: number;
+  backoff?: number;
+  timeout?: number;
 }
 
 /**
- * Sleep utility for retry delays
+ * Fetch with automatic retry and exponential backoff
  */
-function sleep(ms: number): Promise<void> {
-  return new Promise(resolve => setTimeout(resolve, ms))
-}
+export async function fetchWithRetry<T>(
+  url: string,
+  options: FetchOptions = {}
+): Promise<T> {
+  const {
+    retries = 3,
+    backoff = 1000,
+    timeout = 30000,
+    ...fetchOptions
+  } = options;
 
-/**
- * Parse error response from API
- */
-async function parseErrorResponse(response: Response): Promise<ApiError> {
-  try {
-    const errorData = await response.json()
-    return {
-      message: errorData.message || errorData.error || `HTTP ${response.status}`,
-      code: errorData.code,
-      status: response.status,
-      details: errorData
-    }
-  } catch {
-    return {
-      message: `HTTP ${response.status}: ${response.statusText}`,
-      status: response.status
-    }
-  }
-}
+  let lastError: Error | null = null;
 
-// ============================================================================
-// Main API Client
-// ============================================================================
+  for (let attempt = 0; attempt < retries; attempt++) {
+    try {
+      // Create abort controller for timeout
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), timeout);
 
-/**
- * Base API client with retry logic and error handling
- */
-export class ApiClient {
-  private baseUrl: string
-  private defaultTimeout: number
+      const response = await fetch(url, {
+        ...fetchOptions,
+        signal: controller.signal,
+        headers: {
+          'Content-Type': 'application/json',
+          ...fetchOptions.headers,
+        },
+      });
 
-  constructor(baseUrl?: string, timeout?: number) {
-    this.baseUrl = baseUrl || API_CONFIG.url
-    this.defaultTimeout = timeout || API_CONFIG.timeout
-  }
+      clearTimeout(timeoutId);
 
-  /**
-   * Make HTTP request with retry logic
-   */
-  async request<T = unknown>(
-    endpoint: string,
-    config: RequestConfig = {}
-  ): Promise<T> {
-    const {
-      timeout = this.defaultTimeout,
-      retries = 3,
-      retryDelay = 1000,
-      ...fetchConfig
-    } = config
-
-    const url = getApiUrl(endpoint)
-    
-    // Default headers
-    const headers = {
-      'Content-Type': 'application/json',
-      ...fetchConfig.headers
-    }
-
-    let lastError: Error
-
-    for (let attempt = 0; attempt <= retries; attempt++) {
-      try {
-        if (DEV_CONFIG.debug && attempt > 0) {
-          console.log(`API retry attempt ${attempt} for ${endpoint}`)
-        }
-
-        // Create fetch promise with timeout
-        const fetchPromise = fetch(url, {
-          ...fetchConfig,
-          headers
-        })
-
-        const timeoutPromise = createTimeoutPromise(timeout)
-        const response = await Promise.race([fetchPromise, timeoutPromise])
-
-        // Handle HTTP errors
-        if (!response.ok) {
-          const error = await parseErrorResponse(response)
-          throw new ApiClientError(error.message, error.status, error.code, error.details)
-        }
-
-        // Parse response
-        const contentType = response.headers.get('content-type')
-        if (contentType?.includes('application/json')) {
-          return await response.json()
-        } else {
-          return response.text() as T
-        }
-
-      } catch (error) {
-        lastError = error instanceof Error ? error : new Error(String(error))
-
-        // Don't retry on client errors (4xx) or timeout errors
-        if (
-          error instanceof ApiClientError && 
-          error.status && 
-          error.status >= 400 && 
-          error.status < 500
-        ) {
-          throw error
-        }
-
-        if (error instanceof TimeoutError) {
-          throw error
-        }
-
-        // Don't retry on last attempt
-        if (attempt === retries) {
-          break
-        }
-
-        // Wait before retry with exponential backoff
-        await sleep(retryDelay * Math.pow(2, attempt))
+      if (!response.ok) {
+        const error = await response.json().catch(() => ({}));
+        throw new APIError(
+          error.message || `HTTP ${response.status}`,
+          response.status,
+          error
+        );
       }
+
+      return await response.json();
+    } catch (error) {
+      lastError = error as Error;
+
+      // Don't retry on 4xx errors (client errors)
+      if (error instanceof APIError && error.status >= 400 && error.status < 500) {
+        throw error;
+      }
+
+      // Don't retry on abort (timeout)
+      if (error instanceof Error && error.name === 'AbortError') {
+        throw new APIError('Request timeout', 408, error);
+      }
+
+      // Last attempt, throw error
+      if (attempt === retries - 1) {
+        throw error;
+      }
+
+      // Exponential backoff
+      const delay = backoff * Math.pow(2, attempt);
+      console.log(`Retry attempt ${attempt + 1}/${retries} after ${delay}ms`);
+      await sleep(delay);
     }
-
-    // If we get here, all retries failed
-    throw lastError instanceof ApiClientError 
-      ? lastError 
-      : new NetworkError(lastError.message)
   }
 
-  /**
-   * GET request
-   */
-  async get<T = unknown>(endpoint: string, config?: RequestConfig): Promise<T> {
-    return this.request<T>(endpoint, { ...config, method: 'GET' })
-  }
-
-  /**
-   * POST request
-   */
-  async post<T = unknown>(
-    endpoint: string, 
-    data?: unknown, 
-    config?: RequestConfig
-  ): Promise<T> {
-    return this.request<T>(endpoint, {
-      ...config,
-      method: 'POST',
-      body: data ? JSON.stringify(data) : undefined
-    })
-  }
-
-  /**
-   * PUT request
-   */
-  async put<T = unknown>(
-    endpoint: string, 
-    data?: unknown, 
-    config?: RequestConfig
-  ): Promise<T> {
-    return this.request<T>(endpoint, {
-      ...config,
-      method: 'PUT',
-      body: data ? JSON.stringify(data) : undefined
-    })
-  }
-
-  /**
-   * DELETE request
-   */
-  async delete<T = unknown>(endpoint: string, config?: RequestConfig): Promise<T> {
-    return this.request<T>(endpoint, { ...config, method: 'DELETE' })
-  }
-
-  /**
-   * PATCH request
-   */
-  async patch<T = unknown>(
-    endpoint: string, 
-    data?: unknown, 
-    config?: RequestConfig
-  ): Promise<T> {
-    return this.request<T>(endpoint, {
-      ...config,
-      method: 'PATCH',
-      body: data ? JSON.stringify(data) : undefined
-    })
-  }
+  throw lastError;
 }
 
-// ============================================================================
-// Default Instance
-// ============================================================================
+/**
+ * Standard API call wrapper
+ */
+export async function apiCall<T>(
+  endpoint: string,
+  options: FetchOptions = {}
+): Promise<T> {
+  const baseUrl = process.env.NEXT_PUBLIC_API_BASE_URL || 'http://localhost:8080';
+  const url = `${baseUrl}${endpoint}`;
+
+  return fetchWithRetry<T>(url, options);
+}
 
 /**
- * Default API client instance
+ * GET request
  */
-export const apiClient = new ApiClient()
-
-// ============================================================================
-// Convenience Functions
-// ============================================================================
-
-/**
- * Quick GET request
- */
-export const get = <T = unknown>(endpoint: string, config?: RequestConfig): Promise<T> =>
-  apiClient.get<T>(endpoint, config)
+export async function get<T>(endpoint: string, options: FetchOptions = {}): Promise<T> {
+  return apiCall<T>(endpoint, {
+    ...options,
+    method: 'GET',
+  });
+}
 
 /**
- * Quick POST request
+ * POST request
  */
-export const post = <T = unknown>(
-  endpoint: string, 
-  data?: unknown, 
-  config?: RequestConfig
-): Promise<T> => apiClient.post<T>(endpoint, data, config)
+export async function post<T>(
+  endpoint: string,
+  data?: any,
+  options: FetchOptions = {}
+): Promise<T> {
+  return apiCall<T>(endpoint, {
+    ...options,
+    method: 'POST',
+    body: data ? JSON.stringify(data) : undefined,
+  });
+}
 
 /**
- * Quick PUT request
+ * PUT request
  */
-export const put = <T = unknown>(
-  endpoint: string, 
-  data?: unknown, 
-  config?: RequestConfig
-): Promise<T> => apiClient.put<T>(endpoint, data, config)
+export async function put<T>(
+  endpoint: string,
+  data?: any,
+  options: FetchOptions = {}
+): Promise<T> {
+  return apiCall<T>(endpoint, {
+    ...options,
+    method: 'PUT',
+    body: data ? JSON.stringify(data) : undefined,
+  });
+}
 
 /**
- * Quick DELETE request
+ * DELETE request
  */
-export const del = <T = unknown>(endpoint: string, config?: RequestConfig): Promise<T> =>
-  apiClient.delete<T>(endpoint, config)
+export async function del<T>(endpoint: string, options: FetchOptions = {}): Promise<T> {
+  return apiCall<T>(endpoint, {
+    ...options,
+    method: 'DELETE',
+  });
+}
 
 /**
- * Quick PATCH request
+ * PATCH request
  */
-export const patch = <T = unknown>(
-  endpoint: string, 
-  data?: unknown, 
-  config?: RequestConfig
-): Promise<T> => apiClient.patch<T>(endpoint, data, config)
+export async function patch<T>(
+  endpoint: string,
+  data?: any,
+  options: FetchOptions = {}
+): Promise<T> {
+  return apiCall<T>(endpoint, {
+    ...options,
+    method: 'PATCH',
+    body: data ? JSON.stringify(data) : undefined,
+  });
+}
+
+/**
+ * Legacy compatibility export
+ * @deprecated Use individual HTTP methods (get, post, put, del) instead
+ */
+export const apiClient = {
+  get,
+  post,
+  put,
+  delete: del,
+  patch,
+};
+
+export interface RequestOptions extends FetchOptions {}

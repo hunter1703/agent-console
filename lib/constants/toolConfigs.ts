@@ -81,10 +81,24 @@ const FALLBACK_CONFIG: ToolConfig = {
 
 /**
  * Get tool configuration by tool name
- * Returns fallback config for unknown tools
+ * Returns fallback config for unknown tools with the actual tool name
  */
 export function getToolConfig(toolName: string): ToolConfig {
-  return TOOL_CONFIGS[toolName] || FALLBACK_CONFIG
+  if (TOOL_CONFIGS[toolName]) {
+    return TOOL_CONFIGS[toolName]
+  }
+  
+  // Return fallback with actual tool name formatted nicely
+  const displayName = toolName
+    .split('_')
+    .map(word => word.charAt(0).toUpperCase() + word.slice(1))
+    .join(' ')
+  
+  return {
+    ...FALLBACK_CONFIG,
+    displayName,
+    description: `Executing ${displayName}`,
+  }
 }
 
 /**

@@ -92,7 +92,7 @@ export function PlanWidget({ plan, onTaskClick }: PlanWidgetProps) {
   }
 
   return (
-    <div className="advanced-widget relative max-w-md">
+    <div className="advanced-widget relative max-w-2xl w-full">
       {/* Floating back button - top left, outside card */}
       <AnimatePresence initial={false}>
         {focusedTaskId && (
@@ -225,7 +225,7 @@ export function PlanWidget({ plan, onTaskClick }: PlanWidgetProps) {
                     }}
                   />
                 </svg>
-                <div className="absolute inset-0 flex items-center justify-center text-sm font-extrabold text-white tabular-nums">
+                <div className="absolute inset-0 flex items-center justify-center text-[10px] font-extrabold text-white tabular-nums">
                   {Math.round(progress)}%
                 </div>
               </motion.div>
@@ -270,7 +270,7 @@ export function PlanWidget({ plan, onTaskClick }: PlanWidgetProps) {
                       
                       return (
                         <motion.button
-                          key={task.taskId}
+                          key={task.taskId || `task-${plan.planId}-${index}`}
                           initial={{ opacity: 0 }}
                           animate={{ opacity: 1 }}
                           transition={{ delay: index * 0.03, duration: 0.2 }}
@@ -282,6 +282,7 @@ export function PlanWidget({ plan, onTaskClick }: PlanWidgetProps) {
                             <div className="w-6 h-6 flex-shrink-0 flex items-center justify-center">
                               {task.status === 'COMPLETED' ? (
                                 <motion.div
+                                  key={`completed-${task.taskId}`}
                                   initial={{ scale: 0, rotate: -180 }}
                                   animate={{ scale: 1, rotate: 0 }}
                                   transition={{ duration: 0.5, ease: [0.34, 1.56, 0.64, 1] }}
@@ -307,6 +308,7 @@ export function PlanWidget({ plan, onTaskClick }: PlanWidgetProps) {
                                 </motion.div>
                               ) : task.status === 'IN_PROGRESS' ? (
                                 <motion.div
+                                  key={`progress-${task.taskId}`}
                                   className="w-5 h-5 rounded-full border-[2.5px] border-amber-500 border-t-transparent shadow-sm"
                                   animate={{ rotate: 360 }}
                                   transition={{ 
@@ -317,6 +319,7 @@ export function PlanWidget({ plan, onTaskClick }: PlanWidgetProps) {
                                 />
                               ) : task.status === 'FAILED' ? (
                                 <motion.div
+                                  key={`failed-${task.taskId}`}
                                   initial={{ scale: 0 }}
                                   animate={{ scale: 1 }}
                                   transition={{ duration: 0.3, ease: [0.34, 1.56, 0.64, 1] }}
@@ -342,6 +345,7 @@ export function PlanWidget({ plan, onTaskClick }: PlanWidgetProps) {
                                 </motion.div>
                               ) : (
                                 <motion.div
+                                  key={`pending-${task.taskId}`}
                                   className="w-5 h-5 rounded-full border-[2.5px] border-slate-300"
                                   animate={{ 
                                     scale: [1, 1.1, 1],

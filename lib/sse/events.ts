@@ -17,6 +17,13 @@ export interface BaseAGUIEvent {
   messageId?: string
   toolCallId?: string
   stepName?: string
+  rawEvent?: {
+    agentId?: string
+    threadId?: string
+    messageId?: string
+    runId?: string
+    [key: string]: unknown
+  }
 }
 
 // ============================================================================
@@ -39,7 +46,7 @@ export interface RunFinishedEvent extends BaseAGUIEvent {
 }
 
 export interface RunErrorEvent extends BaseAGUIEvent {
-  type: 'RunError'
+  type: 'RUN_ERROR'
   runId: string
   error: string
   code?: string
@@ -50,13 +57,13 @@ export interface RunErrorEvent extends BaseAGUIEvent {
 // ============================================================================
 
 export interface StepStartedEvent extends BaseAGUIEvent {
-  type: 'StepStarted'
+  type: 'STEP_STARTED'
   runId: string
   stepName: string
 }
 
 export interface StepFinishedEvent extends BaseAGUIEvent {
-  type: 'StepFinished'
+  type: 'STEP_FINISHED'
   runId: string
   stepName: string
   result?: string
@@ -90,28 +97,29 @@ export interface TextMessageEndEvent extends BaseAGUIEvent {
 // ============================================================================
 
 export interface ToolCallStartEvent extends BaseAGUIEvent {
-  type: 'ToolCallStart'
+  type: 'TOOL_CALL_START'
   toolCallId: string
   toolName: string
+  toolCallName?: string // Backend uses toolCallName instead of toolName
   parentMessageId?: string
   runId: string
 }
 
 export interface ToolCallArgsEvent extends BaseAGUIEvent {
-  type: 'ToolCallArgs'
+  type: 'TOOL_CALL_ARGS'
   toolCallId: string
   arguments: string // JSON string fragment
   delta: string
 }
 
 export interface ToolCallEndEvent extends BaseAGUIEvent {
-  type: 'ToolCallEnd'
+  type: 'TOOL_CALL_END'
   toolCallId: string
   arguments: string // Complete JSON string
 }
 
 export interface ToolCallResultEvent extends BaseAGUIEvent {
-  type: 'ToolCallResult'
+  type: 'TOOL_CALL_RESULT'
   toolCallId: string
   content: string
   success: boolean
@@ -124,33 +132,33 @@ export interface ToolCallResultEvent extends BaseAGUIEvent {
 // ============================================================================
 
 export interface ReasoningStartEvent extends BaseAGUIEvent {
-  type: 'ReasoningStart'
+  type: 'REASONING_START'
   messageId: string // Outer reasoning block ID
   runId: string
 }
 
 export interface ReasoningMessageStartEvent extends BaseAGUIEvent {
-  type: 'ReasoningMessageStart'
+  type: 'REASONING_MESSAGE_START'
   messageId: string // Inner thought message ID
   parentMessageId: string // Outer reasoning block ID
   role: 'assistant'
 }
 
 export interface ReasoningMessageContentEvent extends BaseAGUIEvent {
-  type: 'ReasoningMessageContent'
+  type: 'REASONING_MESSAGE_CONTENT'
   messageId: string // Inner thought message ID
   content: string
   delta: string
 }
 
 export interface ReasoningMessageEndEvent extends BaseAGUIEvent {
-  type: 'ReasoningMessageEnd'
+  type: 'REASONING_MESSAGE_END'
   messageId: string // Inner thought message ID
   content: string
 }
 
 export interface ReasoningEndEvent extends BaseAGUIEvent {
-  type: 'ReasoningEnd'
+  type: 'REASONING_END'
   messageId: string // Outer reasoning block ID
 }
 
@@ -159,7 +167,7 @@ export interface ReasoningEndEvent extends BaseAGUIEvent {
 // ============================================================================
 
 export interface CustomEvent extends BaseAGUIEvent {
-  type: 'Custom'
+  type: 'CUSTOM'
   name: string
   [key: string]: unknown
 }
@@ -192,7 +200,7 @@ export interface CorrectionEvent extends CustomEvent {
 // Union Type
 // ============================================================================
 
-export type AGUIEvent = 
+export type AGUIEvent =
   | RunStartedEvent
   | RunFinishedEvent
   | RunErrorEvent
@@ -260,35 +268,59 @@ export function isTextMessageEndEvent(event: AGUIEvent): event is TextMessageEnd
 }
 
 export function isToolCallStartEvent(event: AGUIEvent): event is ToolCallStartEvent {
-  return event.type === 'ToolCallStart'
+  return event.type === 'TOOL_CALL_START'
 }
 
 export function isToolCallArgsEvent(event: AGUIEvent): event is ToolCallArgsEvent {
-  return event.type === 'ToolCallArgs'
+  return event.type === 'TOOL_CALL_ARGS'
 }
 
 export function isToolCallEndEvent(event: AGUIEvent): event is ToolCallEndEvent {
-  return event.type === 'ToolCallEnd'
+  return event.type === 'TOOL_CALL_END'
 }
 
 export function isToolCallResultEvent(event: AGUIEvent): event is ToolCallResultEvent {
-  return event.type === 'ToolCallResult'
+  return event.type === 'TOOL_CALL_RESULT'
 }
 
 export function isConfirmationRequestedEvent(event: AGUIEvent): event is ConfirmationRequestedEvent {
-  return event.type === 'Custom' && (event as CustomEvent).name === 'confirmation_requested'
+  return event.type === 'CUSTOM' && (event as CustomEvent).name === 'confirmation_requested'
 }
 
 export function isConfirmedEvent(event: AGUIEvent): event is ConfirmedEvent {
-  return event.type === 'Custom' && (event as CustomEvent).name === 'confirmed'
+  return event.type === 'CUSTOM' && (event as CustomEvent).name === 'confirmed'
 }
 
 export function isReasoningStartEvent(event: AGUIEvent): event is ReasoningStartEvent {
-  return event.type === 'ReasoningStart'
+  return event.type === 'REASONING_START'
+}
+
+export function isReasoningMessageStartEvent(event: AGUIEvent): event is ReasoningMessageStartEvent {
+  return event.type === 'REASONING_MESSAGE_START'
+}
+
+export function isReasoningMessageContentEvent(event: AGUIEvent): event is ReasoningMessageContentEvent {
+  return event.type === 'REASONING_MESSAGE_CONTENT'
+}
+
+export function isReasoningMessageEndEvent(event: AGUIEvent): event is ReasoningMessageEndEvent {
+  return event.type === 'REASONING_MESSAGE_END'
 }
 
 export function isReasoningEndEvent(event: AGUIEvent): event is ReasoningEndEvent {
-  return event.type === 'ReasoningEnd'
+  return event.type === 'REASONING_END'
+}
+
+export function isRunErrorEvent(event: AGUIEvent): event is RunErrorEvent {
+  return event.type === 'RUN_ERROR'
+}
+
+export function isStepStartedEvent(event: AGUIEvent): event is StepStartedEvent {
+  return event.type === 'STEP_STARTED'
+}
+
+export function isStepFinishedEvent(event: AGUIEvent): event is StepFinishedEvent {
+  return event.type === 'STEP_FINISHED'
 }
 
 // ============================================================================
@@ -303,7 +335,6 @@ export function isPlanningToolCall(toolName: string): boolean {
     'update_task_info',
     'start_task',
     'complete_task',
-    'update_task_status',
     'finish_plan',
     'view_plan'
   ]

@@ -144,7 +144,7 @@ export const SPACING = {
  */
 export const LAYOUT = {
   sidebar: {
-    width: 280,            // px - sidebar width
+    width: 320,            // px - sidebar width (increased from 280)
     widthCollapsed: 64,    // px - collapsed sidebar width
     padding: 16,           // px - sidebar padding (use p-4)
     gap: 12,               // px - gap between items (use gap-3)
@@ -152,6 +152,7 @@ export const LAYOUT = {
   
   chat: {
     maxWidth: 768,         // px - chat column max width
+    maxWidthPx: 768,       // px - chat column max width (for inline styles)
     paddingMobile: 16,     // px - mobile padding (use p-4)
     paddingDesktop: 24,    // px - desktop padding (use p-6)
     messageSpacing: 24,    // px - spacing between messages (use space-y-6)

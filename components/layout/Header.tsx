@@ -60,6 +60,13 @@ export function Header() {
     return pathname.startsWith(href)
   }
 
+  // Hide header on chat and session pages
+  const shouldHideHeader = pathname.startsWith('/chat') || pathname.startsWith('/session')
+  
+  if (shouldHideHeader) {
+    return null
+  }
+
   return (
     <header className="sticky top-0 z-40 border-b border-border-subtle bg-surface/80 backdrop-blur-sm">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">

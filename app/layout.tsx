@@ -7,6 +7,7 @@ import { ErrorBoundary } from '@/components/common/ErrorBoundary'
 import { SkipLinks } from '@/components/common/SkipLinks'
 import { Header } from '@/components/layout/Header'
 import { FloatingThemeToggle } from '@/components/layout/FloatingThemeToggle'
+import { FloatingDashboardButton } from '@/components/layout/FloatingDashboardButton'
 
 export const metadata: Metadata = {
   title: 'Agent Console',
@@ -32,6 +33,7 @@ export default function RootLayout({
                     {children}
                   </main>
                   <FloatingThemeToggle />
+                  <FloatingDashboardButton />
                 </div>
               </UIProvider>
             </ErrorBoundary>

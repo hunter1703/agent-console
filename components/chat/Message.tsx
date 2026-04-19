@@ -26,6 +26,7 @@ import { cn } from '@/lib/utils'
 import { springPresets } from '@/lib/constants/animations'
 import { Avatar } from '@/components/common/Avatar'
 import { useReducedMotion } from '@/lib/hooks/useReducedMotion'
+import { MarkdownRenderer } from '@/components/markdown/MarkdownRenderer'
 
 export interface MessageProps {
   id: string
@@ -257,14 +258,12 @@ const MessageComponent = function Message({
           </div>
         )}
 
-        {/* AGENT MESSAGE - Plain text */}
+        {/* AGENT MESSAGE - Markdown rendered */}
         {!isUser && (
-          <div className="relative inline-block">
-            <div className="text-[15px] text-text-primary whitespace-pre-wrap break-words leading-[1.75] font-normal tracking-[-0.01em] select-text cursor-text">
-              {content}
-            </div>
+          <div className="relative">
+            <MarkdownRenderer content={content} showCopyButton={false} />
             {isHovered && (
-              <div className="absolute left-full top-1/2 -translate-y-1/2 ml-2">
+              <div className="absolute right-0 top-0 -translate-y-1/2 mt-1">
                 <CopyButton isCopied={isCopied} onClick={handleCopy} />
               </div>
             )}

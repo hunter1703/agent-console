@@ -44,13 +44,19 @@ export interface Message {
   sessionId: string
   role: 'user' | 'assistant' | 'system'
   content: string
+  status: 'sending' | 'sent' | 'streaming' | 'complete' | 'error'
   timestamp: string
   metadata?: Record<string, unknown>
 }
 
 export interface InvokeRequest {
-  message: string
-  sessionId?: string
+  sessionId?: string;
+  parts: Array<{
+    type: 'text' | 'image';
+    text?: string;
+    base64?: string;
+    mimeType?: string;
+  }>;
   options?: {
     temperature?: number
     maxTokens?: number
@@ -210,6 +216,232 @@ export async function getSession(
 }
 
 /**
+ * Get session messages from session events
+ * Converts session events to displayable messages
+ */
+export async function getSessionMessages(
+  sessionId: string,
+  options?: RequestOptions
+): Promise<Message[]> {
+  try {
+    // Get session with events
+    const session = await getSession(sessionId, true, options)
+    
+    // Check for aguiEvents (new format) or events (legacy format)
+    const events = (session as any).aguiEvents || session.events
+    if (!events || !Array.isArray(events)) {
+      return []
+    }
+    
+    const messages: Message[] = []
+    const messageMap = new Map<string, Partial<Message>>()
+    
+    // Process events to reconstruct messages
+    // Preserve the order from the backend - do NOT sort
+    // Track the order in which TEXT_MESSAGE_END events appear
+    const messageOrder: string[] = []
+    
+    for (const event of events) {
+      const eventData = event.rawEvent || event.data || event
+      const eventType = event.type || event.eventType
+      
+      switch (eventType) {
+        case 'TEXT_MESSAGE_START':
+          if (eventData.messageId) {
+            messageMap.set(eventData.messageId, {
+              id: eventData.messageId,
+              sessionId: sessionId,
+              role: eventData.role || 'assistant',
+              content: '',
+              status: 'streaming' as const,
+              timestamp: new Date(event.timestamp || eventData.timestamp || Date.now()).toISOString(),
+              // Store agentId in metadata for later resolution
+              metadata: {
+                agentId: eventData.agentId,
+              }
+            })
+          }
+          break
+          
+        case 'TEXT_MESSAGE_CHUNK':
+        case 'TEXT_MESSAGE_CONTENT':  // Handle both CHUNK and CONTENT events
+          if (eventData.messageId && messageMap.has(eventData.messageId)) {
+            const message = messageMap.get(eventData.messageId)!
+            message.content = (message.content || '') + (eventData.delta || '')
+          }
+          break
+          
+        case 'TEXT_MESSAGE_END':
+          if (eventData.messageId && messageMap.has(eventData.messageId)) {
+            const message = messageMap.get(eventData.messageId)!
+            if (eventData.content) {
+              message.content = eventData.content
+            }
+            message.status = 'complete'
+            message.timestamp = new Date(event.timestamp || eventData.timestamp || Date.now()).toISOString()
+            
+            // Track the order in which messages complete
+            messageOrder.push(eventData.messageId)
+          }
+          break
+      }
+    }
+    
+    // Build final messages array in the order TEXT_MESSAGE_END events appeared
+    for (const messageId of messageOrder) {
+      const message = messageMap.get(messageId)
+      if (message && message.id && message.role && message.content !== undefined) {
+        messages.push(message as Message)
+      }
+    }
+    
+    return messages
+  } catch (error) {
+    console.warn(`Failed to load session messages for ${sessionId}:`, error)
+    return []
+  }
+}
+
+/**
+ * Tool call interface for reconstructed tool calls
+ */
+export interface ReconstructedToolCall {
+  toolCallId: string
+  toolName: string
+  status: 'pending' | 'executing' | 'completed' | 'failed'
+  arguments?: Record<string, unknown>
+  result?: any
+  startTime: string
+  endTime?: string
+  parentMessageId?: string
+}
+
+/**
+ * Get session tool calls from session events
+ * Reconstructs tool call state from historical events
+ */
+export async function getSessionToolCalls(
+  sessionId: string,
+  options?: RequestOptions
+): Promise<ReconstructedToolCall[]> {
+  try {
+    // Get session with events
+    const session = await getSession(sessionId, true, options)
+    
+    // Check for aguiEvents (new format) or events (legacy format)
+    const events = (session as any).aguiEvents || session.events
+    if (!events || !Array.isArray(events)) {
+      return []
+    }
+    
+    const toolCalls: ReconstructedToolCall[] = []
+    const toolCallMap = new Map<string, Partial<ReconstructedToolCall>>()
+    
+    // Process events to reconstruct tool calls
+    for (const event of events) {
+      const eventData = event.rawEvent || event.data || event
+      const eventType = event.type || event.eventType
+      
+      switch (eventType) {
+        case 'TOOL_CALL_START':
+        case 'ToolCallStart':
+          if (eventData.toolCallId) {
+            toolCallMap.set(eventData.toolCallId, {
+              toolCallId: eventData.toolCallId,
+              toolName: eventData.toolCallName || eventData.toolName || 'unknown',
+              status: 'pending',
+              arguments: {},
+              startTime: new Date(event.timestamp || eventData.timestamp || Date.now()).toISOString(),
+              parentMessageId: eventData.parentMessageId,
+            })
+          }
+          break
+          
+        case 'TOOL_CALL_ARGS':
+        case 'ToolCallArgs':
+          if (eventData.toolCallId && toolCallMap.has(eventData.toolCallId)) {
+            const toolCall = toolCallMap.get(eventData.toolCallId)!
+            const currentArgsString = (toolCall.arguments as any)?.raw || ''
+            const newArgsString = currentArgsString + (eventData.delta || '')
+            
+            try {
+              // Try to parse accumulated arguments as JSON
+              const parsedArgs = JSON.parse(newArgsString)
+              toolCall.arguments = parsedArgs
+              toolCall.status = 'executing'
+            } catch {
+              // If not valid JSON yet, keep accumulating
+              toolCall.arguments = {
+                ...(toolCall.arguments || {}),
+                raw: newArgsString,
+              }
+              toolCall.status = 'executing'
+            }
+          }
+          break
+          
+        case 'TOOL_CALL_END':
+        case 'ToolCallEnd':
+          if (eventData.toolCallId && toolCallMap.has(eventData.toolCallId)) {
+            const toolCall = toolCallMap.get(eventData.toolCallId)!
+            if (eventData.arguments) {
+              try {
+                const finalArgs = JSON.parse(eventData.arguments)
+                toolCall.arguments = finalArgs
+              } catch (error) {
+                console.warn('Failed to parse final tool arguments:', error)
+              }
+            }
+            toolCall.status = 'executing'
+          }
+          break
+          
+        case 'TOOL_CALL_RESULT':
+        case 'ToolCallResult':
+          if (eventData.toolCallId && toolCallMap.has(eventData.toolCallId)) {
+            const toolCall = toolCallMap.get(eventData.toolCallId)!
+            
+            // Parse result content
+            let resultContent = eventData.content
+            if (typeof resultContent === 'string') {
+              try {
+                resultContent = JSON.parse(resultContent)
+              } catch {
+                // Keep as string if not JSON
+              }
+            }
+            
+            // Store the parsed result directly (not wrapped)
+            // If there's an error, include it in the result
+            if (eventData.error) {
+              toolCall.result = { error: eventData.error }
+            } else {
+              toolCall.result = resultContent
+            }
+            
+            toolCall.status = eventData.success === false ? 'failed' : 'completed'
+            toolCall.endTime = new Date(event.timestamp || eventData.timestamp || Date.now()).toISOString()
+            
+            // Add completed tool call to results
+            if (toolCall.toolCallId && toolCall.toolName && toolCall.startTime) {
+              toolCalls.push(toolCall as ReconstructedToolCall)
+            }
+          }
+          break
+      }
+    }
+    
+    // Sort tool calls by start time
+    return toolCalls.sort((a, b) => 
+      new Date(a.startTime).getTime() - new Date(b.startTime).getTime()
+    )
+  } catch (error) {
+    console.warn(`Failed to load session tool calls for ${sessionId}:`, error)
+    return []
+  }
+}
+
+/**
  * Delete a session
  */
 export async function deleteSession(
@@ -223,146 +455,134 @@ export async function deleteSession(
 // Message/Invocation Services
 // ============================================================================
 
+export interface InvokeStreamCallbacks {
+  /** Called as soon as RUN_STARTED arrives — use this to migrate the temp session ID. */
+  onSessionId: (sessionId: string) => void
+  /** Called for every raw SSE event string in sequence. */
+  onEvent: (rawData: string, sessionId: string) => void
+  onError?: (error: Error) => void
+}
+
 /**
- * Invoke an agent with streaming support
- * Uses the correct AgentStreamRestAPI endpoint with real-time event processing
+ * Invoke an agent and stream the resulting AG-UI events.
+ *
+ * POST /v1/agent/{agentId}/invoke returns an SSE stream directly (live-only).
+ * The real sessionId is extracted from the first RUN_STARTED event's threadId
+ * and delivered via onSessionId before any onEvent calls are made, so callers
+ * can migrate temp sessions before processing events.
  */
-export async function invokeAgent(
+export async function invokeAgentStream(
   agentId: string,
   request: InvokeRequest,
-  onStreamEvent?: (event: any) => void
-): Promise<Message> {
-  const url = `${apiClient['baseUrl'] || 'http://localhost:8080'}/v1/invoke/${agentId}`
-  
-  const response = await fetch(url, {
+  callbacks: InvokeStreamCallbacks
+): Promise<void> {
+  const { createAGUIStream } = await import('@/lib/sse/streaming')
+  const baseUrl = process.env.NEXT_PUBLIC_API_BASE_URL || 'http://localhost:8080'
+
+  const body: Record<string, unknown> = { parts: request.parts }
+  if (request.sessionId) body.sessionId = request.sessionId
+
+  const response = await fetch(`${baseUrl}/v1/agent/${agentId}/invoke`, {
     method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      'Accept': 'text/event-stream',
-    },
-    body: JSON.stringify({
-      sessionId: request.sessionId,
-      message: request.message,
-    }),
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(body),
   })
 
-  if (!response.ok) {
-    throw new Error(`HTTP ${response.status}: ${response.statusText}`)
+  if (!response.ok || !response.body) {
+    const text = await response.text().catch(() => '')
+    throw new Error(`Invoke failed: HTTP ${response.status}${text ? ` — ${text}` : ''}`)
   }
 
-  const reader = response.body?.getReader()
-  const decoder = new TextDecoder()
-  
-  let finalMessage = ''
-  let messageId = ''
-  let sessionId = request.sessionId || ''
-  let buffer = ''
-  
-  if (!reader) {
-    throw new Error('Response body is not readable')
-  }
+  const stream = await createAGUIStream(response.body)
+  let resolvedSessionId: string | null = null
 
-  try {
-    while (true) {
-      const { done, value } = await reader.read()
-      
-      if (done) break
-      
-      // Decode the chunk and add to buffer
-      buffer += decoder.decode(value, { stream: true })
-      
-      // Process complete lines from buffer
-      const lines = buffer.split('\n')
-      buffer = lines.pop() || '' // Keep incomplete line in buffer
-      
-      for (const line of lines) {
-        if (line.startsWith('data:')) {
-          try {
-            const eventData = line.substring(5).trim()
-            if (eventData) {
-              const event = JSON.parse(eventData)
-              
-              // Call the stream event handler if provided
-              if (onStreamEvent) {
-                onStreamEvent(event)
-              }
-              
-              // Process events for final message construction
-              if (event.type === 'TextMessageStart') {
-                messageId = event.messageId
-                sessionId = event.sessionId || sessionId
-              } else if (event.type === 'TextMessageContent') {
-                finalMessage += event.delta
-              } else if (event.type === 'TextMessageEnd') {
-                finalMessage = event.content || finalMessage
-                sessionId = event.sessionId || sessionId
-              } else if (event.type === 'RunFinished') {
-                sessionId = event.sessionId || sessionId
-                // RUN_FINISHED means we can stop reading
-                try {
-                  await reader.cancel()
-                } catch (e) {
-                  // Ignore cancel errors
-                }
-                break
-              }
-            }
-          } catch (e) {
-            console.warn('Failed to parse SSE event:', line, e)
-          }
-        }
-      }
+  for await (const update of stream) {
+    if (update.done) break
+    if (update.error) {
+      callbacks.onError?.(new Error(update.error))
+      break
     }
-  } catch (error: any) {
-    // Handle read errors gracefully
-    if (error.name !== 'AbortError' && !error.message?.includes('cancel')) {
-      console.error('SSE read error:', error)
-    }
-  } finally {
-    try {
-      reader.releaseLock()
-    } catch (e) {
-      // Ignore release errors
-    }
-  }
 
-  return {
-    id: messageId || `msg-${Date.now()}`,
-    messageId: messageId || `msg-${Date.now()}`,
-    sessionId: sessionId || `session-${Date.now()}`,
-    role: 'assistant',
-    content: finalMessage || 'Response received',
-    createdTime: new Date().toISOString(),
-    updatedTime: new Date().toISOString(),
+    const event = update.event
+    if (!event) continue
+
+    // Extract session ID from the first RUN_STARTED event before forwarding it.
+    if (event.type === 'RUN_STARTED' && event.threadId && !resolvedSessionId) {
+      resolvedSessionId = event.threadId as string
+      callbacks.onSessionId(resolvedSessionId)
+    }
+
+    const sid = resolvedSessionId ?? (request.sessionId ?? '')
+    callbacks.onEvent(JSON.stringify(event), sid)
   }
 }
 
 /**
- * Stream agent invocation (returns EventSource for SSE)
+ * Open a GET SSE stream for a session using native EventSource.
+ * liveOnly=false (default): replays committed history + current turn events + live.
+ * liveOnly=true: live events only (no history replay).
  */
-export function streamAgentInvocation(
-  agentId: string,
-  request: InvokeRequest
+export function openSessionStream(
+  sessionId: string,
+  onEvent: (event: MessageEvent) => void,
+  onError?: (error: Event) => void,
+  liveOnly = false
 ): EventSource {
-  const url = `${apiClient['baseUrl']}/v1/invoke/${agentId}`
-  const eventSource = new EventSource(url)
+  const baseUrl = process.env.NEXT_PUBLIC_API_BASE_URL || 'http://localhost:8080'
+  const url = `${baseUrl}/v1/session/${sessionId}/stream${liveOnly ? '?liveOnly=true' : ''}`
   
-  // Send the request data via POST (EventSource doesn't support POST directly)
-  // We'll need to use fetch with SSE handling
+  console.log('Opening EventSource to:', url)
+  
+  const eventSource = new EventSource(url, {
+    withCredentials: false, // Don't send credentials for CORS
+  })
+  
+  let eventCount = 0
+  
+  eventSource.onmessage = (event) => {
+    eventCount++
+    if (eventCount <= 5) {
+      console.log(`SSE event #${eventCount}:`, event.data.substring(0, 100))
+    }
+    onEvent(event)
+  }
+  
+  eventSource.onerror = (error) => {
+    // EventSource fires onerror when connection closes, even for normal closures
+    // This is expected behavior after the backend finishes streaming the response
+    console.log('EventSource closed')
+    console.log('EventSource readyState:', eventSource.readyState)
+    console.log(`Received ${eventCount} events total`)
+    
+    // CRITICAL: Close the EventSource immediately to prevent browser auto-reconnect
+    // The browser will try to reconnect automatically when the connection closes,
+    // but we want to control when to reconnect (only after user sends a message)
+    eventSource.close()
+    
+    if (onError) {
+      onError(error)
+    }
+  }
+  
+  eventSource.onopen = () => {
+    console.log('EventSource connection opened successfully')
+  }
+  
   return eventSource
 }
 
 /**
- * Confirm a tool execution using AgentStreamRestAPI
+ * Confirm a tool execution
+ * New API: POST /v1/session/{sessionId}/confirm/{confirmationId} → { confirmed: true }
  */
 export async function confirmToolExecution(
   sessionId: string,
   confirmationId: string,
   request: ConfirmToolRequest,
   options?: RequestOptions
-): Promise<void> {
-  return apiClient.post<void>(
-    `/v1/invoke/session/${sessionId}/confirm/${confirmationId}`,
+): Promise<{ confirmed: boolean }> {
+  return apiClient.post<{ confirmed: boolean }>(
+    `/v1/session/${sessionId}/confirm/${confirmationId}`,
     {
       confirmed: request.approved,
       message: request.reason,
@@ -372,7 +592,8 @@ export async function confirmToolExecution(
 }
 
 /**
- * Submit a confirmation response using AgentStreamRestAPI
+ * Submit a confirmation response
+ * New API: POST /v1/session/{sessionId}/confirm/{confirmationId} → { confirmed: true }
  */
 export async function submitConfirmation(
   sessionId: string,
@@ -382,9 +603,9 @@ export async function submitConfirmation(
     message?: string
   },
   options?: RequestOptions
-): Promise<void> {
-  return apiClient.post<void>(
-    `/v1/invoke/session/${sessionId}/confirm/${confirmationId}`,
+): Promise<{ confirmed: boolean }> {
+  return apiClient.post<{ confirmed: boolean }>(
+    `/v1/session/${sessionId}/confirm/${confirmationId}`,
     {
       confirmed: request.confirmed,
       message: request.message,
@@ -450,6 +671,52 @@ export async function deleteModel(
 // ============================================================================
 // Schema Services
 // ============================================================================
+
+/**
+ * Get agent name by ID (cached lookup)
+ * Uses the catalog list API to fetch agent details
+ */
+const agentNameCache = new Map<string, string>()
+
+/**
+ * Generate a human-readable name from an agent ID
+ * Converts snake_case to Title Case
+ */
+function generateFallbackAgentName(agentId: string): string {
+  return agentId
+    .split('_')
+    .map(word => word.charAt(0).toUpperCase() + word.slice(1))
+    .join(' ')
+}
+
+export async function getAgentName(agentId: string): Promise<string> {
+  // Check cache first
+  if (agentNameCache.has(agentId)) {
+    return agentNameCache.get(agentId)!
+  }
+  
+  try {
+    // Use the catalog API to get the agent by ID
+    const agent = await getAgent(agentId)
+    
+    // If API returns a valid name (not "Unknown Agent"), use it
+    if (agent?.name && agent.name !== 'Unknown Agent') {
+      agentNameCache.set(agentId, agent.name)
+      return agent.name
+    }
+    
+    // Otherwise, generate a human-readable fallback from the agent ID
+    const fallbackName = generateFallbackAgentName(agentId)
+    agentNameCache.set(agentId, fallbackName)
+    return fallbackName
+  } catch (error) {
+    console.warn(`Failed to lookup agent name for ${agentId}:`, error)
+    // Generate human-readable fallback name from agent ID
+    const fallbackName = generateFallbackAgentName(agentId)
+    agentNameCache.set(agentId, fallbackName)
+    return fallbackName
+  }
+}
 
 /**
  * Get JSON schema for an asset type

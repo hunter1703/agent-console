@@ -13,14 +13,11 @@
  * - Natural animations
  */
 
-import { useEffect, useRef } from 'react'
 import { motion } from 'framer-motion'
-import { ArrowDown } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { Message, MessageProps } from './Message'
 import { springPresets } from '@/lib/constants/animations'
 import { useReducedMotion } from '@/lib/hooks/useReducedMotion'
-import { useAutoScroll } from '@/lib/hooks/useAutoScroll'
 
 export interface MessageListProps {
   messages: Omit<MessageProps, 'isClusteredWithPrevious'>[]
@@ -34,8 +31,6 @@ export function MessageList({
   className,
 }: MessageListProps) {
   const { shouldAnimate } = useReducedMotion()
-  const containerRef = useRef<HTMLDivElement>(null)
-  const { isNearBottom, scrollToBottom } = useAutoScroll(containerRef, messages)
 
   // Determine if message should be clustered with previous
   const shouldCluster = (index: number): boolean => {
@@ -63,7 +58,7 @@ export function MessageList({
   }
 
   return (
-    <div ref={containerRef} className={cn('relative', className)}>
+    <div className={cn('relative', className)}>
       {/* Messages */}
       <motion.div
         variants={containerVariants}

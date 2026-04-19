@@ -211,7 +211,7 @@ export default function SessionsPage() {
 
   // Navigation handlers
   const handleSessionClick = (sessionId: string) => {
-    router.push(`/chat?session=${sessionId}`)
+    router.push(`/session/${sessionId}`)
   }
 
   const handleDeleteSession = (session: Session) => {

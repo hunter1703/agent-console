@@ -152,10 +152,21 @@ export interface Message extends BaseEntity {
   sessionId: string
   role: MessageRole
   content: string
-  metadata?: Record<string, unknown>
+  metadata?: {
+    parentId?: string | null
+    childrenIds?: string[]
+    streaming?: boolean
+    done?: boolean
+    agentId?: string
+    agentName?: string
+    threadId?: string
+    [key: string]: unknown
+  }
   toolCalls?: ToolCall[]
   reasoning?: ReasoningBlock[]
   confirmations?: Confirmation[]
+  files?: any[]
+  sources?: any[]
 }
 
 export type MessageRole = 'user' | 'assistant' | 'system' | 'tool'

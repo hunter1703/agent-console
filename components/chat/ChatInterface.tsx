@@ -15,11 +15,12 @@
  * - Subtle parallax for depth perception
  */
 
-import { ReactNode, useRef } from 'react'
+import { ReactNode } from 'react'
 import { motion, useScroll, useTransform } from 'framer-motion'
 import { cn } from '@/lib/utils'
-import { LAYOUT } from '@/lib/constants/spacing'
 import { useReducedMotion } from '@/lib/hooks/useReducedMotion'
+import { LAYOUT } from '@/lib/constants/spacing'
+import { useAutoScroll } from '@/lib/hooks/useAutoScroll'
 
 export interface ChatInterfaceProps {
   tabs?: ReactNode
@@ -28,6 +29,8 @@ export interface ChatInterfaceProps {
   input?: ReactNode
   emptyState?: ReactNode
   className?: string
+  /** Dependencies that trigger auto-scroll to bottom (e.g. message count, streaming state) */
+  scrollDependencies?: any[]
 }
 
 export function ChatInterface({
@@ -37,10 +40,11 @@ export function ChatInterface({
   input,
   emptyState,
   className,
+  scrollDependencies = [],
 }: ChatInterfaceProps) {
   const { shouldAnimate } = useReducedMotion()
-  const containerRef = useRef<HTMLDivElement>(null)
-  
+  const { containerRef } = useAutoScroll({ dependencies: scrollDependencies })
+
   // Parallax effect for background elements
   const { scrollYProgress } = useScroll({
     target: containerRef,
@@ -54,7 +58,7 @@ export function ChatInterface({
   return (
     <div
       className={cn(
-        'flex flex-col h-full relative',
+        'flex flex-col h-full relative w-full',
         'bg-background',
         className
       )}
@@ -73,7 +77,7 @@ export function ChatInterface({
           />
           
           {/* Layer 2 - Floating particles */}
-          {[...Array(5)].map((_, i) => (
+          {shouldAnimate && [...Array(5)].map((_, i) => (
             <motion.div
               key={i}
               animate={{
@@ -104,39 +108,41 @@ export function ChatInterface({
         </div>
       )}
 
-      {/* Main Content Area - Scrollable messages */}
-      <div ref={containerRef} className="flex-1 overflow-y-auto relative z-10 min-h-0">
-        {/* Centered Column for Messages */}
-        <div
-          className={cn(
-            'mx-auto w-full',
-            'px-4 md:px-6',
-          )}
-          style={{
-            maxWidth: `min(${LAYOUT.chat.maxWidthPx}px, 100%)`,
-          }}
-        >
-          {/* Empty State */}
-          {emptyState && (
-            <div className="flex items-center justify-center min-h-full py-12">
-              {emptyState}
-            </div>
-          )}
+      {/* Main Content Area - Scrollable messages with proper height constraint */}
+      <div ref={containerRef} className="flex-1 min-h-0 overflow-y-auto overflow-x-hidden relative z-10">
+        <div className="flex justify-center min-h-full">
+          {/* Centered Column for Messages */}
+          <div
+            className={cn(
+              'w-full',
+              'px-4 md:px-6',
+            )}
+            style={{
+              maxWidth: `min(${LAYOUT.chat.maxWidthPx}px, 100%)`,
+            }}
+          >
+            {/* Empty State */}
+            {emptyState && (
+              <div className="flex items-center justify-center min-h-full py-12">
+                {emptyState}
+              </div>
+            )}
 
-          {/* Messages and Planning Card */}
-          {!emptyState && (
-            <div className="py-12 space-y-8 pb-56">
-              {/* Planning Card (if active) */}
-              {planningCard && (
-                <div className="mb-8">
-                  {planningCard}
-                </div>
-              )}
+            {/* Messages and Planning Card */}
+            {!emptyState && (
+              <div className="py-12 space-y-8 pb-56">
+                {/* Planning Card (if active) */}
+                {planningCard && (
+                  <div className="mb-8">
+                    {planningCard}
+                  </div>
+                )}
 
-              {/* Message List */}
-              {messages}
-            </div>
-          )}
+                {/* Message List */}
+                {messages}
+              </div>
+            )}
+          </div>
         </div>
       </div>
 
@@ -148,12 +154,12 @@ export function ChatInterface({
             'bg-gradient-to-t from-background via-background/95 to-background/0',
             'pt-6 pb-6',
             'z-20',
-            'backdrop-blur-sm',
+            'flex justify-center',
           )}
         >
           <div
             className={cn(
-              'mx-auto w-full',
+              'w-full',
               'px-4 md:px-6',
             )}
             style={{

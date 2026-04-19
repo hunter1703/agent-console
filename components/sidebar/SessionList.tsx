@@ -24,8 +24,9 @@ import { useReducedMotion } from '@/lib/hooks/useReducedMotion'
 
 export interface Session {
   id: string
+  sessionTitle: string
   agentName: string
-  agentAvatarUrl?: string
+  agentId?: string
   lastMessage?: string
   lastActivity: Date
   parentSessionId?: string
@@ -124,8 +125,9 @@ export function SessionList({
       <SessionItem
         key={session.id}
         id={session.id}
+        sessionTitle={session.sessionTitle}
         agentName={session.agentName}
-        agentAvatarUrl={session.agentAvatarUrl}
+        agentId={session.agentId}
         lastMessage={session.lastMessage}
         lastActivity={session.lastActivity}
         childCount={session.children?.length || 0}
@@ -226,7 +228,7 @@ export function SessionList({
       variants={containerVariants}
       initial="hidden"
       animate="visible"
-      className={cn('space-y-1 p-2', className)}
+      className={cn('space-y-1 px-3 py-2', className)}
     >
       {sessionTree.map((session) => (
         <motion.div

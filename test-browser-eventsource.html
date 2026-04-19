@@ -1,0 +1,87 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>EventSource Test</title>
+</head>
+<body>
+  <h1>EventSource Connection Test</h1>
+  <div id="status">Initializing...</div>
+  <div id="log" style="margin-top: 20px; font-family: monospace; white-space: pre-wrap;"></div>
+
+  <script>
+    const log = document.getElementById('log');
+    const status = document.getElementById('status');
+    
+    function addLog(message) {
+      const timestamp = new Date().toISOString();
+      log.textContent += `[${timestamp}] ${message}\n`;
+      console.log(message);
+    }
+
+    async function test() {
+      try {
+        // Step 1: Invoke to get sessionId
+        addLog('Step 1: Invoking agent...');
+        const invokeResponse = await fetch('http://localhost:8080/v1/agent/story_agent/invoke', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ message: 'Test from browser' })
+        });
+        
+        const invokeData = await invokeResponse.json();
+        const sessionId = invokeData.sessionId;
+        addLog(`Got sessionId: ${sessionId}`);
+        
+        // Step 2: Connect to SSE stream
+        const streamUrl = `http://localhost:8080/v1/session/${sessionId}/stream`;
+        addLog(`Step 2: Connecting to: ${streamUrl}`);
+        
+        const es = new EventSource(streamUrl);
+        
+        es.onopen = () => {
+          status.textContent = '✅ Connected';
+          status.style.color = 'green';
+          addLog('✅ EventSource.onopen - Connection established!');
+        };
+        
+        let eventCount = 0;
+        es.onmessage = (event) => {
+          eventCount++;
+          addLog(`✅ Event #${eventCount}: ${event.data.substring(0, 100)}...`);
+        };
+        
+        es.onerror = (error) => {
+          status.textContent = '❌ Error';
+          status.style.color = 'red';
+          addLog(`❌ EventSource.onerror`);
+          addLog(`   readyState: ${es.readyState} (0=CONNECTING, 1=OPEN, 2=CLOSED)`);
+          addLog(`   Events received before error: ${eventCount}`);
+          
+          // Check for common issues
+          if (es.readyState === 0) {
+            addLog('   DIAGNOSIS: Never reached OPEN state');
+            addLog('   Possible causes:');
+            addLog('   - CORS headers missing');
+            addLog('   - Network/proxy issue');
+            addLog('   - SSE format issue');
+          }
+        };
+        
+        // Auto-close after 10 seconds
+        setTimeout(() => {
+          addLog(`\nClosing connection after 10 seconds`);
+          addLog(`Total events received: ${eventCount}`);
+          es.close();
+        }, 10000);
+        
+      } catch (error) {
+        status.textContent = '❌ Failed';
+        status.style.color = 'red';
+        addLog(`❌ Error: ${error.message}`);
+      }
+    }
+    
+    test();
+  </script>
+</body>
+</html>

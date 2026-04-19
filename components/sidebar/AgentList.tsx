@@ -13,13 +13,12 @@
  */
 
 import { motion } from 'framer-motion'
-import { Plus, Users } from 'lucide-react'
+import { Users } from 'lucide-react'
 import { useEffect } from 'react'
 import { cn } from '@/lib/utils'
 import { springPresets } from '@/lib/constants/animations'
 import { AgentCard } from './AgentCard'
 import { Skeleton } from '@/components/common/Skeleton'
-import { Button } from '@/components/common/Button'
 import { useReducedMotion } from '@/lib/hooks/useReducedMotion'
 
 export interface Agent {
@@ -34,9 +33,6 @@ export interface AgentListProps {
   activeAgentId?: string
   isLoading?: boolean
   onAgentClick?: (agentId: string) => void
-  onAgentEdit?: (agentId: string) => void
-  onAgentDelete?: (agentId: string) => void
-  onCreateAgent?: () => void
   className?: string
 }
 
@@ -45,9 +41,6 @@ export function AgentList({
   activeAgentId,
   isLoading = false,
   onAgentClick,
-  onAgentEdit,
-  onAgentDelete,
-  onCreateAgent,
   className,
 }: AgentListProps) {
   const { shouldAnimate } = useReducedMotion()
@@ -108,20 +101,11 @@ export function AgentList({
           <Users size={24} className="text-text-tertiary" />
         </div>
         <h3 className="text-sm font-semibold text-text-primary mb-2">
-          No agents yet
+          No agents available
         </h3>
         <p className="text-xs text-text-secondary mb-4 max-w-[200px]">
-          Create your first agent to get started with conversations
+          No agents are currently configured in the system
         </p>
-        {onCreateAgent && (
-          <Button
-            size="sm"
-            icon={<Plus size={16} />}
-            onClick={onCreateAgent}
-          >
-            Create Agent
-          </Button>
-        )}
       </motion.div>
     )
   }
@@ -132,7 +116,7 @@ export function AgentList({
       variants={containerVariants}
       initial="hidden"
       animate="visible"
-      className={cn('space-y-3', className)}
+      className={cn('space-y-2 px-3 py-2', className)}
     >
       {agents.map((agent) => (
         <motion.div
@@ -148,8 +132,6 @@ export function AgentList({
             avatarUrl={agent.avatarUrl}
             isActive={agent.id === activeAgentId}
             onClick={() => onAgentClick?.(agent.id)}
-            onEdit={() => onAgentEdit?.(agent.id)}
-            onDelete={() => onAgentDelete?.(agent.id)}
           />
         </motion.div>
       ))}

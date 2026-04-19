@@ -26,6 +26,7 @@ export interface SidebarProps {
   isOpen: boolean
   isCollapsed?: boolean
   onClose: () => void
+  onOpen?: () => void
   onToggleCollapse?: () => void
   header?: ReactNode
   footer?: ReactNode
@@ -37,6 +38,7 @@ export function Sidebar({
   isOpen,
   isCollapsed = false,
   onClose,
+  onOpen,
   onToggleCollapse,
   header,
   footer,
@@ -46,22 +48,22 @@ export function Sidebar({
   const isMobile = useMediaQuery('(max-width: 767px)')
   const { shouldAnimate } = useReducedMotion()
 
-  // Prevent body scroll when sidebar is open on mobile
-  useEffect(() => {
-    if (isMobile && isOpen) {
-      const scrollbarWidth = window.innerWidth - document.documentElement.clientWidth
-      document.body.style.overflow = 'hidden'
-      document.body.style.paddingRight = `${scrollbarWidth}px`
-    } else {
-      document.body.style.overflow = ''
-      document.body.style.paddingRight = ''
-    }
+  // No body scroll prevention - keep main chat focusable
+  // useEffect(() => {
+  //   if (isMobile && isOpen) {
+  //     const scrollbarWidth = window.innerWidth - document.documentElement.clientWidth
+  //     document.body.style.overflow = 'hidden'
+  //     document.body.style.paddingRight = `${scrollbarWidth}px`
+  //   } else {
+  //     document.body.style.overflow = ''
+  //     document.body.style.paddingRight = ''
+  //   }
 
-    return () => {
-      document.body.style.overflow = ''
-      document.body.style.paddingRight = ''
-    }
-  }, [isMobile, isOpen])
+  //   return () => {
+  //     document.body.style.overflow = ''
+  //     document.body.style.paddingRight = ''
+  //   }
+  // }, [isMobile, isOpen])
 
   // Handle swipe gesture to close (mobile)
   const handleTouchStart = (e: React.TouchEvent) => {
@@ -86,55 +88,48 @@ export function Sidebar({
     }, { once: true })
   }
 
-  // Desktop: always visible, collapsible
-  // Mobile: overlay with backdrop
+  // Both desktop and mobile: overlay behavior
   const sidebarWidth = isCollapsed ? 0 : LAYOUT.sidebar.width
 
   return (
     <>
-      {/* Mobile backdrop */}
-      {isMobile && (
-        <AnimatePresence>
-          {isOpen && (
-            <motion.div
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              exit={{ opacity: 0 }}
-              transition={{ duration: shouldAnimate ? 0.2 : 0 }}
-              className="fixed inset-0 z-40 bg-overlay backdrop-blur-sm"
-              onClick={onClose}
-            />
-          )}
-        </AnimatePresence>
-      )}
-
-      {/* Floating Expand Button (desktop only, when collapsed) */}
-      {!isMobile && isCollapsed && onToggleCollapse && (
+      {/* Floating Expand Button (when collapsed or closed) */}
+      {(isCollapsed || !isOpen) && (onToggleCollapse || onOpen) && (
         <motion.button
           variants={slideRight}
           initial="initial"
           animate="animate"
           exit="exit"
           transition={shouldAnimate ? springPresets.snappy : { duration: 0 }}
-          onClick={onToggleCollapse}
+          onClick={() => {
+            if (isCollapsed && onToggleCollapse) {
+              onToggleCollapse()
+            } else if (!isOpen && onOpen) {
+              onOpen()
+            }
+          }}
           className={cn(
-            'fixed left-4 top-4 z-50 p-3 rounded-xl',
-            'bg-surface border-2 border-border-subtle shadow-xl',
+            'fixed z-50 p-2 rounded-lg',
+            'bg-surface-hover border border-border-subtle shadow-md',
             'text-text-secondary hover:text-text-primary',
-            'hover:bg-surface-elevated hover:shadow-2xl hover:scale-110',
+            'hover:bg-surface-elevated hover:shadow-lg',
             'transition-all duration-200 cursor-pointer'
           )}
-          aria-label="Expand sidebar"
+          style={{
+            left: '16px', // Position at left edge when collapsed
+            top: '16px',
+          }}
+          aria-label={isCollapsed ? "Expand sidebar" : "Open sidebar"}
         >
-          <ChevronRight size={20} />
+          <ChevronRight size={16} />
         </motion.button>
       )}
 
-      {/* Sidebar */}
+      {/* Sidebar - Always overlay, no backdrop */}
       <AnimatePresence mode="wait">
-        {!isCollapsed && (isOpen || !isMobile) && (
+        {!isCollapsed && isOpen && (
           <motion.aside
-            variants={isMobile ? sidebarMobileSlide(LAYOUT.sidebar.width) : sidebarSlideIn}
+            variants={sidebarMobileSlide(LAYOUT.sidebar.width)}
             initial="initial"
             animate="animate"
             exit="exit"
@@ -145,12 +140,8 @@ export function Sidebar({
             }
             onTouchStart={handleTouchStart}
             className={cn(
-              'flex flex-col bg-surface border-r border-border-subtle',
-              'h-screen',
-              // Mobile: fixed overlay
-              isMobile && 'fixed left-0 top-0 z-50',
-              // Desktop: static
-              !isMobile && 'relative',
+              'flex flex-col bg-surface border-r border-border-subtle shadow-lg',
+              'h-screen fixed left-0 top-0 z-50 pointer-events-auto',
               className
             )}
             style={{
@@ -158,8 +149,8 @@ export function Sidebar({
               overflow: 'hidden', // Prevent text overflow
             }}
           >
-            {/* Collapse button (desktop only) */}
-            {!isMobile && onToggleCollapse && (
+            {/* Collapse button */}
+            {onToggleCollapse && (
               <button
                 onClick={onToggleCollapse}
                 className={cn(
@@ -186,7 +177,7 @@ export function Sidebar({
             {isMobile && (
               <button
                 onClick={onClose}
-                className="absolute top-4 right-4 p-2 rounded-md text-text-secondary hover:text-text-primary hover:bg-surface-hover transition-colors z-10 cursor-pointer"
+                className="absolute top-4 left-4 p-2 rounded-md text-text-secondary hover:text-text-primary hover:bg-surface-hover transition-colors z-10 cursor-pointer"
                 aria-label="Close sidebar"
               >
                 <X size={20} />
@@ -194,7 +185,10 @@ export function Sidebar({
             )}
 
             {/* Content area (scrollable) */}
-            <div className="flex-1 overflow-y-auto custom-scrollbar p-4">
+            <div className="flex-1 overflow-y-auto p-4" style={{ 
+              scrollbarWidth: 'thin',
+              scrollbarColor: 'rgba(255, 255, 255, 0.2) transparent'
+            }}>
               {children}
             </div>
 

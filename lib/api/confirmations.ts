@@ -13,25 +13,26 @@ const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8080'
  * Submit confirmation response to backend
  * 
  * @param sessionId - The session ID
+ * @param confirmationId - The confirmation ID
  * @param payload - Confirmation request payload
  * @returns Confirmation response from server
  * @throws Error if submission fails
  */
 export async function submitConfirmation(
   sessionId: string,
+  confirmationId: string,
   payload: ConfirmationRequestPayload
 ): Promise<ConfirmationResponse> {
   const response = await fetch(
-    `${API_BASE_URL}/v1/sessions/${sessionId}/confirm`,
+    `${API_BASE_URL}/v1/session/${sessionId}/confirm/${confirmationId}`,
     {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({
-        confirmationId: payload.confirmationId,
         confirmed: payload.confirmed,
-        answer: payload.answer,
+        message: payload.answer,
       }),
     }
   )
@@ -43,7 +44,13 @@ export async function submitConfirmation(
     )
   }
   
-  return response.json()
+  // Backend returns JSON ack, not SSE stream
+  // Events continue on the existing stream connection
+  return {
+    confirmationId,
+    confirmed: payload.confirmed,
+    answer: payload.answer,
+  }
 }
 
 /**
@@ -62,7 +69,7 @@ export async function handleConfirmation(
   answer?: string | null
 ): Promise<void> {
   try {
-    await submitConfirmation(sessionId, {
+    await submitConfirmation(sessionId, confirmationId, {
       sessionId,
       confirmationId,
       confirmed,

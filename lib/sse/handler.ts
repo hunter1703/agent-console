@@ -1,15 +1,22 @@
 /**
  * AGUI Event Handler
- * 
+ *
  * Processes AGUI events and updates the chat store accordingly.
  * Handles all event types including messages, tool calls, reasoning, and confirmations.
+ *
+ * Deduplication uses stable entity IDs (runId, messageId, toolCallId) rather than
+ * stream-position counters, so it works correctly across both invoke streams (live-only)
+ * and GET session streams (replay + live) without needing to coordinate offsets.
  */
 
-import { 
+import {
   AGUIEvent,
   parseAGUIEvent,
   isRunStartedEvent,
   isRunFinishedEvent,
+  isRunErrorEvent,
+  isStepStartedEvent,
+  isStepFinishedEvent,
   isTextMessageStartEvent,
   isTextMessageChunkEvent,
   isTextMessageEndEvent,
@@ -18,201 +25,336 @@ import {
   isToolCallEndEvent,
   isToolCallResultEvent,
   isConfirmationRequestedEvent,
+  isConfirmedEvent,
   isReasoningStartEvent,
+  isReasoningMessageStartEvent,
+  isReasoningMessageContentEvent,
+  isReasoningMessageEndEvent,
   isReasoningEndEvent,
   isPlanningToolCall,
   isStandardToolCall
 } from './events'
 
-import { useChatStore } from '@/lib/store/chat'
-import { useToasts } from '@/lib/store/ui'
+import { useChatStore } from '../store/chat'
+import { useConfirmationStore } from '../stores/confirmationStore'
 
 export class AGUIEventHandler {
-  private chatStore = useChatStore.getState()
+  // Per-session sets of already-processed entity IDs (runId / messageId / toolCallId).
+  // Start events are gated by these sets; downstream chunk/end events are naturally
+  // skipped because their corresponding store entries don't exist.
+  private processedRunIds: Map<string, Set<string>> = new Map()
+  private processedMessageIds: Map<string, Set<string>> = new Map()
+  private processedToolCallIds: Map<string, Set<string>> = new Map()
 
-  handleSSEMessage(event: MessageEvent): void {
-    const aguiEvent = parseAGUIEvent(event.data)
+  private getChatStore() {
+    return useChatStore.getState()
+  }
+
+  /** Clear dedup state for a session. Call when opening a fresh GET stream. */
+  resetSessionIndex(sessionId: string): void {
+    this.processedRunIds.delete(sessionId)
+    this.processedMessageIds.delete(sessionId)
+    this.processedToolCallIds.delete(sessionId)
+  }
+
+  private seenRun(sessionId: string, runId: string): boolean {
+    if (!this.processedRunIds.has(sessionId)) this.processedRunIds.set(sessionId, new Set())
+    const set = this.processedRunIds.get(sessionId)!
+    if (set.has(runId)) return true
+    set.add(runId)
+    return false
+  }
+
+  private seenMessage(sessionId: string, messageId: string): boolean {
+    if (!this.processedMessageIds.has(sessionId)) this.processedMessageIds.set(sessionId, new Set())
+    const set = this.processedMessageIds.get(sessionId)!
+    if (set.has(messageId)) return true
+    set.add(messageId)
+    return false
+  }
+
+  private seenToolCall(sessionId: string, toolCallId: string): boolean {
+    if (!this.processedToolCallIds.has(sessionId)) this.processedToolCallIds.set(sessionId, new Set())
+    const set = this.processedToolCallIds.get(sessionId)!
+    if (set.has(toolCallId)) return true
+    set.add(toolCallId)
+    return false
+  }
+
+  /** Entry point for fetch-based invoke SSE streams (live-only, no dedup needed). */
+  handleEvent(rawData: string, sessionId: string): void {
+    const aguiEvent = parseAGUIEvent(rawData)
     if (!aguiEvent) return
-
     try {
-      this.processEvent(aguiEvent)
+      this.processEvent(aguiEvent, sessionId)
     } catch (error) {
       console.error('Error processing AGUI event:', error, aguiEvent)
-      // Note: Cannot use useToasts hook here - this is a class method
-      // Error handling should be done at the component level
     }
   }
 
-  private processEvent(event: AGUIEvent): void {
-    // Log event for debugging
+  /** Entry point for EventSource-based GET session streams. */
+  handleSSEMessage(event: MessageEvent, sessionId: string): void {
+    this.handleEvent(event.data, sessionId)
+  }
+
+  private processEvent(event: AGUIEvent, sessionId: string): void {
     if (process.env.NODE_ENV === 'development') {
       console.log('AGUI Event:', event.type, event)
     }
 
-    switch (event.type) {
-      case 'RUN_STARTED':
-        this.handleRunStarted(event as any)
-        break
-      case 'RUN_FINISHED':
-        this.handleRunFinished(event as any)
-        break
-      case 'TEXT_MESSAGE_START':
-        this.handleTextMessageStart(event as any)
-        break
-      case 'TEXT_MESSAGE_CHUNK':
-        this.handleTextMessageChunk(event as any)
-        break
-      case 'TEXT_MESSAGE_END':
-        this.handleTextMessageEnd(event as any)
-        break
-      case 'ToolCallStart':
-        this.handleToolCallStart(event as any)
-        break
-      case 'ToolCallArgs':
-        this.handleToolCallArgs(event as any)
-        break
-      case 'ToolCallEnd':
-        this.handleToolCallEnd(event as any)
-        break
-      case 'ToolCallResult':
-        this.handleToolCallResult(event as any)
-        break
-      case 'ReasoningStart':
-        this.handleReasoningStart(event as any)
-        break
-      case 'ReasoningEnd':
-        this.handleReasoningEnd(event as any)
-        break
-      case 'Custom':
-        this.handleCustomEvent(event as any)
-        break
-      default:
-        console.warn('Unknown AGUI event type:', event.type)
+    if (isRunStartedEvent(event)) {
+      if (this.seenRun(sessionId, event.runId)) return
+      this.handleRunStarted(event, sessionId)
+    } else if (isRunFinishedEvent(event)) {
+      this.handleRunFinished(event, sessionId)
+    } else if (isRunErrorEvent(event)) {
+      this.handleRunError(event, sessionId)
+    } else if (isStepStartedEvent(event) || isStepFinishedEvent(event)) {
+      // informational only
+    } else if (isTextMessageStartEvent(event)) {
+      if (this.seenMessage(sessionId, event.messageId)) return
+      this.handleTextMessageStart(event, sessionId)
+    } else if (isTextMessageChunkEvent(event)) {
+      this.handleTextMessageChunk(event, sessionId)
+    } else if (isTextMessageEndEvent(event)) {
+      this.handleTextMessageEnd(event, sessionId)
+    } else if (isToolCallStartEvent(event)) {
+      if (this.seenToolCall(sessionId, event.toolCallId)) return
+      this.handleToolCallStart(event, sessionId)
+    } else if (isToolCallArgsEvent(event)) {
+      this.handleToolCallArgs(event, sessionId)
+    } else if (isToolCallEndEvent(event)) {
+      this.handleToolCallEnd(event, sessionId)
+    } else if (isToolCallResultEvent(event)) {
+      this.handleToolCallResult(event, sessionId)
+    } else if (isReasoningStartEvent(event)) {
+      if (event.messageId && this.seenMessage(sessionId, event.messageId)) return
+      this.handleReasoningStart(event, sessionId)
+    } else if (isReasoningMessageStartEvent(event)) {
+      this.handleReasoningMessageStart(event, sessionId)
+    } else if (isReasoningMessageContentEvent(event)) {
+      this.handleReasoningMessageContent(event, sessionId)
+    } else if (isReasoningMessageEndEvent(event)) {
+      this.handleReasoningMessageEnd(event, sessionId)
+    } else if (isReasoningEndEvent(event)) {
+      this.handleReasoningEnd(event, sessionId)
+    } else if (event.type === 'CUSTOM') {
+      this.handleCustomEvent(event as any, sessionId)
+    } else {
+      console.warn('Unknown AGUI event type:', (event as any).type)
     }
   }
 
-  private handleRunStarted(event: ReturnType<typeof isRunStartedEvent extends (e: any) => e is infer T ? T : never>): void {
+  private handleRunStarted(event: any, sessionId: string): void {
     if (!isRunStartedEvent(event)) return
 
-    // Create or update session for this run
-    const sessionId = event.threadId
-    const existingSession = this.chatStore.sessions[sessionId]
+    // Use the provided sessionId instead of event.threadId
+    const chatStore = this.getChatStore()
+    const existingSession = chatStore.sessions[sessionId]
 
     if (!existingSession) {
-      this.chatStore.addSession({
+      chatStore.addSession({
         sessionId,
         agentId: event.agentId,
         messages: [],
         isStreaming: true,
         connectionStatus: 'connected',
         lastActivity: new Date().toISOString(),
+        lastProcessedEventIndex: -1,
+        toolCalls: {},
+        confirmations: {},
+        corrections: {},
+        activePlan: null,
+        timeline: [],
       })
     } else {
-      this.chatStore.updateSession(sessionId, {
+      chatStore.updateSession(sessionId, {
         isStreaming: true,
         connectionStatus: 'connected',
       })
     }
 
     // Set as active if it's the first session or if no active session
-    if (!this.chatStore.activeSessionId) {
-      this.chatStore.setActiveSession(sessionId)
+    if (!chatStore.activeSessionId) {
+      chatStore.setActiveSession(sessionId)
     }
 
     // Handle multi-agent sessions (parent-child relationships)
     if (event.parentRunId) {
       // This is a child session - add to tabs
-      if (!this.chatStore.sessionTabs.includes(sessionId)) {
-        this.chatStore.sessionTabs.push(sessionId)
+      if (!chatStore.sessionTabs.includes(sessionId)) {
+        chatStore.sessionTabs.push(sessionId)
       }
     }
   }
 
-  private handleRunFinished(event: ReturnType<typeof isRunFinishedEvent extends (e: any) => e is infer T ? T : never>): void {
+  private handleRunFinished(event: any, sessionId: string): void {
     if (!isRunFinishedEvent(event)) return
 
-    const sessionId = this.findSessionByRunId(event.runId)
-    if (sessionId) {
-      this.chatStore.updateSession(sessionId, {
-        isStreaming: false,
-        lastActivity: new Date().toISOString(),
+    const chatStore = this.getChatStore()
+    chatStore.updateSession(sessionId, {
+      isStreaming: false,
+      lastActivity: new Date().toISOString(),
+    })
+  }
+
+  private handleRunError(event: any, sessionId: string): void {
+    if (!isRunErrorEvent(event)) return
+
+    const chatStore = this.getChatStore()
+    
+    // Parse the error message from the JSON string
+    let errorMessage = 'An error occurred'
+    try {
+      const errorData = JSON.parse(event.error)
+      if (errorData.error && errorData.error.message) {
+        errorMessage = errorData.error.message
+      }
+    } catch {
+      // If parsing fails, use the raw error string
+      errorMessage = event.error
+    }
+
+    // Add error message as a special assistant message
+    const now = new Date().toISOString()
+    const errorMessageId = `error-${event.runId || Date.now()}`
+    
+    chatStore.addMessage(sessionId, {
+      id: errorMessageId,
+      messageId: errorMessageId,
+      sessionId,
+      role: 'assistant',
+      content: `❌ **Error**: ${errorMessage}`,
+      timestamp: now,
+      createdTime: now,
+      updatedTime: now,
+      isError: true, // Special flag to indicate this is an error message
+    })
+
+    // Update session to indicate error state
+    chatStore.updateSession(sessionId, {
+      isStreaming: false,
+      connectionStatus: 'error',
+      lastActivity: now,
+    })
+  }
+
+  private handleTextMessageStart(event: any, sessionId: string): void {
+    if (!isTextMessageStartEvent(event)) return
+
+    const chatStore = this.getChatStore()
+    const role = event.role as 'user' | 'assistant'
+    chatStore.startStreamingMessage(event.messageId, event.role)
+    // User messages are replayed by the backend AFTER the tool calls for the same run.
+    // insertBeforeTools=true restores the logical order: user msg → tools → agent response.
+    // BUT: only do this for the FIRST user message. Subsequent "user" messages are often
+    // system-generated errors that should appear in their natural position.
+    const isFirstUserMessage = role === 'user' && !useChatStore.getState().sessions[sessionId]?.messages.some(m => m.role === 'user')
+    console.log('📍 Adding user message to timeline:', { sessionId, messageId: event.messageId, role, isFirstUserMessage, insertBeforeTools: isFirstUserMessage })
+    chatStore.addTimelineItem(
+      sessionId,
+      { type: 'message', id: event.messageId, role },
+      undefined,
+      isFirstUserMessage
+    )
+  }
+
+  private handleTextMessageChunk(event: any, sessionId: string): void {
+    if (!isTextMessageChunkEvent(event)) return
+
+    // delta may be null for image-only user messages replayed from the backend
+    if (!event.delta) return
+
+    const chatStore = this.getChatStore()
+    if (chatStore.streamingMessages[event.messageId]) {
+      chatStore.appendToStreamingMessage(event.messageId, event.delta)
+    }
+  }
+
+  private handleTextMessageEnd(event: any, sessionId: string): void {
+    if (!isTextMessageEndEvent(event)) return
+
+    const chatStore = this.getChatStore()
+    const streamingMessage = chatStore.streamingMessages[event.messageId]
+    
+    if (streamingMessage) {
+      // Remove streaming message BEFORE adding final message to prevent flicker
+      chatStore.completeStreamingMessage(event.messageId)
+
+      // Use event.content if available, otherwise use accumulated streaming content
+      const finalContent = event.content || streamingMessage.content
+      // Use the event's own timestamp so that replayed messages sort correctly
+      // relative to other messages (e.g. user messages replayed after agent events).
+      const eventTime = event.timestamp
+        ? new Date(event.timestamp).toISOString()
+        : new Date().toISOString()
+
+      chatStore.addMessage(sessionId, {
+        id: event.messageId,
+        messageId: event.messageId,
+        sessionId,
+        role: streamingMessage.role,
+        content: finalContent,
+        timestamp: eventTime,
+        createdTime: eventTime,
+        updatedTime: new Date().toISOString(),
+        toolCalls: streamingMessage.toolCalls,
       })
     }
   }
 
-  private handleTextMessageStart(event: ReturnType<typeof isTextMessageStartEvent extends (e: any) => e is infer T ? T : never>): void {
-    if (!isTextMessageStartEvent(event)) return
-
-    this.chatStore.startStreamingMessage(event.messageId, event.role)
-  }
-
-  private handleTextMessageChunk(event: any): void {
-    if (!isTextMessageChunkEvent(event)) return
-
-    this.chatStore.appendToStreamingMessage(event.messageId, event.delta)
-  }
-
-  private handleTextMessageEnd(event: ReturnType<typeof isTextMessageEndEvent extends (e: any) => e is infer T ? T : never>): void {
-    if (!isTextMessageEndEvent(event)) return
-
-    // Convert streaming message to permanent message
-    const streamingMessage = this.chatStore.streamingMessages[event.messageId]
-    if (streamingMessage) {
-      const sessionId = this.findSessionByRunId(event.runId || '')
-      if (sessionId) {
-        this.chatStore.addMessage(sessionId, {
-          messageId: event.messageId,
-          sessionId,
-          role: streamingMessage.role,
-          content: event.content,
-          timestamp: new Date().toISOString(),
-          toolCalls: streamingMessage.toolCalls,
-        })
-      }
-    }
-
-    this.chatStore.completeStreamingMessage(event.messageId)
-  }
-
-  private handleToolCallStart(event: ReturnType<typeof isToolCallStartEvent extends (e: any) => e is infer T ? T : never>): void {
+  private handleToolCallStart(event: any, sessionId: string): void {
     if (!isToolCallStartEvent(event)) return
 
-    this.chatStore.startToolCall({
+    // Backend uses toolCallName, frontend uses toolName
+    const toolName = event.toolName || (event as any).toolCallName
+    
+    if (!toolName) {
+      console.error('Tool call start event missing toolName/toolCallName:', event)
+      return
+    }
+
+    const chatStore = this.getChatStore()
+    chatStore.startToolCall(sessionId, {
       toolCallId: event.toolCallId,
-      toolName: event.toolName,
+      toolName,
       status: 'pending',
       arguments: {},
       parentMessageId: event.parentMessageId,
     })
 
     // Handle different tool types with specific UI updates
-    if (isPlanningToolCall(event.toolName)) {
-      this.handlePlanningToolStart(event)
-    } else if (isStandardToolCall(event.toolName)) {
-      this.handleStandardToolStart(event)
+    if (isPlanningToolCall(toolName)) {
+      if (toolName === 'create_plan') {
+        // The plan widget is anchored at the create_plan event position.
+        console.log('📍 Adding plan to timeline:', { sessionId, toolCallId: event.toolCallId })
+        chatStore.addTimelineItem(sessionId, { type: 'plan', id: event.toolCallId })
+      }
+      this.handlePlanningToolStart({ ...event, toolName }, sessionId)
+    } else if (isStandardToolCall(toolName)) {
+      chatStore.addTimelineItem(sessionId, { type: 'tool_call', id: event.toolCallId })
+      this.handleStandardToolStart({ ...event, toolName })
     }
   }
 
-  private handleToolCallArgs(event: ReturnType<typeof isToolCallArgsEvent extends (e: any) => e is infer T ? T : never>): void {
+  private handleToolCallArgs(event: any, sessionId: string): void {
     if (!isToolCallArgsEvent(event)) return
 
-    // Accumulate arguments (they come as JSON fragments)
-    const existingToolCall = this.chatStore.activeToolCalls[event.toolCallId]
+    const chatStore = this.getChatStore()
+    const session = chatStore.sessions[sessionId]
+    const existingToolCall = session?.toolCalls[event.toolCallId]
     if (existingToolCall) {
       const currentArgsString = existingToolCall.arguments?.raw || ''
       const newArgsString = currentArgsString + event.delta
-      
+
       try {
-        // Try to parse the accumulated arguments as JSON
         const parsedArgs = JSON.parse(newArgsString)
-        
-        this.chatStore.updateToolCall(event.toolCallId, {
+        chatStore.updateToolCall(sessionId, event.toolCallId, {
           arguments: parsedArgs,
           status: 'running',
         })
       } catch {
-        // If not valid JSON yet, keep accumulating
-        this.chatStore.updateToolCall(event.toolCallId, {
+        chatStore.updateToolCall(sessionId, event.toolCallId, {
           arguments: {
             ...existingToolCall.arguments,
             raw: newArgsString,
@@ -223,182 +365,261 @@ export class AGUIEventHandler {
     }
   }
 
-  private handleToolCallEnd(event: ReturnType<typeof isToolCallEndEvent extends (e: any) => e is infer T ? T : never>): void {
+  private handleToolCallEnd(event: any, sessionId: string): void {
     if (!isToolCallEndEvent(event)) return
+
+    const chatStore = this.getChatStore()
+
+    if (!event.arguments || event.arguments === 'undefined') {
+      chatStore.updateToolCall(sessionId, event.toolCallId, { status: 'running' })
+      return
+    }
 
     try {
       const finalArgs = JSON.parse(event.arguments)
-      this.chatStore.updateToolCall(event.toolCallId, {
-        arguments: finalArgs,
-        status: 'running',
-      })
+      chatStore.updateToolCall(sessionId, event.toolCallId, { arguments: finalArgs, status: 'running' })
     } catch (error) {
       console.error('Failed to parse final tool arguments:', error)
-      // Keep the raw arguments if parsing fails
-      this.chatStore.updateToolCall(event.toolCallId, {
-        status: 'running',
-      })
+      chatStore.updateToolCall(sessionId, event.toolCallId, { status: 'running' })
     }
   }
 
-  private handleToolCallResult(event: ReturnType<typeof isToolCallResultEvent extends (e: any) => e is infer T ? T : never>): void {
+  private handleToolCallResult(event: any, sessionId: string): void {
     if (!isToolCallResultEvent(event)) return
 
-    const toolCall = this.chatStore.activeToolCalls[event.toolCallId]
-    
-    this.chatStore.completeToolCall(event.toolCallId, {
+    const chatStore = this.getChatStore()
+    const toolCall = chatStore.sessions[sessionId]?.toolCalls[event.toolCallId]
+
+    chatStore.completeToolCall(sessionId, event.toolCallId, {
       content: event.content,
       success: event.success,
       error: event.error,
       duration: event.duration,
     })
 
-    // Handle specific tool result processing
     if (toolCall) {
       if (isPlanningToolCall(toolCall.toolName)) {
-        this.handlePlanningToolResult(event, toolCall)
+        this.handlePlanningToolResult(event, toolCall, sessionId)
       } else if (isStandardToolCall(toolCall.toolName)) {
-        this.handleStandardToolResult(event, toolCall)
+        this.handleStandardToolResult(event, toolCall, sessionId)
       }
     }
   }
 
-  private handleReasoningStart(event: ReturnType<typeof isReasoningStartEvent extends (e: any) => e is infer T ? T : never>): void {
+  private handleReasoningStart(event: any, sessionId: string): void {
     if (!isReasoningStartEvent(event)) return
 
-    // Start a reasoning block in the streaming message
-    const streamingMessage = this.chatStore.streamingMessages[event.messageId]
-    if (streamingMessage) {
-      const reasoning = streamingMessage.reasoning || []
-      reasoning.push({
-        blockId: event.messageId,
-        thoughts: [],
-        isComplete: false,
-      })
-      
-      // Update streaming message with reasoning block
-      // Note: This would require extending the streaming message interface
-    }
+    this.getChatStore().addReasoningBlock(event.messageId, event.messageId)
   }
 
-  private handleReasoningEnd(event: ReturnType<typeof isReasoningEndEvent extends (e: any) => e is infer T ? T : never>): void {
-    if (!isReasoningEndEvent(event)) return
+  private handleReasoningMessageStart(event: any, sessionId: string): void {
+    if (!isReasoningMessageStartEvent(event)) return
 
-    // Mark reasoning block as complete
-    const streamingMessage = this.chatStore.streamingMessages[event.messageId]
-    if (streamingMessage?.reasoning) {
-      const reasoningBlock = streamingMessage.reasoning.find(r => r.blockId === event.messageId)
-      if (reasoningBlock) {
-        reasoningBlock.isComplete = true
+    // A new inner thought begins — seed an empty thought entry via appendToReasoningBlock
+    this.getChatStore().appendToReasoningBlock(
+      event.parentMessageId,
+      event.parentMessageId,
+      event.messageId,
+      ''
+    )
+  }
+
+  private handleReasoningMessageContent(event: any, sessionId: string): void {
+    if (!isReasoningMessageContentEvent(event)) return
+
+    // Append the content delta to the matching thought in the parent block.
+    // We don't have the parent block ID here, so we search all blocks.
+    const chatStore = this.getChatStore()
+    const streamingMessages = chatStore.streamingMessages
+    for (const [msgId, msg] of Object.entries(streamingMessages)) {
+      if (!(msg as any).reasoning) continue
+      const block = (msg as any).reasoning.find((b: any) =>
+        b.thoughts.some((t: any) => t.thoughtId === event.messageId)
+      )
+      if (block) {
+        chatStore.appendToReasoningBlock(msgId, block.blockId, event.messageId, event.delta)
+        break
       }
     }
   }
 
-  private handleCustomEvent(event: any): void {
+  private handleReasoningMessageEnd(event: any, sessionId: string): void {
+    if (!isReasoningMessageEndEvent(event)) return
+    // Thought is complete — no additional action needed; block completion arrives with REASONING_END
+  }
+
+  private handleReasoningEnd(event: any, sessionId: string): void {
+    if (!isReasoningEndEvent(event)) return
+
+    this.getChatStore().completeReasoningBlock(event.messageId, event.messageId)
+  }
+
+  private handleCustomEvent(event: any, sessionId: string): void {
+    const chatStore = this.getChatStore()
+    const confirmationStore = useConfirmationStore.getState()
+
     if (isConfirmationRequestedEvent(event)) {
-      this.chatStore.showConfirmation({
-        confirmationId: event.confirmationId,
+      confirmationStore.addConfirmation({
+        id: event.confirmationId,
+        sessionId,
+        type: event.kind,
         prompt: event.prompt,
-        kind: event.kind,
-        options: event.options,
-        originalToolCallId: event.originalToolCallId,
-        timeout: event.timeout,
+        status: 'pending',
+        options: event.options?.map((opt: string, idx: number) => ({
+          id: idx.toString(),
+          label: opt,
+          value: opt,
+        })),
+        linkedToolCallId: event.originalToolCallId,
+        createdAt: new Date().toISOString(),
       })
+      // Insert confirmation after its linked tool call if one exists; otherwise append in arrival order.
+      chatStore.addTimelineItem(
+        sessionId,
+        { type: 'confirmation', id: event.confirmationId, linkedId: event.originalToolCallId },
+        event.originalToolCallId
+      )
+    } else if (isConfirmedEvent(event)) {
+      confirmationStore.updateConfirmation(
+        event.confirmationId,
+        event.confirmed ? 'confirmed' : 'rejected',
+        event.answer
+      )
+    } else if (event.name === 'correction') {
+      console.log('🔧 Processing correction event:', event)
+      const correctionId = `correction-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`
+      chatStore.addCorrectionEvent(sessionId, {
+        correctionId,
+        correctionType: event.correctionType || 'violation',
+        code: event.code || 'unknown',
+        message: event.message || 'Correction event received',
+      })
+      chatStore.addTimelineItem(sessionId, { type: 'correction', id: correctionId })
     }
   }
 
-  private handlePlanningToolStart(event: any): void {
-    // Planning tools will be handled when results come in
-    // For now, just ensure the tool call is tracked
-    console.log('Planning tool started:', event.toolName, event.toolCallId)
+  private handlePlanningToolStart(event: any, sessionId: string): void {
+    // When create_plan starts, seed an empty plan immediately so the card appears
+    if (event.toolName === 'create_plan') {
+      const args = event.arguments ?? {}
+      this.getChatStore().setActivePlan(sessionId, {
+        planId: event.toolCallId,
+        title: args.title ?? 'Planning…',
+        goal: args.goal ?? '',
+        status: 'IN_PROGRESS' as any,
+        tasks: args.tasks ?? [],
+      })
+    }
   }
 
   private handleStandardToolStart(event: any): void {
-    // Standard tools (spawn_agent, send_message, etc.) are handled generically
-    // Specific UI updates happen in the tool result handler
     console.log('Standard tool started:', event.toolName, event.toolCallId)
   }
 
-  private handlePlanningToolResult(event: any, toolCall: any): void {
-    // This integrates with planning card components
-    try {
-      const result = JSON.parse(event.content)
-      
-      switch (toolCall.toolName) {
-        case 'create_plan':
-          console.log('Plan created:', result)
-          // The PlanningCard component will render based on the tool call state
-          break
-        case 'update_plan':
-          console.log('Plan updated:', result)
-          break
-        case 'add_task':
-          console.log('Task added:', result)
-          break
-        case 'update_task_info':
-          console.log('Task info updated:', result)
-          break
-        case 'start_task':
-          console.log('Task started:', result)
-          break
-        case 'complete_task':
-          console.log('Task completed:', result)
-          break
-        case 'update_task_status':
-          console.log('Task status updated:', result)
-          break
-        case 'finish_plan':
-          console.log('Plan finished:', result)
-          break
-        case 'view_plan':
-          console.log('Plan viewed:', result)
-          break
-        default:
-          console.log('Unknown planning tool:', toolCall.toolName)
+  private handlePlanningToolResult(event: any, toolCall: any, sessionId: string): void {
+    const chatStore = this.getChatStore()
+    const args = toolCall.arguments ?? {}
+
+    switch (toolCall.toolName) {
+      case 'create_plan': {
+        // Use the result's createdPlan which has real planId and taskId values.
+        // The call args tasks have no taskId, causing undefined === undefined
+        // false-positives in the hasChildren check.
+        try {
+          const { createdPlan } = JSON.parse(event.content)
+          if (createdPlan) {
+            chatStore.setActivePlan(sessionId, {
+              planId: createdPlan.planId,
+              title: createdPlan.title ?? args.title ?? 'Plan',
+              goal: createdPlan.goal ?? args.goal ?? '',
+              status: 'IN_PROGRESS' as any,
+              tasks: createdPlan.tasks ?? [],
+            })
+            break
+          }
+        } catch { /* fall through to arg-based fallback */ }
+        chatStore.setActivePlan(sessionId, {
+          planId: toolCall.toolCallId,
+          title: args.title ?? 'Plan',
+          goal: args.goal ?? '',
+          status: 'IN_PROGRESS' as any,
+          tasks: args.tasks ?? [],
+        })
+        break
       }
-    } catch (error) {
-      console.error('Failed to parse planning tool result:', error)
+      case 'add_task': {
+        // Backend uses snake_case (task_id, parent_id)
+        const taskId = args.task_id ?? args.taskId
+        const parentId = args.parent_id ?? args.parentId
+        if (taskId) {
+          chatStore.upsertPlanTask(sessionId, {
+            taskId,
+            name: args.name ?? args.title ?? '',
+            goal: args.goal ?? '',
+            description: args.description,
+            status: 'TODO',
+            parentId,
+          })
+        }
+        break
+      }
+      case 'update_task_info': {
+        const taskId = args.task_id ?? args.taskId
+        if (taskId) {
+          chatStore.updatePlanTask(sessionId, taskId, {
+            name: args.name,
+            goal: args.goal,
+            description: args.description,
+          })
+        }
+        break
+      }
+      case 'start_task': {
+        const taskId = args.task_id ?? args.taskId
+        if (taskId) chatStore.updatePlanTask(sessionId, taskId, { status: 'IN_PROGRESS' })
+        break
+      }
+      case 'complete_task': {
+        const taskId = args.task_id ?? args.taskId
+        if (taskId) {
+          chatStore.updatePlanTask(sessionId, taskId, {
+            status: 'COMPLETED',
+            result: args.result,
+          })
+        }
+        break
+      }
+      case 'update_plan':
+        chatStore.updateActivePlan(sessionId, {
+          title: args.title,
+          goal: args.goal,
+        })
+        break
+      case 'finish_plan':
+        chatStore.updateActivePlan(sessionId, {
+          status: 'COMPLETED' as any,
+          result: args.result,
+        })
+        break
+      default:
+        break
     }
   }
 
-  private handleStandardToolResult(event: any, toolCall: any): void {
-    // Handle standard tool results
+  private handleStandardToolResult(event: any, toolCall: any, sessionId: string): void {
     try {
       const result = JSON.parse(event.content)
-      
-      switch (toolCall.toolName) {
-        case 'spawn_agent':
-          console.log('Agent spawned:', result)
-          // Result should contain child_session_id
-          if (result.child_session_id) {
-            // Add child session to tabs if not already present
-            const sessionId = result.child_session_id
-            if (!this.chatStore.sessionTabs.includes(sessionId)) {
-              this.chatStore.sessionTabs.push(sessionId)
-            }
-          }
-          break
-        case 'send_message':
-          console.log('Message sent:', result)
-          break
-        case 'await_agent':
-          console.log('Agent awaited:', result)
-          break
-        case 'web_research':
-          console.log('Web research completed:', result)
-          break
-        default:
-          console.log('Unknown standard tool:', toolCall.toolName)
+      const chatStore = this.getChatStore()
+
+      if (toolCall.toolName === 'spawn_agent' && result.child_session_id) {
+        const childSessionId = result.child_session_id
+        if (!chatStore.sessionTabs.includes(childSessionId)) {
+          chatStore.sessionTabs.push(childSessionId)
+        }
       }
     } catch (error) {
       console.error('Failed to parse standard tool result:', error)
     }
-  }
-
-  private findSessionByRunId(runId: string): string | null {
-    // This is a simplified implementation
-    // In practice, you'd need to track runId -> sessionId mapping
-    return this.chatStore.activeSessionId
   }
 }
 

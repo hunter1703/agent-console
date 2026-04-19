@@ -17,7 +17,7 @@
 
 import { motion, AnimatePresence } from 'framer-motion'
 import { AlertCircle, CheckCircle, Clock, Loader2, Copy, Check } from 'lucide-react'
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { Prism as SyntaxHighlighter } from 'react-syntax-highlighter'
 import { vscDarkPlus } from 'react-syntax-highlighter/dist/esm/styles/prism'
 import { cn } from '@/lib/utils'
@@ -31,9 +31,9 @@ export interface ToolExecutionProps {
   toolName: string
   parameters: Record<string, any>
   result?: Record<string, any>
-  status: 'pending' | 'executing' | 'completed' | 'failed' | 'awaiting_confirmation'
+  status: 'pending' | 'running' | 'completed' | 'failed' | 'awaiting_confirmation'
   timestamp: Date
-  duration?: number
+  duration?: number // Duration in seconds
   className?: string
 }
 
@@ -93,25 +93,60 @@ export function ToolExecutionCard({
   duration,
   className,
 }: ToolExecutionProps) {
-  const [isExpanded, setIsExpanded] = useState(false)
-  const [isStatusHovered, setIsStatusHovered] = useState(false)
   const [isParamsCopied, setIsParamsCopied] = useState(false)
   const [isResultCopied, setIsResultCopied] = useState(false)
+  const [elapsedTime, setElapsedTime] = useState(0)
   const { shouldAnimate } = useReducedMotion()
-  const config = getToolConfig(toolName)
-  const Icon = config.icon
+  
+  // Get tool config with fallback - ensure we always have a valid config
+  const getConfigSafely = () => {
+    try {
+      const cfg = getToolConfig(toolName || 'unknown')
+      if (!cfg || !cfg.icon) {
+        throw new Error('Invalid config')
+      }
+      return cfg
+    } catch (error) {
+      console.error('Failed to get tool config for:', toolName, error)
+      return {
+        displayName: toolName || 'Unknown Tool',
+        description: 'Executing tool',
+        icon: Clock,
+        color: '#6B7280',
+        background: 'rgba(107, 114, 128, 0.05)',
+        borderColor: 'rgba(107, 114, 128, 0.2)',
+        category: 'other' as const,
+      }
+    }
+  }
+  
+  const config = getConfigSafely()
+  const Icon = config?.icon || Clock
 
-  // Status badge configuration
+  // Live timer for running tools
+  useEffect(() => {
+    if (status === 'running' || status === 'pending') {
+      const startTime = Date.now()
+      const interval = setInterval(() => {
+        // Convert elapsed milliseconds to seconds
+        setElapsedTime((Date.now() - startTime) / 1000)
+      }, 100) // Update every 100ms for smooth animation
+      
+      return () => clearInterval(interval)
+    }
+  }, [status])
+
+  // Status badge configuration - defined after config is initialized
   const statusConfig = {
     pending: {
       icon: Clock,
       label: 'Pending',
       color: '#6B7280', // Gray
     },
-    executing: {
+    running: {
       icon: Loader2,
-      label: 'Executing',
-      color: config.color,
+      label: 'Running',
+      color: config?.color || '#6B7280',
       animate: true,
     },
     completed: {
@@ -131,7 +166,24 @@ export function ToolExecutionCard({
     },
   }
 
-  const StatusIcon = statusConfig[status].icon
+  // Get status config with fallback for unknown status values
+  const getStatusConfig = () => {
+    const statusKey = status as keyof typeof statusConfig
+    if (statusConfig[statusKey]) {
+      return statusConfig[statusKey]
+    }
+    
+    // Fallback for unknown status values
+    console.warn('Unknown tool execution status:', status, 'for tool:', toolName)
+    return {
+      icon: Clock,
+      label: status || 'Unknown',
+      color: '#6B7280', // Gray
+    }
+  }
+
+  const currentStatusConfig = getStatusConfig()
+  const StatusIcon = currentStatusConfig.icon
 
   // Copy handlers
   const handleCopyParams = async () => {
@@ -165,29 +217,33 @@ export function ToolExecutionCard({
         className
       )}
       style={{
-        background: config.background,
-        borderColor: config.borderColor,
+        background: config?.background || 'rgba(107, 114, 128, 0.05)',
+        borderColor: config?.borderColor || 'rgba(107, 114, 128, 0.2)',
       }}
     >
       {/* Header */}
       <div className="flex items-start gap-3">
         {/* Tool Icon - Static, no rotation */}
         <div className="flex-shrink-0 mt-0.5">
-          <Icon size={20} style={{ color: config.color }} strokeWidth={2} />
+          <Icon size={20} style={{ color: config?.color || '#6B7280' }} strokeWidth={2} />
         </div>
 
         {/* Tool Info */}
         <div className="flex-1 min-w-0">
           <h4
             className="text-[15px] font-semibold"
-            style={{ color: config.color }}
+            style={{ color: config?.color || '#6B7280' }}
           >
-            {config.displayName}
+            {config?.displayName || 'Unknown Tool'}
           </h4>
-          <p className="text-[13px] text-text-secondary mt-0.5">
-            {config.description}
-          </p>
         </div>
+
+        {/* Duration/Timer - Before status badge */}
+        {(duration || status === 'running' || status === 'pending') && (
+          <div className="flex-shrink-0 text-[11px] text-text-tertiary font-mono">
+            {duration ? formatDuration(duration) : formatDuration(elapsedTime)}
+          </div>
+        )}
 
         {/* Status Badge - Icon only */}
         <div className="flex items-center justify-center w-8 h-8 rounded-lg bg-surface border border-border-subtle">
@@ -202,19 +258,19 @@ export function ToolExecutionCard({
             >
               <motion.div
                 animate={
-                  shouldAnimate && statusConfig[status].animate
+                  shouldAnimate && currentStatusConfig.animate
                     ? { rotate: 360 }
                     : {}
                 }
                 transition={
-                  shouldAnimate && statusConfig[status].animate
+                  shouldAnimate && currentStatusConfig.animate
                     ? { duration: 1, repeat: Infinity, ease: 'linear' }
                     : { duration: 0 }
                 }
               >
                 <StatusIcon
                   size={14}
-                  style={{ color: statusConfig[status].color }}
+                  style={{ color: currentStatusConfig.color }}
                   strokeWidth={2}
                 />
               </motion.div>
@@ -223,33 +279,41 @@ export function ToolExecutionCard({
         </div>
       </div>
 
-      {/* Parameters (expandable) */}
-      {status !== 'pending' && Object.keys(parameters).length > 0 && (
-        <motion.div
-          initial={false}
-          animate={{ height: isExpanded ? 'auto' : 0, opacity: isExpanded ? 1 : 0 }}
-          transition={shouldAnimate ? springPresets.gentle : { duration: 0 }}
-          className="overflow-hidden"
-        >
-          <div className="mt-3 pt-3 border-t border-border-subtle">
-            <div className="flex items-center justify-between mb-2">
-              <div className="text-[12px] font-medium text-text-secondary">
-                Parameters
-              </div>
-              <CopyButton isCopied={isParamsCopied} onClick={handleCopyParams} />
+      {/* Parameters (always visible, displayed as code) */}
+      {status !== 'pending' && parameters && Object.keys(parameters).length > 0 && (
+        <div className="mt-3 pt-3 border-t border-border-subtle">
+          <div className="flex items-center justify-between mb-2">
+            <div className="text-[12px] font-medium text-text-secondary">
+              Parameters
             </div>
-            <div className="space-y-1.5">
-              {Object.entries(parameters).map(([key, value]) => (
-                <div key={key} className="flex gap-2 text-[13px]">
-                  <span className="text-text-tertiary font-mono">{key}:</span>
-                  <span className="text-text-primary font-mono flex-1 truncate">
-                    {typeof value === 'object' ? JSON.stringify(value) : String(value)}
-                  </span>
-                </div>
-              ))}
-            </div>
+            <CopyButton isCopied={isParamsCopied} onClick={handleCopyParams} />
           </div>
-        </motion.div>
+          <div
+            className="rounded-lg overflow-hidden border"
+            style={{
+              borderColor: config?.borderColor || 'rgba(107, 114, 128, 0.2)',
+            }}
+          >
+            <SyntaxHighlighter
+              language="json"
+              style={vscDarkPlus}
+              customStyle={{
+                margin: 0,
+                padding: '16px',
+                background: '#1E1E1E',
+                fontSize: '13px',
+                lineHeight: '1.6',
+              }}
+              codeTagProps={{
+                style: {
+                  fontFamily: 'ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace',
+                },
+              }}
+            >
+              {JSON.stringify(parameters, null, 2)}
+            </SyntaxHighlighter>
+          </div>
+        </div>
       )}
 
       {/* Result */}
@@ -285,7 +349,7 @@ export function ToolExecutionCard({
             <div
               className="rounded-lg overflow-hidden border"
               style={{
-                borderColor: config.borderColor,
+                borderColor: config?.borderColor || 'rgba(107, 114, 128, 0.2)',
               }}
             >
               <SyntaxHighlighter
@@ -310,29 +374,6 @@ export function ToolExecutionCard({
           )}
         </motion.div>
       )}
-
-      {/* Footer */}
-      <div className="flex items-center justify-between mt-3 pt-3 border-t border-border-subtle">
-        {/* Duration */}
-        {duration && (
-          <div className="text-[11px] text-text-tertiary">
-            Completed in {formatDuration(duration)}
-          </div>
-        )}
-
-        {/* Expand/Collapse Button */}
-        {status !== 'pending' && Object.keys(parameters).length > 0 && (
-          <motion.button
-            whileHover={shouldAnimate ? { scale: 1.05 } : undefined}
-            whileTap={shouldAnimate ? { scale: 0.95 } : undefined}
-            onClick={() => setIsExpanded(!isExpanded)}
-            className="text-[12px] font-medium px-2 py-1 rounded-md hover:bg-surface-hover transition-colors cursor-pointer"
-            style={{ color: config.color }}
-          >
-            {isExpanded ? 'Hide Details' : 'Show Details'}
-          </motion.button>
-        )}
-      </div>
     </motion.div>
   )
 }
