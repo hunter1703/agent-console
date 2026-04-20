@@ -52,10 +52,12 @@ export interface Message {
 export interface InvokeRequest {
   sessionId?: string;
   parts: Array<{
-    type: 'text' | 'image';
+    type: 'text' | 'image' | 'file';
     text?: string;
     base64?: string;
     mimeType?: string;
+    bucket?: string;
+    key?: string;
   }>;
   options?: {
     temperature?: number
@@ -454,6 +456,40 @@ export async function deleteSession(
 // ============================================================================
 // Message/Invocation Services
 // ============================================================================
+
+export interface StoredObjectDetails {
+  bucket: string
+  key: string
+  sizeBytes: number
+  mediaType: string
+  etag: string
+  lastModified: number
+}
+
+/**
+ * Uploads a file as a raw byte stream to cloud storage.
+ * Returns the stored object metadata (bucket, key, size, mediaType, etag).
+ */
+export async function uploadToStorage(file: File): Promise<StoredObjectDetails> {
+  const baseUrl = process.env.NEXT_PUBLIC_API_BASE_URL || 'http://localhost:8080'
+  const key = `uploads/${Date.now()}-${file.name.replace(/[^a-zA-Z0-9._-]/g, '_')}`
+
+  const response = await fetch(`${baseUrl}/v1/storage/objects/${key}`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/octet-stream',
+      'Content-Length': String(file.size),
+    },
+    body: file,
+  })
+
+  if (!response.ok) {
+    const text = await response.text().catch(() => '')
+    throw new Error(`Storage upload failed: HTTP ${response.status}${text ? ` — ${text}` : ''}`)
+  }
+
+  return response.json()
+}
 
 export interface InvokeStreamCallbacks {
   /** Called as soon as RUN_STARTED arrives — use this to migrate the temp session ID. */

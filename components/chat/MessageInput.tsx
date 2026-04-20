@@ -23,7 +23,7 @@ import { useReducedMotion } from '@/lib/hooks/useReducedMotion'
 export interface MessageInputProps {
   value?: string
   onChange?: (value: string) => void
-  onSend?: (message: string, attachments?: Array<{ type: 'image'; base64: string; mimeType: string; name: string }>) => void
+  onSend?: (message: string, attachments?: Array<{ type: 'file'; bucket: string; key: string; mimeType: string; name: string }>) => void
   placeholder?: string
   disabled?: boolean
   isStreaming?: boolean
@@ -47,7 +47,7 @@ export function MessageInput({
   const fileInputRef = useRef<HTMLInputElement>(null)
   const [isFocused, setIsFocused] = useState(false)
   const [isHovered, setIsHovered] = useState(false)
-  const [attachments, setAttachments] = useState<Array<{ type: 'image'; base64: string; mimeType: string; name: string; preview: string }>>([])
+  const [attachments, setAttachments] = useState<Array<{ type: 'file'; bucket: string; key: string; mimeType: string; name: string; preview: string }>>([])
   const [isProcessingFile, setIsProcessingFile] = useState(false)
   const [isDragOver, setIsDragOver] = useState(false)
 
@@ -59,20 +59,6 @@ export function MessageInput({
   const isInputDisabled = disabled || isStreaming
   
   // File handling functions
-  const convertFileToBase64 = (file: File): Promise<string> => {
-    return new Promise((resolve, reject) => {
-      const reader = new FileReader()
-      reader.onload = () => {
-        const result = reader.result as string
-        // Remove the data URL prefix (e.g., "data:image/jpeg;base64,")
-        const base64 = result.split(',')[1]
-        resolve(base64)
-      }
-      reader.onerror = reject
-      reader.readAsDataURL(file)
-    })
-  }
-
   const handleFileSelect = async (event: React.ChangeEvent<HTMLInputElement>) => {
     const files = event.target.files
     if (!files || files.length === 0) return
@@ -80,23 +66,19 @@ export function MessageInput({
     setIsProcessingFile(true)
     
     try {
+      const { uploadToStorage } = await import('@/lib/api/services')
       const newAttachments = []
       const errors = []
       
       for (const file of Array.from(files)) {
-        // Validate file type
         if (!file.type.startsWith('image/')) {
           errors.push(`${file.name}: Only image files are supported`)
           continue
         }
-        
-        // Validate file size (max 10MB)
         if (file.size > 10 * 1024 * 1024) {
           errors.push(`${file.name}: File too large (max 10MB)`)
           continue
         }
-        
-        // Check for supported image formats
         const supportedTypes = ['image/jpeg', 'image/jpg', 'image/png', 'image/gif', 'image/webp']
         if (!supportedTypes.includes(file.type.toLowerCase())) {
           errors.push(`${file.name}: Unsupported format. Use JPEG, PNG, GIF, or WebP`)
@@ -104,26 +86,25 @@ export function MessageInput({
         }
         
         try {
-          const base64 = await convertFileToBase64(file)
+          const stored = await uploadToStorage(file)
           const preview = URL.createObjectURL(file)
-          
           newAttachments.push({
-            type: 'image' as const,
-            base64,
-            mimeType: file.type,
+            type: 'file' as const,
+            bucket: stored.bucket,
+            key: stored.key,
+            mimeType: stored.mediaType || file.type,
             name: file.name,
             preview,
           })
         } catch (fileError) {
-          errors.push(`${file.name}: Failed to process file`)
+          errors.push(`${file.name}: Failed to upload file`)
+          console.error('Upload error:', fileError)
         }
       }
       
       if (errors.length > 0) {
         console.warn('File processing errors:', errors)
-        // You could show these errors to the user via a toast or alert
       }
-      
       if (newAttachments.length > 0) {
         setAttachments(prev => [...prev, ...newAttachments])
       }
@@ -131,7 +112,6 @@ export function MessageInput({
       console.error('Error processing files:', error)
     } finally {
       setIsProcessingFile(false)
-      // Reset file input
       if (fileInputRef.current) {
         fileInputRef.current.value = ''
       }
@@ -204,7 +184,8 @@ export function MessageInput({
       // Convert attachments to the format expected by the API
       const apiAttachments = attachments.map(att => ({
         type: att.type,
-        base64: att.base64,
+        bucket: att.bucket,
+        key: att.key,
         mimeType: att.mimeType,
         name: att.name,
       }))

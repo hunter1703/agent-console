@@ -8,7 +8,7 @@
  * Implements Tasks 3-9: Complete Chat Interface Implementation
  */
 
-import { useEffect, useRef, useState, useMemo } from 'react'
+import { useEffect, useRef, useState, useMemo, useCallback } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { Plus } from 'lucide-react'
@@ -34,6 +34,7 @@ import { getAgent, getSession, listSessions, listAgents } from '@/lib/api/servic
 import { queryKeys } from '@/lib/query/client'
 import { useUIStore, useToasts } from '@/lib/store/ui'
 import { useAgentInfo, getAgentDisplayName } from '@/lib/hooks/useAgentInfo'
+import { useAgentNameResolver } from '@/lib/hooks/useAgentNameResolver'
 import {
   useChatStore,
   useActiveSession,
@@ -154,6 +155,10 @@ function ChatPageContent() {
   
   // Determine which agent info to use (URL param agent takes precedence, then session agent)
   const displayAgent = agent || agentInfo
+
+  // Resolve agent IDs → display names; fetches unknown IDs on demand.
+  // Must be called unconditionally before any early returns.
+  const resolveAgentName = useAgentNameResolver(agentsData as any, displayAgent as any)
 
   // Set page title with immediate document.title update as fallback
   useEffect(() => {
@@ -345,7 +350,7 @@ function ChatPageContent() {
   // }, [sessionError, error])
 
   // Handle message sending with streaming support
-  const handleSendMessage = async (message: string, attachments?: Array<{ type: 'image'; base64: string; mimeType: string; name: string }>) => {
+  const handleSendMessage = async (message: string, attachments?: Array<{ type: 'file'; bucket: string; key: string; mimeType: string; name: string }>) => {
     if ((!message.trim() && (!attachments || attachments.length === 0)) || isSending || sendingRef.current) return
     
     sendingRef.current = true
@@ -440,10 +445,10 @@ function ChatPageContent() {
         const eventHandler = getAGUIEventHandler()
 
         // Build parts array
-        const parts: Array<{ type: 'text' | 'image'; text?: string; base64?: string; mimeType?: string }> = []
+        const parts: Array<{ type: 'text' | 'image' | 'file'; text?: string; base64?: string; mimeType?: string; bucket?: string; key?: string }> = []
         if (message.trim()) parts.push({ type: 'text', text: message.trim() })
         if (attachments) {
-          attachments.forEach(a => parts.push({ type: 'image', base64: a.base64, mimeType: a.mimeType }))
+          attachments.forEach(a => parts.push({ type: 'file', bucket: a.bucket, key: a.key, mimeType: a.mimeType }))
         }
 
         // Close any existing GET EventSource — the invoke stream replaces it for this turn.
@@ -609,7 +614,7 @@ function ChatPageContent() {
     id: msg.messageId || msg.id,
     content: msg.content,
     sender: (msg.role === 'user' ? 'user' : 'agent') as 'user' | 'agent',
-    senderName: msg.role === 'user' ? 'You' : getAgentDisplayName(displayAgent),
+    senderName: msg.role === 'user' ? 'You' : resolveAgentName(msg.metadata?.agentId as string | undefined),
     senderAvatar: msg.role === 'user' ? undefined : (displayAgent as any)?.avatar,
     timestamp: new Date(msg.createdTime || msg.updatedTime || Date.now()),
   })
@@ -829,24 +834,26 @@ function ChatPageContent() {
                         const committed = messageById.get(item.id)
 
                         if (streaming) {
+                          const isUserMsg = item.role === 'user'
+                          const displayName = isUserMsg ? 'You' : resolveAgentName(item.agentId)
                           return (
                             <div
                               key={item.id}
                               className="flex gap-4 group relative mt-10"
-                              data-role="assistant"
+                              data-role={isUserMsg ? 'user' : 'assistant'}
                             >
                               <div className="flex-shrink-0">
                                 <Avatar
-                                  src={(displayAgent as any)?.avatar}
-                                  name={getAgentDisplayName(displayAgent)}
+                                  src={isUserMsg ? undefined : (displayAgent as any)?.avatar}
+                                  name={displayName}
                                   size="sm"
-                                  variant="agent"
+                                  variant={isUserMsg ? 'user' : 'agent'}
                                 />
                               </div>
                               <div className="flex-1 min-w-0">
                                 <div className="flex items-baseline gap-2 mb-2">
                                   <span className="text-sm font-semibold text-text-primary">
-                                    {getAgentDisplayName(displayAgent)}
+                                    {displayName}
                                   </span>
                                   <span className="text-xs text-text-tertiary">
                                     {new Date().toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' })}
@@ -871,6 +878,7 @@ function ChatPageContent() {
                           const prevSender = prevCommitted
                             ? ((prevCommitted as any).role === 'user' ? 'user' : 'agent')
                             : null
+                          const prevAgentId = prevItem?.agentId
                           const timeDiff = prevCommitted
                             ? props.timestamp.getTime() - new Date(
                                 (prevCommitted as any).createdTime ||
@@ -878,8 +886,11 @@ function ChatPageContent() {
                                 Date.now()
                               ).getTime()
                             : Infinity
+                          // Only cluster if same sender AND same agent (different agents must always show their name)
                           const isClusteredWithPrevious =
-                            prevSender === props.sender && timeDiff < 2 * 60 * 1000
+                            prevSender === props.sender &&
+                            prevAgentId === item.agentId &&
+                            timeDiff < 2 * 60 * 1000
 
                           return (
                             <Message
