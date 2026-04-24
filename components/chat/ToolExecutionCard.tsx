@@ -34,6 +34,7 @@ export interface ToolExecutionProps {
   status: 'pending' | 'running' | 'completed' | 'failed' | 'awaiting_confirmation'
   timestamp: Date
   duration?: number // Duration in seconds
+  agentName?: string // Display name of the agent that called this tool
   className?: string
 }
 
@@ -91,6 +92,7 @@ export function ToolExecutionCard({
   status,
   timestamp,
   duration,
+  agentName,
   className,
 }: ToolExecutionProps) {
   const [isParamsCopied, setIsParamsCopied] = useState(false)
@@ -198,7 +200,11 @@ export function ToolExecutionCard({
 
   const handleCopyResult = async () => {
     try {
-      await navigator.clipboard.writeText(JSON.stringify(result, null, 2))
+      const raw = result?.content
+      const text = typeof raw === 'string'
+        ? (() => { try { return JSON.stringify(JSON.parse(raw), null, 2) } catch { return raw } })()
+        : JSON.stringify(result, null, 2)
+      await navigator.clipboard.writeText(text)
       setIsResultCopied(true)
       setTimeout(() => setIsResultCopied(false), 2000)
     } catch (err) {
@@ -236,6 +242,9 @@ export function ToolExecutionCard({
           >
             {config?.displayName || 'Unknown Tool'}
           </h4>
+          {agentName && (
+            <p className="text-[11px] text-text-tertiary mt-0.5">{agentName}</p>
+          )}
         </div>
 
         {/* Duration/Timer - Before status badge */}
@@ -368,7 +377,20 @@ export function ToolExecutionCard({
                   },
                 }}
               >
-                {JSON.stringify(result, null, 2)}
+                {(() => {
+                  // result.content is the raw tool response string from the backend.
+                  // Parse it if it's valid JSON so we display the actual object,
+                  // not a stringified wrapper like {"content": "{...escaped...}"}.
+                  const raw = result?.content
+                  if (typeof raw === 'string') {
+                    try {
+                      return JSON.stringify(JSON.parse(raw), null, 2)
+                    } catch {
+                      return raw
+                    }
+                  }
+                  return JSON.stringify(result, null, 2)
+                })()}
               </SyntaxHighlighter>
             </div>
           )}

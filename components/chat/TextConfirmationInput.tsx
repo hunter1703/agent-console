@@ -1,8 +1,10 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { motion } from 'framer-motion'
 import { Loader2 } from 'lucide-react'
+import ConfettiExplosion from 'react-confetti-explosion'
+import { springPresets } from '@/lib/constants/animations'
 
 interface TextConfirmationInputProps {
   onSubmit: (answer: string) => void
@@ -21,12 +23,19 @@ export function TextConfirmationInput({
 }: TextConfirmationInputProps) {
   const [answer, setAnswer] = useState('')
   const [isSubmitting, setIsSubmitting] = useState(false)
+  const [showConfetti, setShowConfetti] = useState(false)
+
+  useEffect(() => {
+    if (isAnswered) {
+      setShowConfetti(true)
+      const t = setTimeout(() => setShowConfetti(false), 2500)
+      return () => clearTimeout(t)
+    }
+  }, [isAnswered])
 
   const handleSubmit = async () => {
     if (!answer.trim()) return
-
     setIsSubmitting(true)
-    
     try {
       await onSubmit(answer.trim())
     } finally {
@@ -37,21 +46,55 @@ export function TextConfirmationInput({
   const canSubmit = answer.trim().length > 0
   const remainingChars = maxLength - answer.length
 
-  // Answered state - display as plain text
+  // ── Answered state ──────────────────────────────────────────────────────────
   if (isAnswered && submittedAnswer) {
     return (
-      <motion.div
-        initial={{ opacity: 0, y: 4 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ duration: 0.2 }}
-        className="text-sm text-text-primary whitespace-pre-wrap break-words leading-relaxed"
-      >
-        {submittedAnswer}
-      </motion.div>
+      <div className="relative">
+        {/* Confetti burst */}
+        {showConfetti && (
+          <div className="absolute left-1/2 top-0 -translate-x-1/2 pointer-events-none z-50">
+            <ConfettiExplosion
+              force={0.35}
+              duration={2200}
+              particleCount={28}
+              width={360}
+              colors={['#3B82F6', '#60A5FA', '#10B981', '#34D399', '#F59E0B', '#A78BFA']}
+            />
+          </div>
+        )}
+
+        {/* Answered bubble — slides up and fades in, inline width */}
+        <motion.div
+          initial={{ opacity: 0, y: 8, scale: 0.97 }}
+          animate={{ opacity: 1, y: 0, scale: 1 }}
+          transition={springPresets.bouncy}
+          className="relative overflow-hidden block rounded-xl bg-gradient-to-br from-blue-500/10 to-indigo-500/5 border border-blue-500/20 px-4 py-3"
+        >
+          {/* Animated shimmer sweep on entry */}
+          <motion.div
+            className="absolute inset-0 bg-gradient-to-r from-transparent via-blue-400/10 to-transparent"
+            initial={{ x: '-100%' }}
+            animate={{ x: '200%' }}
+            transition={{ duration: 0.8, ease: 'easeOut', delay: 0.1 }}
+          />
+
+          <div className="relative">
+            {/* Answer text — fades in smoothly */}
+            <motion.p
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              transition={{ duration: 0.3, delay: 0.1 }}
+              className="text-sm text-text-primary leading-relaxed whitespace-pre-wrap break-words font-medium"
+            >
+              {submittedAnswer}
+            </motion.p>
+          </div>
+        </motion.div>
+      </div>
     )
   }
 
-  // Pending state - editable
+  // ── Pending state ───────────────────────────────────────────────────────────
   return (
     <div className="space-y-3">
       <div className="relative">

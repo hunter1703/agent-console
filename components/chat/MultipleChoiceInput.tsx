@@ -1,9 +1,10 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { Check, Loader2 } from 'lucide-react'
-import { springPresets, durations } from '@/lib/constants/animations'
+import ConfettiExplosion from 'react-confetti-explosion'
+import { springPresets } from '@/lib/constants/animations'
 import type { ConfirmationOption } from '@/types/confirmation'
 
 interface MultipleChoiceInputProps {
@@ -24,6 +25,16 @@ export function MultipleChoiceInput({
   const [selectedOption, setSelectedOption] = useState<string | null>(null)
   const [customAnswer, setCustomAnswer] = useState('')
   const [isSubmitting, setIsSubmitting] = useState(false)
+  const [showConfetti, setShowConfetti] = useState(false)
+
+  // Fire confetti when entering answered state
+  useEffect(() => {
+    if (isAnswered) {
+      setShowConfetti(true)
+      const t = setTimeout(() => setShowConfetti(false), 2500)
+      return () => clearTimeout(t)
+    }
+  }, [isAnswered])
 
   const handleSubmit = async () => {
     const answer = customAnswer.trim() || selectedOption
@@ -46,7 +57,19 @@ export function MultipleChoiceInput({
     const isCustomAnswerSelected = !isOptionSelected && !!selectedAnswer
 
     return (
-      <div className="space-y-0 bg-surface rounded-lg overflow-hidden border border-border shadow-sm">
+      <div className="relative space-y-0 bg-surface rounded-lg overflow-hidden border border-border shadow-sm">
+        {/* Confetti burst on submit */}
+        {showConfetti && (
+          <div className="absolute left-1/2 top-0 -translate-x-1/2 pointer-events-none z-50">
+            <ConfettiExplosion
+              force={0.4}
+              duration={2200}
+              particleCount={30}
+              width={400}
+              colors={['#3B82F6', '#60A5FA', '#10B981', '#34D399', '#93C5FD']}
+            />
+          </div>
+        )}
         {options.map((option, index) => {
           const isSelected = option.value === selectedAnswer
           return (

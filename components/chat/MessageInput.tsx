@@ -15,7 +15,7 @@
 
 import { useState, useRef, useEffect, KeyboardEvent } from 'react'
 import { motion } from 'framer-motion'
-import { Send, Paperclip, X, Image } from 'lucide-react'
+import { Send, Paperclip, X } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { springPresets } from '@/lib/constants/animations'
 import { useReducedMotion } from '@/lib/hooks/useReducedMotion'
@@ -23,7 +23,7 @@ import { useReducedMotion } from '@/lib/hooks/useReducedMotion'
 export interface MessageInputProps {
   value?: string
   onChange?: (value: string) => void
-  onSend?: (message: string, attachments?: Array<{ type: 'file'; bucket: string; key: string; mimeType: string; name: string }>) => void
+  onSend?: (message: string, attachments?: Array<{ type: 'file'; fileDetails: import('@/lib/api/services').FileDetails }>) => void
   placeholder?: string
   disabled?: boolean
   isStreaming?: boolean
@@ -47,7 +47,7 @@ export function MessageInput({
   const fileInputRef = useRef<HTMLInputElement>(null)
   const [isFocused, setIsFocused] = useState(false)
   const [isHovered, setIsHovered] = useState(false)
-  const [attachments, setAttachments] = useState<Array<{ type: 'file'; bucket: string; key: string; mimeType: string; name: string; preview: string }>>([])
+  const [attachments, setAttachments] = useState<Array<{ type: 'file'; fileDetails: import('@/lib/api/services').FileDetails; preview?: string }>>([])
   const [isProcessingFile, setIsProcessingFile] = useState(false)
   const [isDragOver, setIsDragOver] = useState(false)
 
@@ -71,31 +71,15 @@ export function MessageInput({
       const errors = []
       
       for (const file of Array.from(files)) {
-        if (!file.type.startsWith('image/')) {
-          errors.push(`${file.name}: Only image files are supported`)
-          continue
-        }
-        if (file.size > 10 * 1024 * 1024) {
-          errors.push(`${file.name}: File too large (max 10MB)`)
-          continue
-        }
-        const supportedTypes = ['image/jpeg', 'image/jpg', 'image/png', 'image/gif', 'image/webp']
-        if (!supportedTypes.includes(file.type.toLowerCase())) {
-          errors.push(`${file.name}: Unsupported format. Use JPEG, PNG, GIF, or WebP`)
+        if (file.size > 100 * 1024 * 1024) {
+          errors.push(`${file.name}: File too large (max 100MB)`)
           continue
         }
         
         try {
-          const stored = await uploadToStorage(file)
-          const preview = URL.createObjectURL(file)
-          newAttachments.push({
-            type: 'file' as const,
-            bucket: stored.bucket,
-            key: stored.key,
-            mimeType: stored.mediaType || file.type,
-            name: file.name,
-            preview,
-          })
+          const fileDetails = await uploadToStorage(file)
+          const preview = file.type.startsWith('image/') ? URL.createObjectURL(file) : undefined
+          newAttachments.push({ type: 'file' as const, fileDetails, preview })
         } catch (fileError) {
           errors.push(`${file.name}: Failed to upload file`)
           console.error('Upload error:', fileError)
@@ -122,7 +106,7 @@ export function MessageInput({
     setAttachments(prev => {
       const updated = [...prev]
       // Revoke object URL to prevent memory leaks
-      URL.revokeObjectURL(updated[index].preview)
+      if (updated[index].preview) URL.revokeObjectURL(updated[index].preview!)
       updated.splice(index, 1)
       return updated
     })
@@ -161,7 +145,7 @@ export function MessageInput({
   // Cleanup object URLs on unmount
   useEffect(() => {
     return () => {
-      attachments.forEach(att => URL.revokeObjectURL(att.preview))
+      attachments.forEach(att => { if (att.preview) URL.revokeObjectURL(att.preview) })
     }
   }, [])
 
@@ -184,17 +168,14 @@ export function MessageInput({
       // Convert attachments to the format expected by the API
       const apiAttachments = attachments.map(att => ({
         type: att.type,
-        bucket: att.bucket,
-        key: att.key,
-        mimeType: att.mimeType,
-        name: att.name,
+        fileDetails: att.fileDetails,
       }))
       
       onSend?.(value.trim(), apiAttachments)
       setValue('')
       
       // Clear attachments and revoke object URLs
-      attachments.forEach(att => URL.revokeObjectURL(att.preview))
+      attachments.forEach(att => { if (att.preview) URL.revokeObjectURL(att.preview) })
       setAttachments([])
 
       // Reset textarea height
@@ -225,13 +206,13 @@ export function MessageInput({
       <input
         ref={fileInputRef}
         type="file"
-        accept="image/*"
+        accept="*/*"
         multiple
         onChange={handleFileSelect}
         className="hidden"
       />
 
-      {/* Image Attachments Preview */}
+      {/* Attachments Preview */}
       {attachments.length > 0 && (
         <div className="mb-3 flex flex-wrap gap-2">
           {attachments.map((attachment, index) => (
@@ -239,23 +220,29 @@ export function MessageInput({
               key={index}
               className="relative group rounded-lg overflow-hidden border border-border-subtle bg-surface"
               role="img"
-              aria-label={`Attached image: ${attachment.name}`}
+              aria-label={`Attached file: ${attachment.fileDetails.name}`}
             >
-              <img
-                src={attachment.preview}
-                alt={attachment.name}
-                className="w-16 h-16 object-cover"
-              />
+              {attachment.preview ? (
+                <img
+                  src={attachment.preview}
+                  alt={attachment.fileDetails.name}
+                  className="w-16 h-16 object-cover"
+                />
+              ) : (
+                <div className="w-16 h-16 flex items-center justify-center bg-surface-hover">
+                  <Paperclip size={20} className="text-text-tertiary" />
+                </div>
+              )}
               <button
                 onClick={() => removeAttachment(index)}
                 className="absolute -top-1 -right-1 w-5 h-5 rounded-full bg-error text-white flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity"
-                aria-label={`Remove ${attachment.name}`}
+                aria-label={`Remove ${attachment.fileDetails.name}`}
                 type="button"
               >
                 <X size={12} />
               </button>
               <div className="absolute bottom-0 left-0 right-0 bg-black/50 text-white text-xs p-1 truncate">
-                {attachment.name}
+                {attachment.fileDetails.name}
               </div>
             </div>
           ))}
@@ -292,7 +279,7 @@ export function MessageInput({
             'text-text-tertiary hover:text-text-secondary hover:bg-surface-hover',
             isInputDisabled && 'cursor-not-allowed opacity-40'
           )}
-          aria-label="Attach image"
+          aria-label="Attach file"
         >
           {isProcessingFile ? (
             <div className="w-4 h-4 border-2 border-primary border-t-transparent rounded-full animate-spin" />
@@ -349,8 +336,8 @@ export function MessageInput({
         {isDragOver && (
           <div className="absolute inset-0 bg-primary/10 border-2 border-dashed border-primary rounded-lg flex items-center justify-center pointer-events-none">
             <div className="flex items-center gap-2 text-primary font-medium">
-              <Image size={20} />
-              Drop images here
+              <Paperclip size={20} />
+              Drop files here
             </div>
           </div>
         )}
@@ -372,7 +359,7 @@ export function MessageInput({
       {/* Keyboard Hint */}
       {isFocused && !isStreaming && (
         <div className="absolute -bottom-5 left-0 text-xs text-text-tertiary">
-          Press Enter to send • Shift+Enter for new line • Drag & drop images
+          Press Enter to send • Shift+Enter for new line • Drag & drop files
         </div>
       )}
 

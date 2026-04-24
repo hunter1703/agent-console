@@ -21,7 +21,7 @@ export function CorrectionCard({ correction, onDismiss }: CorrectionCardProps) {
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-2 mb-2">
             <h4 className="text-sm font-semibold text-text-primary">
-              Correction Required
+              Correction
             </h4>
             {correction.code && (
               <span className="text-xs px-2 py-1 bg-warning/10 text-warning rounded-md font-mono">

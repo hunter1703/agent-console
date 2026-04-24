@@ -307,15 +307,9 @@ export function PlanWidget({ plan, onTaskClick }: PlanWidgetProps) {
                                   </motion.svg>
                                 </motion.div>
                               ) : task.status === 'IN_PROGRESS' ? (
-                                <motion.div
+                                <div
                                   key={`progress-${task.taskId}`}
-                                  className="w-5 h-5 rounded-full border-[2.5px] border-amber-500 border-t-transparent shadow-sm"
-                                  animate={{ rotate: 360 }}
-                                  transition={{ 
-                                    duration: 1,
-                                    repeat: Infinity,
-                                    ease: "linear"
-                                  }}
+                                  className="w-5 h-5 rounded-full border-[2.5px] border-amber-500 border-t-transparent shadow-sm animate-spin"
                                 />
                               ) : task.status === 'FAILED' ? (
                                 <motion.div

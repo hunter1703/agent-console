@@ -25,6 +25,8 @@ export interface TimelineItem {
   linkedId?: string
   /** For message items: the sender role. Used to correctly order user messages. */
   role?: 'user' | 'assistant'
+  /** The agentId that produced this item — used for correct attribution in multi-agent sessions. */
+  agentId?: string
 }
 
 export interface ChatSession extends Session {

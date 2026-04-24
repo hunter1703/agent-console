@@ -237,12 +237,7 @@ const MessageComponent = function Message({
 
         {/* USER MESSAGE - Minimal bubble */}
         {isUser && (
-          <div className="relative inline-block">
-            {isHovered && (
-              <div className="absolute left-full top-1/2 -translate-y-1/2 ml-2">
-                <CopyButton isCopied={isCopied} onClick={handleCopy} />
-              </div>
-            )}
+          <div className="relative inline-flex items-center gap-2">
             <div
               className={cn(
                 'px-5 py-3.5',
@@ -255,6 +250,9 @@ const MessageComponent = function Message({
                 {content}
               </div>
             </div>
+            <div className={cn("transition-opacity duration-200 flex-shrink-0", isHovered ? "opacity-100" : "opacity-0 pointer-events-none")}>
+              <CopyButton isCopied={isCopied} onClick={handleCopy} />
+            </div>
           </div>
         )}
 
@@ -262,11 +260,9 @@ const MessageComponent = function Message({
         {!isUser && (
           <div className="relative">
             <MarkdownRenderer content={content} showCopyButton={false} />
-            {isHovered && (
-              <div className="absolute right-0 top-0 -translate-y-1/2 mt-1">
-                <CopyButton isCopied={isCopied} onClick={handleCopy} />
-              </div>
-            )}
+            <div className={cn("absolute right-0 top-0 -translate-y-1/2 mt-1 transition-opacity duration-200", isHovered ? "opacity-100" : "opacity-0 pointer-events-none")}>
+              <CopyButton isCopied={isCopied} onClick={handleCopy} />
+            </div>
           </div>
         )}
       </div>

@@ -1,10 +1,10 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { Check, X, Loader2 } from 'lucide-react'
 import ConfettiExplosion from 'react-confetti-explosion'
-import { fadeOut, poofOut, durations } from '@/lib/constants/animations'
+import { poofOut } from '@/lib/constants/animations'
 
 interface BinaryDecisionInputProps {
   onConfirm: () => void
@@ -23,8 +23,17 @@ export function BinaryDecisionInput({
 }: BinaryDecisionInputProps) {
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [clickedButton, setClickedButton] = useState<'confirm' | 'reject' | null>(null)
-  const [showApproveConfetti, setShowApproveConfetti] = useState(false)
-  const [showDeclineConfetti, setShowDeclineConfetti] = useState(false)
+  // Confetti fires once when the component first enters answered state
+  const [showConfetti, setShowConfetti] = useState(false)
+
+  useEffect(() => {
+    if (isAnswered) {
+      setShowConfetti(true)
+      // Auto-clear after animation completes so it doesn't re-fire on re-renders
+      const t = setTimeout(() => setShowConfetti(false), 2500)
+      return () => clearTimeout(t)
+    }
+  }, [isAnswered])
 
   const handleConfirm = async () => {
     setIsSubmitting(true)
@@ -48,19 +57,12 @@ export function BinaryDecisionInput({
     }
   }
 
-  // Answered state - show only selected option, keep original size
+  // Answered state — show only the chosen option, other poof-fades out
   if (isAnswered) {
-    // Trigger confetti when answered
-    if (wasConfirmed && !showApproveConfetti) {
-      setShowApproveConfetti(true)
-    } else if (!wasConfirmed && !showDeclineConfetti) {
-      setShowDeclineConfetti(true)
-    }
-
     return (
       <div className="flex gap-3 relative">
-        {/* Confetti for approved */}
-        {showApproveConfetti && wasConfirmed && (
+        {/* Confetti burst centered on the winning button */}
+        {showConfetti && wasConfirmed && (
           <div className="absolute left-1/4 top-1/2 -translate-x-1/2 -translate-y-1/2 pointer-events-none z-50">
             <ConfettiExplosion
               force={0.4}
@@ -71,9 +73,7 @@ export function BinaryDecisionInput({
             />
           </div>
         )}
-        
-        {/* Confetti for declined */}
-        {showDeclineConfetti && !wasConfirmed && (
+        {showConfetti && !wasConfirmed && (
           <div className="absolute right-1/4 top-1/2 translate-x-1/2 -translate-y-1/2 pointer-events-none z-50">
             <ConfettiExplosion
               force={0.4}
@@ -85,19 +85,15 @@ export function BinaryDecisionInput({
           </div>
         )}
 
-        {/* Approved button - stays in place */}
+        {/* Approved button */}
         <AnimatePresence>
           {wasConfirmed ? (
             <motion.div
               key="approved"
-              initial={{ opacity: 1 }}
-              animate={{ opacity: 1 }}
-              className="
-                flex-1 flex items-center justify-center gap-2
-                px-5 py-3 rounded-lg
-                bg-blue-50
-                text-blue-600 text-sm font-medium
-              "
+              initial={{ opacity: 0, scale: 0.9 }}
+              animate={{ opacity: 1, scale: 1 }}
+              transition={{ duration: 0.3, ease: [0.34, 1.56, 0.64, 1] }}
+              className="flex-1 flex items-center justify-center gap-2 px-5 py-3 rounded-lg bg-blue-50 text-blue-600 text-sm font-medium"
             >
               <Check className="w-4 h-4" strokeWidth={2.5} />
               <span>Approved</span>
@@ -109,13 +105,7 @@ export function BinaryDecisionInput({
               initial="initial"
               animate="animate"
               transition={{ duration: 0.5, ease: [0.34, 1.56, 0.64, 1] }}
-              className="
-                flex-1 flex items-center justify-center gap-2
-                px-5 py-3 rounded-lg
-                bg-blue-500
-                text-white text-sm font-medium
-                pointer-events-none
-              "
+              className="flex-1 flex items-center justify-center gap-2 px-5 py-3 rounded-lg bg-blue-500 text-white text-sm font-medium pointer-events-none"
             >
               <Check className="w-4 h-4" strokeWidth={2.5} />
               <span>Approve</span>
@@ -123,19 +113,15 @@ export function BinaryDecisionInput({
           )}
         </AnimatePresence>
 
-        {/* Declined button - stays in place */}
+        {/* Declined button */}
         <AnimatePresence>
           {!wasConfirmed ? (
             <motion.div
               key="declined"
-              initial={{ opacity: 1 }}
-              animate={{ opacity: 1 }}
-              className="
-                flex-1 flex items-center justify-center gap-2
-                px-5 py-3 rounded-lg
-                bg-purple-50
-                text-purple-600 text-sm font-medium
-              "
+              initial={{ opacity: 0, scale: 0.9 }}
+              animate={{ opacity: 1, scale: 1 }}
+              transition={{ duration: 0.3, ease: [0.34, 1.56, 0.64, 1] }}
+              className="flex-1 flex items-center justify-center gap-2 px-5 py-3 rounded-lg bg-purple-50 text-purple-600 text-sm font-medium"
             >
               <X className="w-4 h-4" strokeWidth={2.5} />
               <span>Declined</span>
@@ -147,13 +133,7 @@ export function BinaryDecisionInput({
               initial="initial"
               animate="animate"
               transition={{ duration: 0.5, ease: [0.34, 1.56, 0.64, 1] }}
-              className="
-                flex-1 flex items-center justify-center gap-2
-                px-5 py-3 rounded-lg
-                bg-purple-500
-                text-white text-sm font-medium
-                pointer-events-none
-              "
+              className="flex-1 flex items-center justify-center gap-2 px-5 py-3 rounded-lg bg-purple-500 text-white text-sm font-medium pointer-events-none"
             >
               <X className="w-4 h-4" strokeWidth={2.5} />
               <span>Decline</span>
@@ -164,7 +144,7 @@ export function BinaryDecisionInput({
     )
   }
 
-  // Pending state - both buttons filled
+  // Pending state — both buttons active
   return (
     <div className="flex gap-3">
       <motion.button

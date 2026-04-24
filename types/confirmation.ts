@@ -23,6 +23,7 @@ export interface ConfirmationRequest {
   answer?: string // User's answer
   confirmedAt?: string // ISO timestamp
   linkedToolCallId?: string // ID of the tool call that triggered this
+  requestingAgentId?: string // Agent ID that requested this confirmation
   createdAt: string // ISO timestamp
 }
 

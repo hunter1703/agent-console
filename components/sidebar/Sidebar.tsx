@@ -141,7 +141,8 @@ export function Sidebar({
             onTouchStart={handleTouchStart}
             className={cn(
               'flex flex-col bg-surface border-r border-border-subtle shadow-lg',
-              'h-screen fixed left-0 top-0 z-50 pointer-events-auto',
+              'h-screen top-0 z-50 pointer-events-auto flex-shrink-0',
+              isMobile ? 'fixed left-0' : 'relative',
               className
             )}
             style={{

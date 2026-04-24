@@ -29,7 +29,7 @@ export default function RootLayout({
               <UIProvider>
                 <div className="min-h-screen bg-background flex flex-col">
                   <Header />
-                  <main id="main-content" className="flex-1 overflow-hidden">
+                  <main id="main-content" className="flex-1">
                     {children}
                   </main>
                   <FloatingThemeToggle />

@@ -26,13 +26,14 @@ export const useConfirmationStore = create<ConfirmationState>((set, get) => ({
   
   addConfirmation: (confirmation) => {
     const state = get()
+    // Idempotent: if already present, don't add again or double-count pending
+    if (state.confirmations.has(confirmation.id)) return
     const newConfirmations = new Map(state.confirmations)
     newConfirmations.set(confirmation.id, confirmation)
-    
     set({
       confirmations: newConfirmations,
-      pendingCount: confirmation.status === 'pending' 
-        ? state.pendingCount + 1 
+      pendingCount: confirmation.status === 'pending'
+        ? state.pendingCount + 1
         : state.pendingCount,
     })
   },

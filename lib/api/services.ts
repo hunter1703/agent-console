@@ -56,8 +56,7 @@ export interface InvokeRequest {
     text?: string;
     base64?: string;
     mimeType?: string;
-    bucket?: string;
-    key?: string;
+    fileDetails?: FileDetails;
   }>;
   options?: {
     temperature?: number
@@ -457,31 +456,32 @@ export async function deleteSession(
 // Message/Invocation Services
 // ============================================================================
 
-export interface StoredObjectDetails {
-  bucket: string
-  key: string
-  sizeBytes: number
-  mediaType: string
-  etag: string
-  lastModified: number
+export interface FileDetails {
+  name: string
+  path: string
+  type: 'CLOUDSTORAGE' | 'UNKNOWN'
+  mimeType: string
+  size: number
 }
 
 /**
  * Uploads a file as a raw byte stream to cloud storage.
- * Returns the stored object metadata (bucket, key, size, mediaType, etag).
+ * Returns the stored FileDetails (name, path, type, mimeType, size).
  */
-export async function uploadToStorage(file: File): Promise<StoredObjectDetails> {
+export async function uploadToStorage(file: File): Promise<FileDetails> {
   const baseUrl = process.env.NEXT_PUBLIC_API_BASE_URL || 'http://localhost:8080'
-  const key = `uploads/${Date.now()}-${file.name.replace(/[^a-zA-Z0-9._-]/g, '_')}`
 
-  const response = await fetch(`${baseUrl}/v1/storage/objects/${key}`, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/octet-stream',
-      'Content-Length': String(file.size),
-    },
-    body: file,
-  })
+  const response = await fetch(
+    `${baseUrl}/v1/storage/upload?name=${encodeURIComponent(file.name)}`,
+    {
+      method: 'POST',
+      headers: {
+        'Content-Type': file.type || 'application/octet-stream',
+        'Content-Length': String(file.size),
+      },
+      body: file,
+    }
+  )
 
   if (!response.ok) {
     const text = await response.text().catch(() => '')
@@ -515,7 +515,7 @@ export async function invokeAgentStream(
   const { createAGUIStream } = await import('@/lib/sse/streaming')
   const baseUrl = process.env.NEXT_PUBLIC_API_BASE_URL || 'http://localhost:8080'
 
-  const body: Record<string, unknown> = { parts: request.parts }
+  const body: Record<string, unknown> = { message: { parts: request.parts } }
   if (request.sessionId) body.sessionId = request.sessionId
 
   const response = await fetch(`${baseUrl}/v1/agent/${agentId}/invoke`, {

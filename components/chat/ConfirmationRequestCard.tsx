@@ -1,6 +1,6 @@
 'use client'
 
-import { motion } from 'framer-motion'
+import { motion, AnimatePresence } from 'framer-motion'
 import { AlertCircle } from 'lucide-react'
 import { format } from 'date-fns'
 import { useState, memo } from 'react'
@@ -10,14 +10,15 @@ import { MultipleChoiceInput } from './MultipleChoiceInput'
 import { TextConfirmationInput } from './TextConfirmationInput'
 import { LinkedToolCall } from './LinkedToolCall'
 import { useConfirmationStore } from '@/lib/stores/confirmationStore'
-import { handleConfirmation } from '@/lib/api/confirmations'
+import { submitConfirmationResponse } from '@/lib/api/confirmations'
 import { cn } from '@/lib/utils'
 
 interface ConfirmationRequestCardProps {
   confirmation: ConfirmationRequest
   linkedToolName?: string
   linkedToolColor?: string
-  sessionId?: string // Optional for demo mode
+  sessionId?: string // Absent in demo mode
+  agentName?: string // Display name of the agent that requested confirmation
 }
 
 function ConfirmationRequestCardComponent({
@@ -25,184 +26,257 @@ function ConfirmationRequestCardComponent({
   linkedToolName,
   linkedToolColor,
   sessionId,
+  agentName,
 }: ConfirmationRequestCardProps) {
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const updateConfirmation = useConfirmationStore((state) => state.updateConfirmation)
-  
+
   const isPending = confirmation.status === 'pending'
   const isConfirmed = confirmation.status === 'confirmed'
 
-  const handleConfirm = async (answer?: string) => {
+  const isBinaryDecision =
+    confirmation.type === 'DECISION' && (!confirmation.options || confirmation.options.length === 0)
+
+  // ── Approve (binary DECISION) ──────────────────────────────────────────────
+  const handleApprove = async () => {
     if (!sessionId) {
-      // Demo mode - just hide the confirmation
-      updateConfirmation(confirmation.id, 'rejected')
+      updateConfirmation(confirmation.id, 'confirmed')
       return
     }
-
     setIsSubmitting(true)
     setError(null)
-    
     try {
-      await handleConfirmation(sessionId, confirmation.id, true, answer)
-      // Don't hide confirmation here - let SSE event update the status to show resolved state
+      await submitConfirmationResponse(sessionId, confirmation.id, {
+        kind: 'DECISION',
+        approved: true,
+      })
+      updateConfirmation(confirmation.id, 'confirmed')
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to submit confirmation')
-      console.error('Confirmation error:', err)
+      setError(err instanceof Error ? err.message : 'Failed to submit')
     } finally {
       setIsSubmitting(false)
     }
   }
 
-  const handleReject = async () => {
+  // ── Decline (binary DECISION) ──────────────────────────────────────────────
+  const handleDecline = async () => {
     if (!sessionId) {
-      // Demo mode - just hide the confirmation
       updateConfirmation(confirmation.id, 'rejected')
       return
     }
-
     setIsSubmitting(true)
     setError(null)
-    
     try {
-      await handleConfirmation(sessionId, confirmation.id, false)
-      // Don't hide confirmation here - let SSE event update the status to show resolved state
+      await submitConfirmationResponse(sessionId, confirmation.id, {
+        kind: 'DECISION',
+        approved: false,
+      })
+      updateConfirmation(confirmation.id, 'rejected')
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to submit confirmation')
-      console.error('Confirmation error:', err)
+      setError(err instanceof Error ? err.message : 'Failed to submit')
+    } finally {
+      setIsSubmitting(false)
+    }
+  }
+
+  // ── Submit answer (DECISION with options OR TEXT) ──────────────────────────
+  const handleSubmitAnswer = async (answer: string) => {
+    if (!sessionId) {
+      updateConfirmation(confirmation.id, 'confirmed', answer)
+      return
+    }
+    setIsSubmitting(true)
+    setError(null)
+    try {
+      await submitConfirmationResponse(sessionId, confirmation.id, {
+        kind: confirmation.type,
+        options: confirmation.options?.map((o) => o.value),
+        answer,
+      })
+      updateConfirmation(confirmation.id, 'confirmed', answer)
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to submit')
     } finally {
       setIsSubmitting(false)
     }
   }
 
   return (
-    <div
+    <motion.div
+      layout
       className={cn(
-        'relative rounded-xl overflow-hidden max-w-md',
-        'transition-all duration-300',
-        isPending && 'shadow-md hover:shadow-lg',
+        'relative rounded-xl overflow-hidden max-w-md mx-auto transition-colors duration-500',
+        isPending
+          ? 'border border-amber-500/30'
+          : 'bg-surface border border-border-subtle',
       )}
-      style={{
-        background: isPending 
-          ? 'linear-gradient(135deg, rgba(245, 158, 11, 0.08), rgba(251, 191, 36, 0.04))'
-          : 'var(--color-surface)',
-      }}
+      style={isPending ? {
+        background: 'linear-gradient(135deg, rgba(245, 158, 11, 0.08), rgba(251, 191, 36, 0.04))',
+      } : {}}
+      transition={{ duration: 0.5, ease: 'easeOut' }}
     >
-      {/* Static border glow for pending */}
-      {isPending && (
-        <div 
-          className="absolute inset-0 pointer-events-none"
-          style={{
-            border: '1.5px solid transparent',
-            borderRadius: '0.75rem',
-            background: 'linear-gradient(135deg, #F59E0B, #FCD34D) border-box',
-            WebkitMask: 'linear-gradient(#fff 0 0) padding-box, linear-gradient(#fff 0 0)',
-            WebkitMaskComposite: 'xor',
-            maskComposite: 'exclude',
-          }}
-        />
-      )}
+      {/* Animated amber border glow — fades out when resolved */}
+      <AnimatePresence>
+        {isPending && (
+          <motion.div
+            key="border-glow"
+            className="absolute inset-0 pointer-events-none"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            transition={{ duration: 0.4 }}
+            style={{
+              border: '1.5px solid transparent',
+              borderRadius: '0.75rem',
+              background: 'linear-gradient(135deg, #F59E0B, #FCD34D) border-box',
+              WebkitMask: 'linear-gradient(#fff 0 0) padding-box, linear-gradient(#fff 0 0)',
+              WebkitMaskComposite: 'xor',
+              maskComposite: 'exclude',
+            }}
+          />
+        )}
+      </AnimatePresence>
 
       <div className="relative z-10 p-3">
-        {/* Compact Header - Only show for pending */}
-        {isPending && (
-          <div className="flex items-center gap-2 mb-2">
-            {/* Icon - smaller and more subtle */}
+        {/* Header — amber when pending, subtle when resolved */}
+        <AnimatePresence initial={false} mode="wait">
+          {isPending ? (
             <motion.div
-              animate={{
-                scale: [1, 1.1, 1],
-              }}
-              transition={{
-                duration: 2.5,
-                repeat: Infinity,
-                ease: 'easeInOut',
-              }}
-              className="flex-shrink-0"
+              key="header-pending"
+              initial={{ opacity: 0, height: 0, marginBottom: 0 }}
+              animate={{ opacity: 1, height: 'auto', marginBottom: 8 }}
+              exit={{ opacity: 0, height: 0, marginBottom: 0 }}
+              transition={{ duration: 0.35, ease: [0.16, 1, 0.3, 1] }}
+              className="overflow-hidden"
             >
-              <AlertCircle className="w-4 h-4 text-amber-500" />
+              <div className="flex items-center gap-2">
+                <motion.div
+                  animate={{ scale: [1, 1.1, 1] }}
+                  transition={{ duration: 2.5, repeat: Infinity, ease: 'easeInOut' }}
+                  className="flex-shrink-0"
+                >
+                  <AlertCircle className="w-4 h-4 text-amber-500" />
+                </motion.div>
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center gap-1.5 flex-wrap">
+                    <h4 className="text-xs font-semibold text-amber-500">Confirmation Required</h4>
+                    {agentName && (
+                      <span className="text-xs text-text-tertiary">from <span className="text-text-secondary font-medium">{agentName}</span></span>
+                    )}
+                    <span className="text-xs text-text-tertiary">
+                      {format(new Date(confirmation.createdAt), 'h:mm a')}
+                    </span>
+                  </div>
+                </div>
+              </div>
             </motion.div>
-
-            {/* Title and timestamp - more compact */}
-            <div className="flex-1 min-w-0">
-              <div className="flex items-center gap-1.5">
-                <h4 className="text-xs font-semibold text-amber-500">
-                  Confirmation Required
-                </h4>
+          ) : (
+            <motion.div
+              key="header-resolved"
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              transition={{ duration: 0.3 }}
+              className="mb-2"
+            >
+              <div className="flex items-center gap-1.5 flex-wrap pl-4">
+                {agentName && (
+                  <span className="text-xs text-text-tertiary font-medium">{agentName}</span>
+                )}
                 <span className="text-xs text-text-tertiary">
                   {format(new Date(confirmation.createdAt), 'h:mm a')}
                 </span>
               </div>
-            </div>
-          </div>
-        )}
+            </motion.div>
+          )}
+        </AnimatePresence>
 
-        {/* Linked Tool Call - More compact */}
-        {linkedToolName && (
-          <div className="mb-2">
-            <LinkedToolCall toolName={linkedToolName} toolColor={linkedToolColor} />
-          </div>
-        )}
+        {/* Linked Tool Call badge */}
+        <AnimatePresence initial={false}>
+          {linkedToolName && isPending && (
+            <motion.div
+              key="linked-tool"
+              initial={{ opacity: 0, height: 0, marginBottom: 0 }}
+              animate={{ opacity: 1, height: 'auto', marginBottom: 8 }}
+              exit={{ opacity: 0, height: 0, marginBottom: 0 }}
+              transition={{ duration: 0.3, ease: [0.16, 1, 0.3, 1] }}
+              className="overflow-hidden"
+            >
+              <LinkedToolCall toolName={linkedToolName} toolColor={linkedToolColor} />
+            </motion.div>
+          )}
+        </AnimatePresence>
 
-        {/* Prompt - More compact */}
-        <p className="text-sm text-text-primary mb-2 leading-snug">
-          {confirmation.prompt}
-        </p>
+        {/* Prompt */}
+        <p className="text-sm text-text-primary mb-2 leading-snug pl-4">{confirmation.prompt}</p>
 
-        {/* Input or Answer Display */}
-        <div>
-          {/* Error Display */}
+        {/* Error */}
+        <AnimatePresence>
           {error && (
             <motion.div
               initial={{ opacity: 0, y: -10 }}
               animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -10 }}
               className="mb-3 p-2 rounded-lg bg-red-500/10 border border-red-500/20 text-red-500 text-xs"
             >
               {error}
             </motion.div>
           )}
-          
-          {isPending && (
-            <>
-              {confirmation.type === 'DECISION' && !confirmation.options && (
-                <BinaryDecisionInput 
-                  onConfirm={() => handleConfirm('yes')} 
-                  onReject={handleReject}
+        </AnimatePresence>
+
+        {/* Input area — pending vs resolved */}
+        <AnimatePresence mode="wait">
+          {isPending ? (
+            <motion.div
+              key="pending-input"
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0, scale: 0.97 }}
+              transition={{ duration: 0.25, ease: 'easeOut' }}
+            >
+              {isBinaryDecision && (
+                <BinaryDecisionInput
+                  onConfirm={handleApprove}
+                  onReject={handleDecline}
                   disabled={isSubmitting}
                   isAnswered={false}
                 />
               )}
-              {confirmation.type === 'DECISION' && confirmation.options && (
-                <MultipleChoiceInput 
-                  options={confirmation.options} 
-                  onSubmit={handleConfirm}
+              {confirmation.type === 'DECISION' && !isBinaryDecision && (
+                <MultipleChoiceInput
+                  options={confirmation.options!}
+                  onSubmit={handleSubmitAnswer}
                   disabled={isSubmitting}
                   isAnswered={false}
                 />
               )}
               {confirmation.type === 'TEXT' && (
-                <TextConfirmationInput 
-                  onSubmit={handleConfirm}
+                <TextConfirmationInput
+                  onSubmit={handleSubmitAnswer}
                   disabled={isSubmitting}
                   isAnswered={false}
                 />
               )}
-            </>
-          )}
-
-          {!isPending && (
-            <>
-              {confirmation.type === 'DECISION' && !confirmation.options && (
-                <BinaryDecisionInput 
-                  onConfirm={() => {}} 
+            </motion.div>
+          ) : (
+            <motion.div
+              key="resolved-input"
+              initial={{ opacity: 0, y: 6 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.35, ease: [0.16, 1, 0.3, 1] }}
+            >
+              {isBinaryDecision && (
+                <BinaryDecisionInput
+                  onConfirm={() => {}}
                   onReject={() => {}}
                   disabled={true}
                   isAnswered={true}
                   wasConfirmed={isConfirmed}
                 />
               )}
-              {confirmation.type === 'DECISION' && confirmation.options && (
-                <MultipleChoiceInput 
-                  options={confirmation.options} 
+              {confirmation.type === 'DECISION' && !isBinaryDecision && (
+                <MultipleChoiceInput
+                  options={confirmation.options!}
                   onSubmit={() => {}}
                   disabled={true}
                   isAnswered={true}
@@ -210,31 +284,29 @@ function ConfirmationRequestCardComponent({
                 />
               )}
               {confirmation.type === 'TEXT' && (
-                <TextConfirmationInput 
+                <TextConfirmationInput
                   onSubmit={() => {}}
                   disabled={true}
                   isAnswered={true}
                   submittedAnswer={confirmation.answer}
                 />
               )}
-            </>
+            </motion.div>
           )}
-        </div>
+        </AnimatePresence>
       </div>
-    </div>
+    </motion.div>
   )
 }
 
-// Memoize to prevent unnecessary re-renders
-// Return true when props are equal (skip re-render), false when different (re-render)
-export const ConfirmationRequestCard = memo(ConfirmationRequestCardComponent, (prevProps, nextProps) => {
-  // Props are equal if id, status, and answer haven't changed
-  return (
-    prevProps.confirmation.id === nextProps.confirmation.id &&
-    prevProps.confirmation.status === nextProps.confirmation.status &&
-    prevProps.confirmation.answer === nextProps.confirmation.answer &&
-    prevProps.linkedToolName === nextProps.linkedToolName &&
-    prevProps.linkedToolColor === nextProps.linkedToolColor &&
-    prevProps.sessionId === nextProps.sessionId
-  )
-})
+export const ConfirmationRequestCard = memo(
+  ConfirmationRequestCardComponent,
+  (prev, next) =>
+    prev.confirmation.id === next.confirmation.id &&
+    prev.confirmation.status === next.confirmation.status &&
+    prev.confirmation.answer === next.confirmation.answer &&
+    prev.linkedToolName === next.linkedToolName &&
+    prev.linkedToolColor === next.linkedToolColor &&
+    prev.sessionId === next.sessionId &&
+    prev.agentName === next.agentName,
+)

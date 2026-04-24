@@ -1,82 +1,78 @@
 /**
  * Confirmation API Integration
- * API methods for submitting confirmation responses
- * 
- * Based on design.md specification
+ *
+ * Payload rules (per backend spec):
+ *   TEXT kind:
+ *     - message = user's text (required, non-blank enforced in UI)
+ *     - confirmed = omitted
+ *
+ *   DECISION kind with options (multiple-choice):
+ *     - message = selected option value or custom answer text
+ *     - confirmed = omitted
+ *
+ *   DECISION kind without options (binary yes/no):
+ *     - confirmed = true (Approve) | false (Decline)
+ *     - message = omitted
+ *
+ * Resolution rule:
+ *   Resolve the widget only when the backend returns 2xx (202 Accepted).
+ *   Any other status code = do not resolve, show error.
  */
 
-import type { ConfirmationRequestPayload, ConfirmationResponse } from '@/types/confirmation'
+import type { ConfirmationType } from '@/types/confirmation'
 
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8080'
 
+export type ConfirmationKind = ConfirmationType // 'DECISION' | 'TEXT'
+
+export interface ConfirmationPayload {
+  kind: ConfirmationKind
+  /** Present for DECISION with options, or TEXT. Absent for binary DECISION. */
+  options?: string[] // whether options were provided (determines binary vs choice)
+  /** The user's answer — text input or selected option value */
+  answer?: string
+  /** Only for binary DECISION: true = Approve, false = Decline */
+  approved?: boolean
+}
+
 /**
- * Submit confirmation response to backend
- * 
- * @param sessionId - The session ID
- * @param confirmationId - The confirmation ID
- * @param payload - Confirmation request payload
- * @returns Confirmation response from server
- * @throws Error if submission fails
+ * POST /v1/session/{sessionId}/confirm/{confirmationId}
+ *
+ * Builds the correct payload based on confirmation kind and resolves on 202.
+ * Throws on non-2xx.
  */
-export async function submitConfirmation(
+export async function submitConfirmationResponse(
   sessionId: string,
   confirmationId: string,
-  payload: ConfirmationRequestPayload
-): Promise<ConfirmationResponse> {
+  payload: ConfirmationPayload,
+): Promise<void> {
+  const body: Record<string, unknown> = {}
+
+  if (payload.kind === 'TEXT') {
+    // TEXT: send message only
+    body.message = payload.answer
+  } else if (payload.kind === 'DECISION' && payload.options && payload.options.length > 0) {
+    // DECISION with options: send message (selected/custom answer) only
+    body.message = payload.answer
+  } else {
+    // Binary DECISION (no options): send confirmed only
+    body.confirmed = payload.approved
+  }
+
   const response = await fetch(
     `${API_BASE_URL}/v1/session/${sessionId}/confirm/${confirmationId}`,
     {
       method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        confirmed: payload.confirmed,
-        message: payload.answer,
-      }),
-    }
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body),
+    },
   )
-  
+
   if (!response.ok) {
-    const errorText = await response.text()
+    const errorText = await response.text().catch(() => '')
     throw new Error(
-      `Failed to submit confirmation: ${response.status} ${response.statusText}${errorText ? ` - ${errorText}` : ''}`
+      `Confirmation failed: HTTP ${response.status}${errorText ? ` — ${errorText}` : ''}`,
     )
   }
-  
-  // Backend returns JSON ack, not SSE stream
-  // Events continue on the existing stream connection
-  return {
-    confirmationId,
-    confirmed: payload.confirmed,
-    answer: payload.answer,
-  }
-}
-
-/**
- * Handle confirmation submission with error handling
- * 
- * @param sessionId - The session ID
- * @param confirmationId - The confirmation ID
- * @param confirmed - Whether confirmed or rejected
- * @param answer - Optional answer text
- * @returns Promise that resolves when submission is complete
- */
-export async function handleConfirmation(
-  sessionId: string,
-  confirmationId: string,
-  confirmed: boolean,
-  answer?: string | null
-): Promise<void> {
-  try {
-    await submitConfirmation(sessionId, confirmationId, {
-      sessionId,
-      confirmationId,
-      confirmed,
-      answer: answer || undefined,
-    })
-  } catch (error) {
-    console.error('Failed to submit confirmation:', error)
-    throw error
-  }
+  // 2xx → success, widget can be resolved by caller
 }

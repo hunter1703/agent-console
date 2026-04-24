@@ -39,9 +39,11 @@ export function useAutoScroll({
   const scrollToBottom = useCallback((instant = false) => {
     if (!containerRef.current) return
 
+    // Use instant scroll when content is very large to avoid browser hang
+    const isLargeContent = containerRef.current.scrollHeight > 10000
     containerRef.current.scrollTo({
       top: containerRef.current.scrollHeight,
-      behavior: instant ? 'instant' : behavior,
+      behavior: (instant || isLargeContent) ? 'instant' : behavior,
     })
   }, [behavior])
 

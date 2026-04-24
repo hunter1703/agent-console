@@ -45,6 +45,8 @@ export class AGUIEventHandler {
   private processedRunIds: Map<string, Set<string>> = new Map()
   private processedMessageIds: Map<string, Set<string>> = new Map()
   private processedToolCallIds: Map<string, Set<string>> = new Map()
+  // Maps runId → agentId so every event in a run can be attributed to the right agent.
+  private runAgentIds: Map<string, string> = new Map()
 
   private getChatStore() {
     return useChatStore.getState()
@@ -55,6 +57,9 @@ export class AGUIEventHandler {
     this.processedRunIds.delete(sessionId)
     this.processedMessageIds.delete(sessionId)
     this.processedToolCallIds.delete(sessionId)
+    // Clear run→agent mappings for this session's runs
+    // (we can't easily scope by session, so we clear all — safe since streams are per-session)
+    this.runAgentIds.clear()
   }
 
   private seenRun(sessionId: string, runId: string): boolean {
@@ -243,20 +248,20 @@ export class AGUIEventHandler {
     if (!isTextMessageStartEvent(event)) return
 
     const chatStore = this.getChatStore()
-    const role = event.role as 'user' | 'assistant'
-    chatStore.startStreamingMessage(event.messageId, event.role)
-    // User messages are replayed by the backend AFTER the tool calls for the same run.
-    // insertBeforeTools=true restores the logical order: user msg → tools → agent response.
-    // BUT: only do this for the FIRST user message. Subsequent "user" messages are often
-    // system-generated errors that should appear in their natural position.
-    const isFirstUserMessage = role === 'user' && !useChatStore.getState().sessions[sessionId]?.messages.some(m => m.role === 'user')
-    console.log('📍 Adding user message to timeline:', { sessionId, messageId: event.messageId, role, isFirstUserMessage, insertBeforeTools: isFirstUserMessage })
-    chatStore.addTimelineItem(
-      sessionId,
-      { type: 'message', id: event.messageId, role },
-      undefined,
-      isFirstUserMessage
-    )
+    const author = event.rawEvent?.author as string | undefined
+    const isUserAuthor = !author || author === 'user'
+
+    chatStore.startStreamingMessage(event.messageId, isUserAuthor ? 'user' : 'assistant')
+
+    if (isUserAuthor) {
+      // Only show the first user message — subsequent user-role messages are sub-agent
+      // orchestration messages (e.g. spawn_agent message param) and should not render.
+      const hasExistingUserMessage = useChatStore.getState().sessions[sessionId]?.messages.some(m => m.role === 'user')
+      if (hasExistingUserMessage) return
+      chatStore.addTimelineItem(sessionId, { type: 'message', id: event.messageId, role: 'user' }, undefined, true)
+    } else {
+      chatStore.addTimelineItem(sessionId, { type: 'message', id: event.messageId, role: 'assistant', agentId: author })
+    }
   }
 
   private handleTextMessageChunk(event: any, sessionId: string): void {
@@ -278,16 +283,16 @@ export class AGUIEventHandler {
     const streamingMessage = chatStore.streamingMessages[event.messageId]
     
     if (streamingMessage) {
-      // Remove streaming message BEFORE adding final message to prevent flicker
       chatStore.completeStreamingMessage(event.messageId)
 
-      // Use event.content if available, otherwise use accumulated streaming content
       const finalContent = event.content || streamingMessage.content
-      // Use the event's own timestamp so that replayed messages sort correctly
-      // relative to other messages (e.g. user messages replayed after agent events).
       const eventTime = event.timestamp
         ? new Date(event.timestamp).toISOString()
         : new Date().toISOString()
+
+      const agentId = streamingMessage.role === 'assistant'
+        ? (event.rawEvent?.author as string | undefined)
+        : undefined
 
       chatStore.addMessage(sessionId, {
         id: event.messageId,
@@ -299,6 +304,7 @@ export class AGUIEventHandler {
         createdTime: eventTime,
         updatedTime: new Date().toISOString(),
         toolCalls: streamingMessage.toolCalls,
+        metadata: agentId ? { agentId } : undefined,
       })
     }
   }
@@ -471,6 +477,7 @@ export class AGUIEventHandler {
           value: opt,
         })),
         linkedToolCallId: event.originalToolCallId,
+        requestingAgentId: (event.rawEvent as any)?.author as string | undefined,
         createdAt: new Date().toISOString(),
       })
       // Insert confirmation after its linked tool call if one exists; otherwise append in arrival order.
@@ -480,13 +487,14 @@ export class AGUIEventHandler {
         event.originalToolCallId
       )
     } else if (isConfirmedEvent(event)) {
+      // Update regardless — if already resolved this is a no-op since updateConfirmation
+      // only decrements pendingCount when transitioning from pending.
       confirmationStore.updateConfirmation(
         event.confirmationId,
         event.confirmed ? 'confirmed' : 'rejected',
         event.answer
       )
     } else if (event.name === 'correction') {
-      console.log('🔧 Processing correction event:', event)
       const correctionId = `correction-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`
       chatStore.addCorrectionEvent(sessionId, {
         correctionId,

@@ -350,7 +350,7 @@ function ChatPageContent() {
   // }, [sessionError, error])
 
   // Handle message sending with streaming support
-  const handleSendMessage = async (message: string, attachments?: Array<{ type: 'file'; bucket: string; key: string; mimeType: string; name: string }>) => {
+  const handleSendMessage = async (message: string, attachments?: Array<{ type: 'file'; fileDetails: import('@/lib/api/services').FileDetails }>) => {
     if ((!message.trim() && (!attachments || attachments.length === 0)) || isSending || sendingRef.current) return
     
     sendingRef.current = true
@@ -414,7 +414,7 @@ function ChatPageContent() {
         // Create content that includes both text and attachment info
         let displayContent = message.trim()
         if (attachments && attachments.length > 0) {
-          const attachmentText = attachments.map(att => `[Image: ${att.name}]`).join(' ')
+          const attachmentText = attachments.map(att => `[File: ${att.fileDetails.name}]`).join(' ')
           displayContent = displayContent ? `${displayContent}\n\n${attachmentText}` : attachmentText
         }
         
@@ -445,10 +445,10 @@ function ChatPageContent() {
         const eventHandler = getAGUIEventHandler()
 
         // Build parts array
-        const parts: Array<{ type: 'text' | 'image' | 'file'; text?: string; base64?: string; mimeType?: string; bucket?: string; key?: string }> = []
+        const parts: Array<{ type: 'text' | 'image' | 'file'; text?: string; base64?: string; mimeType?: string; fileDetails?: any }> = []
         if (message.trim()) parts.push({ type: 'text', text: message.trim() })
         if (attachments) {
-          attachments.forEach(a => parts.push({ type: 'file', bucket: a.bucket, key: a.key, mimeType: a.mimeType }))
+          attachments.forEach(a => parts.push({ type: 'file', fileDetails: a.fileDetails }))
         }
 
         // Close any existing GET EventSource — the invoke stream replaces it for this turn.
@@ -936,12 +936,16 @@ function ChatPageContent() {
                       if (item.type === 'confirmation') {
                         const confirmation = confirmationsMap.get(item.id)
                         if (!confirmation) return null
+                        const agentName = confirmation.requestingAgentId
+                          ? resolveAgentName(confirmation.requestingAgentId)
+                          : undefined
                         return (
                           <div key={item.id} className="mt-6" data-confirmation-status={confirmation.status}>
                             <ConfirmationRequestCard
                               confirmation={confirmation}
                               linkedToolName={confirmation.linkedToolCallId ? `Tool ${confirmation.linkedToolCallId}` : undefined}
                               sessionId={activeSession?.sessionId}
+                              agentName={agentName}
                             />
                           </div>
                         )
