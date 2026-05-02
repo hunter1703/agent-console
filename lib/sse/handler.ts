@@ -26,6 +26,7 @@ import {
   isToolCallResultEvent,
   isConfirmationRequestedEvent,
   isConfirmedEvent,
+  isAttachmentEvent,
   isReasoningStartEvent,
   isReasoningMessageStartEvent,
   isReasoningMessageContentEvent,
@@ -294,6 +295,19 @@ export class AGUIEventHandler {
         ? (event.rawEvent?.author as string | undefined)
         : undefined
 
+      // Drain any attachments that arrived before this message was committed
+      const pendingAttachments = chatStore.drainPendingAttachments(event.messageId)
+
+      // If this is a user message that was skipped by the "only first user message" rule
+      // but has attachments (image-only message), ensure it has a timeline slot.
+      if (pendingAttachments.length > 0 && streamingMessage.role === 'user') {
+        const session = chatStore.sessions[sessionId]
+        const alreadyInTimeline = session?.timeline.some((t) => t.id === event.messageId)
+        if (!alreadyInTimeline) {
+          chatStore.addTimelineItem(sessionId, { type: 'message', id: event.messageId, role: 'user' }, undefined, true)
+        }
+      }
+
       chatStore.addMessage(sessionId, {
         id: event.messageId,
         messageId: event.messageId,
@@ -305,6 +319,7 @@ export class AGUIEventHandler {
         updatedTime: new Date().toISOString(),
         toolCalls: streamingMessage.toolCalls,
         metadata: agentId ? { agentId } : undefined,
+        attachments: pendingAttachments.length > 0 ? pendingAttachments : undefined,
       })
     }
   }
@@ -337,9 +352,12 @@ export class AGUIEventHandler {
         chatStore.addTimelineItem(sessionId, { type: 'plan', id: event.toolCallId })
       }
       this.handlePlanningToolStart({ ...event, toolName }, sessionId)
-    } else if (isStandardToolCall(toolName)) {
+    } else {
+      // All non-planning tools get a tool_call timeline item so they are visible in the chat.
       chatStore.addTimelineItem(sessionId, { type: 'tool_call', id: event.toolCallId })
-      this.handleStandardToolStart({ ...event, toolName })
+      if (isStandardToolCall(toolName)) {
+        this.handleStandardToolStart({ ...event, toolName })
+      }
     }
   }
 
@@ -494,6 +512,26 @@ export class AGUIEventHandler {
         event.confirmed ? 'confirmed' : 'rejected',
         event.answer
       )
+    } else if (isAttachmentEvent(event)) {
+      // The attachment event may arrive before TEXT_MESSAGE_END commits the message.
+      // Try to attach directly; if the message isn't committed yet, stage it as pending
+      // so handleTextMessageEnd can pick it up when the message is committed.
+      const attachment = {
+        name: event.fileDetails.name,
+        source: event.fileDetails.source,
+        type: event.fileDetails.type,
+        mimeType: event.fileDetails.mimeType,
+        size: event.fileDetails.size,
+      }
+      const session = chatStore.sessions[sessionId]
+      const alreadyCommitted = session?.messages.some(
+        (m) => (m.messageId || m.id) === event.parentMessageId
+      )
+      if (alreadyCommitted) {
+        chatStore.addAttachmentToMessage(sessionId, event.parentMessageId, attachment)
+      } else {
+        chatStore.stagePendingAttachment(event.parentMessageId, attachment)
+      }
     } else if (event.name === 'correction') {
       const correctionId = `correction-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`
       chatStore.addCorrectionEvent(sessionId, {

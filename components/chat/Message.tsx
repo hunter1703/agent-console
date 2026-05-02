@@ -27,6 +27,8 @@ import { springPresets } from '@/lib/constants/animations'
 import { Avatar } from '@/components/common/Avatar'
 import { useReducedMotion } from '@/lib/hooks/useReducedMotion'
 import { MarkdownRenderer } from '@/components/markdown/MarkdownRenderer'
+import { AttachmentPreview } from './AttachmentPreview'
+import type { MessageAttachment } from '@/lib/api/types'
 
 export interface MessageProps {
   id: string
@@ -36,6 +38,7 @@ export interface MessageProps {
   senderAvatar?: string
   timestamp: Date
   isClusteredWithPrevious?: boolean
+  attachments?: MessageAttachment[]
   onCopy?: () => void
   onRegenerate?: () => void
   onDelete?: () => void
@@ -123,7 +126,8 @@ function arePropsEqual(prevProps: MessageProps, nextProps: MessageProps): boolea
     prevProps.senderAvatar === nextProps.senderAvatar &&
     prevProps.timestamp.getTime() === nextProps.timestamp.getTime() &&
     prevProps.isClusteredWithPrevious === nextProps.isClusteredWithPrevious &&
-    prevProps.className === nextProps.className
+    prevProps.className === nextProps.className &&
+    prevProps.attachments?.length === nextProps.attachments?.length
   )
 }
 
@@ -135,6 +139,7 @@ const MessageComponent = function Message({
   senderAvatar,
   timestamp,
   isClusteredWithPrevious = false,
+  attachments,
   onCopy,
   onRegenerate,
   onDelete,
@@ -237,7 +242,7 @@ const MessageComponent = function Message({
 
         {/* USER MESSAGE - Minimal bubble */}
         {isUser && (
-          <div className="relative inline-flex items-center gap-2">
+          <div className="relative inline-flex items-start gap-2">
             <div
               className={cn(
                 'px-5 py-3.5',
@@ -246,13 +251,26 @@ const MessageComponent = function Message({
                 'border border-border-subtle/50'
               )}
             >
-              <div className="text-[15px] text-text-primary whitespace-pre-wrap break-words leading-[1.65] font-normal tracking-[-0.01em] select-text cursor-text">
-                {content}
+              {content && (
+                <div className="text-[15px] text-text-primary whitespace-pre-wrap break-words leading-[1.65] font-normal tracking-[-0.01em] select-text cursor-text">
+                  {content}
+                </div>
+              )}
+              {attachments && attachments.length > 0 && (
+                <div className={cn("flex flex-col gap-1", content && "mt-2")}>
+                  {attachments.map((att) => (
+                    <AttachmentPreview key={att.source} attachment={att} />
+                  ))}
+                </div>
+              )}
+            </div>
+            {/* Only show the message-level copy button when there's text content and no attachments
+                (attachments have their own copy button) */}
+            {content && (!attachments || attachments.length === 0) && (
+              <div className={cn("transition-opacity duration-200 flex-shrink-0 mt-1", isHovered ? "opacity-100" : "opacity-0 pointer-events-none")}>
+                <CopyButton isCopied={isCopied} onClick={handleCopy} />
               </div>
-            </div>
-            <div className={cn("transition-opacity duration-200 flex-shrink-0", isHovered ? "opacity-100" : "opacity-0 pointer-events-none")}>
-              <CopyButton isCopied={isCopied} onClick={handleCopy} />
-            </div>
+            )}
           </div>
         )}
 
@@ -260,6 +278,13 @@ const MessageComponent = function Message({
         {!isUser && (
           <div className="relative">
             <MarkdownRenderer content={content} showCopyButton={false} />
+            {attachments && attachments.length > 0 && (
+              <div className="flex flex-col gap-1 mt-2">
+                {attachments.map((att) => (
+                  <AttachmentPreview key={att.source} attachment={att} />
+                ))}
+              </div>
+            )}
             <div className={cn("absolute right-0 top-0 -translate-y-1/2 mt-1 transition-opacity duration-200", isHovered ? "opacity-100" : "opacity-0 pointer-events-none")}>
               <CopyButton isCopied={isCopied} onClick={handleCopy} />
             </div>

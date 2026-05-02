@@ -458,7 +458,7 @@ export async function deleteSession(
 
 export interface FileDetails {
   name: string
-  path: string
+  source: string
   type: 'CLOUDSTORAGE' | 'UNKNOWN'
   mimeType: string
   size: number
@@ -466,7 +466,7 @@ export interface FileDetails {
 
 /**
  * Uploads a file as a raw byte stream to cloud storage.
- * Returns the stored FileDetails (name, path, type, mimeType, size).
+ * Returns the stored FileDetails (name, source, type, mimeType, size).
  */
 export async function uploadToStorage(file: File): Promise<FileDetails> {
   const baseUrl = process.env.NEXT_PUBLIC_API_BASE_URL || 'http://localhost:8080'

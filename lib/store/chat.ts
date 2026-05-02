@@ -10,6 +10,7 @@ import { devtools, subscribeWithSelector } from 'zustand/middleware'
 import { useMemo } from 'react'
 import { DEV_CONFIG } from '@/lib/config/env'
 import type { Session, Message, ToolCall, Confirmation } from '@/lib/api/types'
+import type { MessageAttachment } from '@/lib/api/types'
 import type { Plan, Task } from '@/types/planning'
 
 // ============================================================================
@@ -97,6 +98,10 @@ export interface StreamingMessage {
 }
 
 export interface ChatState {
+  // Pending attachments: keyed by messageId, holds attachments that arrived before
+  // the message was committed (i.e. before TEXT_MESSAGE_END).
+  pendingAttachments: Record<string, MessageAttachment[]>
+
   // Session management
   sessions: Record<string, ChatSession>
   activeSessionId: string | null
@@ -147,6 +152,13 @@ export interface ChatState {
   addCorrectionEvent: (sessionId: string, correction: Omit<CorrectionEvent, 'timestamp'>) => void
   removeCorrectionEvent: (sessionId: string, correctionId: string) => void
 
+  // Attachment actions
+  addAttachmentToMessage: (sessionId: string, messageId: string, attachment: MessageAttachment) => void
+  /** Stage an attachment for a message that hasn't been committed yet. */
+  stagePendingAttachment: (messageId: string, attachment: MessageAttachment) => void
+  /** Drain and return all pending attachments for a messageId, clearing them from the map. */
+  drainPendingAttachments: (messageId: string) => MessageAttachment[]
+
   // Timeline actions
   /**
    * Add an item to the session timeline.
@@ -192,6 +204,7 @@ export const useChatStore = create<ChatState>()(
         activeSessionId: null,
         sessionTabs: [],
         streamingMessages: {},
+        pendingAttachments: {},
         messageInput: '',
         isInputDisabled: false,
         scrollToBottom: false,
@@ -646,6 +659,51 @@ export const useChatStore = create<ChatState>()(
               },
             }
           })
+        },
+
+        // Attachment actions
+        addAttachmentToMessage: (sessionId, messageId, attachment) => {
+          set((state) => {
+            const session = state.sessions[sessionId]
+            if (!session) return state
+            const messages = session.messages.map((msg) => {
+              if ((msg.messageId || msg.id) !== messageId) return msg
+              const existing = msg.attachments ?? []
+              // Deduplicate by source path
+              if (existing.some((a) => a.source === attachment.source)) return msg
+              return { ...msg, attachments: [...existing, attachment] }
+            })
+            return {
+              sessions: {
+                ...state.sessions,
+                [sessionId]: { ...session, messages },
+              },
+            }
+          })
+        },
+
+        stagePendingAttachment: (messageId, attachment) => {
+          set((state) => {
+            const existing = state.pendingAttachments[messageId] ?? []
+            if (existing.some((a) => a.source === attachment.source)) return state
+            return {
+              pendingAttachments: {
+                ...state.pendingAttachments,
+                [messageId]: [...existing, attachment],
+              },
+            }
+          })
+        },
+
+        drainPendingAttachments: (messageId) => {
+          const attachments = get().pendingAttachments[messageId] ?? []
+          if (attachments.length > 0) {
+            set((state) => {
+              const { [messageId]: _removed, ...rest } = state.pendingAttachments
+              return { pendingAttachments: rest }
+            })
+          }
+          return attachments
         },
 
         // Timeline actions

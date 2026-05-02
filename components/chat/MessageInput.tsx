@@ -27,7 +27,6 @@ export interface MessageInputProps {
   placeholder?: string
   disabled?: boolean
   isStreaming?: boolean
-  maxLength?: number
   className?: string
 }
 
@@ -38,7 +37,6 @@ export function MessageInput({
   placeholder = 'Type a message...',
   disabled = false,
   isStreaming = false,
-  maxLength = 4000,
   className,
 }: MessageInputProps) {
   const [internalValue, setInternalValue] = useState('')
@@ -198,7 +196,6 @@ export function MessageInput({
   }
 
   const canSend = (value.trim().length > 0 || attachments.length > 0) && !isInputDisabled
-  const showCharCount = value.length > maxLength * 0.8
 
   return (
     <div className={cn('relative', className)}>
@@ -298,7 +295,6 @@ export function MessageInput({
           onBlur={() => setIsFocused(false)}
           placeholder={placeholder}
           disabled={isInputDisabled}
-          maxLength={maxLength}
           rows={1}
           className={cn(
             'flex-1 resize-none',
@@ -342,19 +338,6 @@ export function MessageInput({
           </div>
         )}
       </div>
-
-      {/* Character Count */}
-      {showCharCount && (
-        <div
-          className={cn(
-            'absolute -top-5 right-0',
-            'text-xs',
-            value.length >= maxLength ? 'text-error' : 'text-text-tertiary'
-          )}
-        >
-          {value.length} / {maxLength}
-        </div>
-      )}
 
       {/* Keyboard Hint */}
       {isFocused && !isStreaming && (

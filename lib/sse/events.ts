@@ -196,6 +196,20 @@ export interface CorrectionEvent extends CustomEvent {
   message: string
 }
 
+export interface AttachmentFileDetails {
+  name: string
+  source: string
+  type: 'CLOUDSTORAGE' | 'UNKNOWN'
+  mimeType: string
+  size: number
+}
+
+export interface AttachmentEvent extends CustomEvent {
+  name: 'attachment'
+  parentMessageId: string
+  fileDetails: AttachmentFileDetails
+}
+
 // ============================================================================
 // Union Type
 // ============================================================================
@@ -221,6 +235,7 @@ export type AGUIEvent =
   | ConfirmationRequestedEvent
   | ConfirmedEvent
   | CorrectionEvent
+  | AttachmentEvent
   | CustomEvent
 
 // ============================================================================
@@ -289,6 +304,10 @@ export function isConfirmationRequestedEvent(event: AGUIEvent): event is Confirm
 
 export function isConfirmedEvent(event: AGUIEvent): event is ConfirmedEvent {
   return event.type === 'CUSTOM' && (event as CustomEvent).name === 'confirmed'
+}
+
+export function isAttachmentEvent(event: AGUIEvent): event is AttachmentEvent {
+  return event.type === 'CUSTOM' && (event as CustomEvent).name === 'attachment'
 }
 
 export function isReasoningStartEvent(event: AGUIEvent): event is ReasoningStartEvent {

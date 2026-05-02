@@ -46,6 +46,7 @@ import {
   ChatSession
 } from '@/lib/store/chat'
 import { Message } from '@/components/chat/Message'
+import { OpenFileToolCard } from '@/components/chat/OpenFileToolCard'
 import { useConfirmationStore } from '@/lib/stores/confirmationStore'
 import { isPlanningToolCall } from '@/lib/sse/events'
 
@@ -411,22 +412,24 @@ function ChatPageContent() {
         // Add user message immediately to UI with a temporary ID
         const tempMessageId = `temp-user-${Date.now()}`
         
-        // Create content that includes both text and attachment info
-        let displayContent = message.trim()
-        if (attachments && attachments.length > 0) {
-          const attachmentText = attachments.map(att => `[File: ${att.fileDetails.name}]`).join(' ')
-          displayContent = displayContent ? `${displayContent}\n\n${attachmentText}` : attachmentText
-        }
-        
         const userMessage = {
           messageId: tempMessageId,
           sessionId: currentSessionId,
           role: 'user' as const,
-          content: displayContent,
+          content: message.trim(),
           timestamp: new Date().toISOString(),
           id: tempMessageId,
           createdTime: new Date().toISOString(),
           updatedTime: new Date().toISOString(),
+          attachments: attachments && attachments.length > 0
+            ? attachments.map(a => ({
+                name: a.fileDetails.name,
+                source: a.fileDetails.source,
+                type: a.fileDetails.type as 'CLOUDSTORAGE' | 'UNKNOWN',
+                mimeType: a.fileDetails.mimeType,
+                size: a.fileDetails.size,
+              }))
+            : undefined,
         }
         
         // Add to store WITHOUT marking as processed
@@ -617,6 +620,7 @@ function ChatPageContent() {
     senderName: msg.role === 'user' ? 'You' : resolveAgentName(msg.metadata?.agentId as string | undefined),
     senderAvatar: msg.role === 'user' ? undefined : (displayAgent as any)?.avatar,
     timestamp: new Date(msg.createdTime || msg.updatedTime || Date.now()),
+    attachments: msg.attachments,
   })
 
   return (
@@ -907,6 +911,24 @@ function ChatPageContent() {
                       if (item.type === 'tool_call') {
                         const toolCall = activeToolCalls[item.id]
                         if (!toolCall) return null
+
+                        if (toolCall.toolName === 'open_file') {
+                          return (
+                            <div key={item.id} className="mt-6">
+                              <OpenFileToolCard
+                                toolCallId={toolCall.toolCallId}
+                                parameters={toolCall.arguments || {}}
+                                result={toolCall.result}
+                                status={toolCall.status}
+                                timestamp={new Date(toolCall.startTime)}
+                                duration={toolCall.endTime
+                                  ? (new Date(toolCall.endTime).getTime() - new Date(toolCall.startTime).getTime()) / 1000
+                                  : undefined}
+                              />
+                            </div>
+                          )
+                        }
+
                         return (
                           <div key={item.id} className="mt-6">
                             <ToolExecutionCard

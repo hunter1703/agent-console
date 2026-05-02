@@ -167,6 +167,16 @@ export interface Message extends BaseEntity {
   confirmations?: Confirmation[]
   files?: any[]
   sources?: any[]
+  attachments?: MessageAttachment[]
+}
+
+export interface MessageAttachment {
+  name: string
+  /** Cloud storage source path (e.g. "agent-assets/...") */
+  source: string
+  type: 'CLOUDSTORAGE' | 'UNKNOWN'
+  mimeType: string
+  size: number
 }
 
 export type MessageRole = 'user' | 'assistant' | 'system' | 'tool'
