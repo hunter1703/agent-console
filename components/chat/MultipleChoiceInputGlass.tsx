@@ -6,10 +6,10 @@ import { Check, Loader2 } from 'lucide-react'
 import ConfettiExplosion from 'react-confetti-explosion'
 import { GlassCard, BlueGlassCard } from '@/components/ui/GlassCard'
 import { springPresets } from '@/lib/constants/animations'
-import type { ConfirmationOption } from '@/types/confirmation'
+import type { InterruptOption } from '@/types/interrupt'
 
 interface MultipleChoiceInputGlassProps {
-  options: ConfirmationOption[]
+  options: InterruptOption[]
   onSubmit: (answer: string) => void
   disabled?: boolean
   isAnswered?: boolean

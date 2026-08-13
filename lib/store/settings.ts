@@ -25,7 +25,7 @@ export interface Settings {
   // Feature Flags
   enablePlanning: boolean;
   enableToolExecution: boolean;
-  enableConfirmations: boolean;
+  enableInterrupts: boolean;
   enableScrollPagination: boolean;
   
   // Model Settings
@@ -61,7 +61,7 @@ const defaultSettings: Settings = {
   // Features
   enablePlanning: true,
   enableToolExecution: true,
-  enableConfirmations: true,
+  enableInterrupts: true,
   enableScrollPagination: false,
   
   // Model

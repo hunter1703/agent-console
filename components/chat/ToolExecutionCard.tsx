@@ -31,7 +31,7 @@ export interface ToolExecutionProps {
   toolName: string
   parameters: Record<string, any>
   result?: Record<string, any>
-  status: 'pending' | 'running' | 'completed' | 'failed' | 'awaiting_confirmation'
+  status: 'pending' | 'running' | 'completed' | 'failed' | 'awaiting_interrupt'
   timestamp: Date
   duration?: number // Duration in seconds
   agentName?: string // Display name of the agent that called this tool
@@ -161,9 +161,9 @@ export function ToolExecutionCard({
       label: 'Failed',
       color: '#EF4444', // Red
     },
-    awaiting_confirmation: {
+    awaiting_interrupt: {
       icon: AlertCircle,
-      label: 'Awaiting Confirmation',
+      label: 'Awaiting Interrupt',
       color: '#F59E0B', // Amber
     },
   }
@@ -337,63 +337,48 @@ export function ToolExecutionCard({
             <div className="text-[12px] font-medium text-text-secondary">
               Result
             </div>
-            {!result.error && <CopyButton isCopied={isResultCopied} onClick={handleCopyResult} />}
+            <CopyButton isCopied={isResultCopied} onClick={handleCopyResult} />
           </div>
-          
+
           {/* Terminal-style result display */}
-          {status === 'failed' && result.error ? (
-            <div
-              className="p-3 rounded-lg border-l-[3px]"
-              style={{
-                background: 'rgba(239, 68, 68, 0.05)',
-                borderLeftColor: '#EF4444',
+          <div
+            className="rounded-lg overflow-hidden border"
+            style={{
+              borderColor: config?.borderColor || 'rgba(107, 114, 128, 0.2)',
+            }}
+          >
+            <SyntaxHighlighter
+              language="json"
+              style={vscDarkPlus}
+              customStyle={{
+                margin: 0,
+                padding: '16px',
+                background: '#1E1E1E',
+                fontSize: '13px',
+                lineHeight: '1.6',
+              }}
+              codeTagProps={{
+                style: {
+                  fontFamily: 'ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace',
+                },
               }}
             >
-              <div className="flex items-start gap-2 text-error">
-                <AlertCircle size={16} className="flex-shrink-0 mt-0.5" />
-                <span className="text-[13px]">{result.error}</span>
-              </div>
-            </div>
-          ) : (
-            <div
-              className="rounded-lg overflow-hidden border"
-              style={{
-                borderColor: config?.borderColor || 'rgba(107, 114, 128, 0.2)',
-              }}
-            >
-              <SyntaxHighlighter
-                language="json"
-                style={vscDarkPlus}
-                customStyle={{
-                  margin: 0,
-                  padding: '16px',
-                  background: '#1E1E1E',
-                  fontSize: '13px',
-                  lineHeight: '1.6',
-                }}
-                codeTagProps={{
-                  style: {
-                    fontFamily: 'ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace',
-                  },
-                }}
-              >
-                {(() => {
-                  // result.content is the raw tool response string from the backend.
-                  // Parse it if it's valid JSON so we display the actual object,
-                  // not a stringified wrapper like {"content": "{...escaped...}"}.
-                  const raw = result?.content
-                  if (typeof raw === 'string') {
-                    try {
-                      return JSON.stringify(JSON.parse(raw), null, 2)
-                    } catch {
-                      return raw
-                    }
+              {(() => {
+                // result.content is the raw tool response string from the backend.
+                // Parse it if it's valid JSON so we display the actual object,
+                // not a stringified wrapper like {"content": "{...escaped...}"}.
+                const raw = result?.content
+                if (typeof raw === 'string') {
+                  try {
+                    return JSON.stringify(JSON.parse(raw), null, 2)
+                  } catch {
+                    return raw
                   }
-                  return JSON.stringify(result, null, 2)
-                })()}
-              </SyntaxHighlighter>
-            </div>
-          )}
+                }
+                return JSON.stringify(result, null, 2)
+              })()}
+            </SyntaxHighlighter>
+          </div>
         </motion.div>
       )}
     </motion.div>

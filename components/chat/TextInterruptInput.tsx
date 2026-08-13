@@ -6,7 +6,7 @@ import { Loader2 } from 'lucide-react'
 import ConfettiExplosion from 'react-confetti-explosion'
 import { springPresets } from '@/lib/constants/animations'
 
-interface TextConfirmationInputProps {
+interface TextInterruptInputProps {
   onSubmit: (answer: string) => void
   disabled?: boolean
   maxLength?: number
@@ -14,13 +14,13 @@ interface TextConfirmationInputProps {
   submittedAnswer?: string
 }
 
-export function TextConfirmationInput({
+export function TextInterruptInput({
   onSubmit,
   disabled = false,
   maxLength = 500,
   isAnswered = false,
   submittedAnswer,
-}: TextConfirmationInputProps) {
+}: TextInterruptInputProps) {
   const [answer, setAnswer] = useState('')
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [showConfetti, setShowConfetti] = useState(false)

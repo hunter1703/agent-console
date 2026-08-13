@@ -4,54 +4,54 @@ import { motion, AnimatePresence } from 'framer-motion'
 import { AlertCircle } from 'lucide-react'
 import { format } from 'date-fns'
 import { useState, memo } from 'react'
-import type { ConfirmationRequest } from '@/types/confirmation'
+import type { InterruptRequest } from '@/types/interrupt'
 import { BinaryDecisionInput } from './BinaryDecisionInput'
 import { MultipleChoiceInput } from './MultipleChoiceInput'
-import { TextConfirmationInput } from './TextConfirmationInput'
+import { TextInterruptInput } from './TextInterruptInput'
 import { LinkedToolCall } from './LinkedToolCall'
-import { useConfirmationStore } from '@/lib/stores/confirmationStore'
-import { submitConfirmationResponse } from '@/lib/api/confirmations'
+import { useInterruptStore } from '@/lib/stores/interruptStore'
+import { submitInterruptResponse } from '@/lib/api/interrupts'
 import { cn } from '@/lib/utils'
 
-interface ConfirmationRequestCardProps {
-  confirmation: ConfirmationRequest
+interface InterruptRequestCardProps {
+  interrupt: InterruptRequest
   linkedToolName?: string
   linkedToolColor?: string
   sessionId?: string // Absent in demo mode
-  agentName?: string // Display name of the agent that requested confirmation
+  agentName?: string // Display name of the agent that requested interrupt
 }
 
-function ConfirmationRequestCardComponent({
-  confirmation,
+function InterruptRequestCardComponent({
+  interrupt,
   linkedToolName,
   linkedToolColor,
   sessionId,
   agentName,
-}: ConfirmationRequestCardProps) {
+}: InterruptRequestCardProps) {
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [error, setError] = useState<string | null>(null)
-  const updateConfirmation = useConfirmationStore((state) => state.updateConfirmation)
+  const updateInterrupt = useInterruptStore((state) => state.updateInterrupt)
 
-  const isPending = confirmation.status === 'pending'
-  const isConfirmed = confirmation.status === 'confirmed'
+  const isPending = interrupt.status === 'pending'
+  const isResolved = interrupt.status === 'resolved'
 
   const isBinaryDecision =
-    confirmation.type === 'DECISION' && (!confirmation.options || confirmation.options.length === 0)
+    interrupt.type === 'DECISION' && (!interrupt.options || interrupt.options.length === 0)
 
   // ── Approve (binary DECISION) ──────────────────────────────────────────────
   const handleApprove = async () => {
     if (!sessionId) {
-      updateConfirmation(confirmation.id, 'confirmed')
+      updateInterrupt(interrupt.id, 'resolved')
       return
     }
     setIsSubmitting(true)
     setError(null)
     try {
-      await submitConfirmationResponse(sessionId, confirmation.id, {
+      await submitInterruptResponse(sessionId, interrupt.id, {
         kind: 'DECISION',
         approved: true,
       })
-      updateConfirmation(confirmation.id, 'confirmed')
+      updateInterrupt(interrupt.id, 'resolved')
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to submit')
     } finally {
@@ -62,17 +62,17 @@ function ConfirmationRequestCardComponent({
   // ── Decline (binary DECISION) ──────────────────────────────────────────────
   const handleDecline = async () => {
     if (!sessionId) {
-      updateConfirmation(confirmation.id, 'rejected')
+      updateInterrupt(interrupt.id, 'rejected')
       return
     }
     setIsSubmitting(true)
     setError(null)
     try {
-      await submitConfirmationResponse(sessionId, confirmation.id, {
+      await submitInterruptResponse(sessionId, interrupt.id, {
         kind: 'DECISION',
         approved: false,
       })
-      updateConfirmation(confirmation.id, 'rejected')
+      updateInterrupt(interrupt.id, 'rejected')
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to submit')
     } finally {
@@ -83,18 +83,18 @@ function ConfirmationRequestCardComponent({
   // ── Submit answer (DECISION with options OR TEXT) ──────────────────────────
   const handleSubmitAnswer = async (answer: string) => {
     if (!sessionId) {
-      updateConfirmation(confirmation.id, 'confirmed', answer)
+      updateInterrupt(interrupt.id, 'resolved', answer)
       return
     }
     setIsSubmitting(true)
     setError(null)
     try {
-      await submitConfirmationResponse(sessionId, confirmation.id, {
-        kind: confirmation.type,
-        options: confirmation.options?.map((o) => o.value),
+      await submitInterruptResponse(sessionId, interrupt.id, {
+        kind: interrupt.type,
+        options: interrupt.options?.map((o) => o.value),
         answer,
       })
-      updateConfirmation(confirmation.id, 'confirmed', answer)
+      updateInterrupt(interrupt.id, 'resolved', answer)
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to submit')
     } finally {
@@ -160,12 +160,12 @@ function ConfirmationRequestCardComponent({
                 </motion.div>
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center gap-1.5 flex-wrap">
-                    <h4 className="text-xs font-semibold text-amber-500">Confirmation Required</h4>
+                    <h4 className="text-xs font-semibold text-amber-500">Input Required</h4>
                     {agentName && (
                       <span className="text-xs text-text-tertiary">from <span className="text-text-secondary font-medium">{agentName}</span></span>
                     )}
                     <span className="text-xs text-text-tertiary">
-                      {format(new Date(confirmation.createdAt), 'h:mm a')}
+                      {format(new Date(interrupt.createdAt), 'h:mm a')}
                     </span>
                   </div>
                 </div>
@@ -184,7 +184,7 @@ function ConfirmationRequestCardComponent({
                   <span className="text-xs text-text-tertiary font-medium">{agentName}</span>
                 )}
                 <span className="text-xs text-text-tertiary">
-                  {format(new Date(confirmation.createdAt), 'h:mm a')}
+                  {format(new Date(interrupt.createdAt), 'h:mm a')}
                 </span>
               </div>
             </motion.div>
@@ -208,7 +208,7 @@ function ConfirmationRequestCardComponent({
         </AnimatePresence>
 
         {/* Prompt */}
-        <p className="text-sm text-text-primary mb-2 leading-snug pl-4">{confirmation.prompt}</p>
+        <p className="text-sm text-text-primary mb-2 leading-snug pl-4">{interrupt.prompt}</p>
 
         {/* Error */}
         <AnimatePresence>
@@ -242,16 +242,16 @@ function ConfirmationRequestCardComponent({
                   isAnswered={false}
                 />
               )}
-              {confirmation.type === 'DECISION' && !isBinaryDecision && (
+              {interrupt.type === 'DECISION' && !isBinaryDecision && (
                 <MultipleChoiceInput
-                  options={confirmation.options!}
+                  options={interrupt.options!}
                   onSubmit={handleSubmitAnswer}
                   disabled={isSubmitting}
                   isAnswered={false}
                 />
               )}
-              {confirmation.type === 'TEXT' && (
-                <TextConfirmationInput
+              {interrupt.type === 'TEXT' && (
+                <TextInterruptInput
                   onSubmit={handleSubmitAnswer}
                   disabled={isSubmitting}
                   isAnswered={false}
@@ -271,24 +271,24 @@ function ConfirmationRequestCardComponent({
                   onReject={() => {}}
                   disabled={true}
                   isAnswered={true}
-                  wasConfirmed={isConfirmed}
+                  wasConfirmed={isResolved}
                 />
               )}
-              {confirmation.type === 'DECISION' && !isBinaryDecision && (
+              {interrupt.type === 'DECISION' && !isBinaryDecision && (
                 <MultipleChoiceInput
-                  options={confirmation.options!}
+                  options={interrupt.options!}
                   onSubmit={() => {}}
                   disabled={true}
                   isAnswered={true}
-                  selectedAnswer={confirmation.answer}
+                  selectedAnswer={interrupt.answer}
                 />
               )}
-              {confirmation.type === 'TEXT' && (
-                <TextConfirmationInput
+              {interrupt.type === 'TEXT' && (
+                <TextInterruptInput
                   onSubmit={() => {}}
                   disabled={true}
                   isAnswered={true}
-                  submittedAnswer={confirmation.answer}
+                  submittedAnswer={interrupt.answer}
                 />
               )}
             </motion.div>
@@ -299,12 +299,12 @@ function ConfirmationRequestCardComponent({
   )
 }
 
-export const ConfirmationRequestCard = memo(
-  ConfirmationRequestCardComponent,
+export const InterruptRequestCard = memo(
+  InterruptRequestCardComponent,
   (prev, next) =>
-    prev.confirmation.id === next.confirmation.id &&
-    prev.confirmation.status === next.confirmation.status &&
-    prev.confirmation.answer === next.confirmation.answer &&
+    prev.interrupt.id === next.interrupt.id &&
+    prev.interrupt.status === next.interrupt.status &&
+    prev.interrupt.answer === next.interrupt.answer &&
     prev.linkedToolName === next.linkedToolName &&
     prev.linkedToolColor === next.linkedToolColor &&
     prev.sessionId === next.sessionId &&

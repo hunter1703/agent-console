@@ -10,7 +10,7 @@
  * - Blue theme (#3B82F6) for message sending
  * - Flying animation shows message in transit
  * - Clear target session display
- * - Success confirmation
+ * - Success interrupt
  */
 
 import { motion } from 'framer-motion'

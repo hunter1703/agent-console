@@ -9,20 +9,21 @@ import { create } from 'zustand'
 import { devtools, subscribeWithSelector } from 'zustand/middleware'
 import { useMemo } from 'react'
 import { DEV_CONFIG } from '@/lib/config/env'
-import type { Session, Message, ToolCall, Confirmation } from '@/lib/api/types'
+import type { Session, Message, ToolCall, Interrupt } from '@/lib/api/types'
 import type { MessageAttachment } from '@/lib/api/types'
 import type { Plan, Task } from '@/types/planning'
+import type { SessionStreamHandle } from '@/lib/sse/managedStream'
 
 // ============================================================================
 // Types
 // ============================================================================
 
-export type TimelineItemType = 'message' | 'tool_call' | 'plan' | 'confirmation' | 'correction'
+export type TimelineItemType = 'message' | 'tool_call' | 'plan' | 'interrupt' | 'correction' | 'reasoning'
 
 export interface TimelineItem {
   type: TimelineItemType
   id: string
-  /** For confirmations linked to a tool call, the tool call's ID. */
+  /** For interrupts linked to a tool call, the tool call's ID. */
   linkedId?: string
   /** For message items: the sender role. Used to correctly order user messages. */
   role?: 'user' | 'assistant'
@@ -39,10 +40,9 @@ export interface ChatSession extends Session {
   }
   connectionStatus: 'connected' | 'connecting' | 'disconnected' | 'error'
   lastActivity: string
-  lastProcessedEventIndex: number // Track the index of the last processed event (0-based)
   // Per-session widget state — scoped here so switching sessions doesn't bleed widgets across tabs
   toolCalls: Record<string, ActiveToolCall>
-  confirmations: Record<string, ActiveConfirmation>
+  interrupts: Record<string, ActiveInterrupt>
   corrections: Record<string, CorrectionEvent>
   activePlan: Plan | null
   timeline: TimelineItem[]
@@ -59,16 +59,16 @@ export interface ActiveToolCall {
   parentMessageId?: string
 }
 
-export interface ActiveConfirmation {
-  confirmationId: string
+export interface ActiveInterrupt {
+  interruptId: string
   prompt: string
   kind: 'DECISION' | 'TEXT'
   options?: string[]
   originalToolCallId?: string
   timeout?: number
-  status: 'pending' | 'confirmed' | 'rejected'
+  status: 'pending' | 'resolved' | 'rejected'
   answer?: string
-  confirmedAt?: number
+  resolvedAt?: number
   createdAt: number
 }
 
@@ -116,10 +116,8 @@ export interface ChatState {
   scrollToBottom: boolean
   
   // SSE connection
-  sseConnection: EventSource | null
-  reconnectAttempts: number
-  maxReconnectAttempts: number
-  
+  sseConnection: SessionStreamHandle | null
+
   // Actions
   setActiveSession: (sessionId: string | null) => void
   addSession: (session: ChatSession) => void
@@ -143,10 +141,10 @@ export interface ChatState {
   updateToolCall: (sessionId: string, toolCallId: string, updates: Partial<ActiveToolCall>) => void
   completeToolCall: (sessionId: string, toolCallId: string, result: any) => void
 
-  // Confirmation actions
-  showConfirmation: (sessionId: string, confirmation: Omit<ActiveConfirmation, 'status' | 'createdAt'>) => void
-  updateConfirmationStatus: (sessionId: string, confirmationId: string, status: 'confirmed' | 'rejected', answer?: string) => void
-  hideConfirmation: (sessionId: string, confirmationId: string) => void
+  // Interrupt actions
+  showInterrupt: (sessionId: string, interrupt: Omit<ActiveInterrupt, 'status' | 'createdAt'>) => void
+  updateInterruptStatus: (sessionId: string, interruptId: string, status: 'resolved' | 'rejected', answer?: string) => void
+  hideInterrupt: (sessionId: string, interruptId: string) => void
   
   // Correction actions
   addCorrectionEvent: (sessionId: string, correction: Omit<CorrectionEvent, 'timestamp'>) => void
@@ -180,10 +178,8 @@ export interface ChatState {
   setInputDisabled: (disabled: boolean) => void
   
   // SSE actions
-  setSSEConnection: (connection: EventSource | null) => void
-  incrementReconnectAttempts: () => void
-  resetReconnectAttempts: () => void
-  
+  setSSEConnection: (connection: SessionStreamHandle | null) => void
+
   // Utility actions
   getActiveSession: () => ChatSession | null
   getSessionMessages: (sessionId: string) => Message[]
@@ -209,9 +205,7 @@ export const useChatStore = create<ChatState>()(
         isInputDisabled: false,
         scrollToBottom: false,
         sseConnection: null,
-        reconnectAttempts: 0,
-        maxReconnectAttempts: 5,
-        
+
         // Session actions
         setActiveSession: (sessionId) => {
           set({ activeSessionId: sessionId })
@@ -224,7 +218,7 @@ export const useChatStore = create<ChatState>()(
               [session.sessionId]: {
                 ...session,
                 toolCalls: session.toolCalls ?? {},
-                confirmations: session.confirmations ?? {},
+                interrupts: session.interrupts ?? {},
                 corrections: session.corrections ?? {},
                 activePlan: session.activePlan ?? null,
                 timeline: session.timeline ?? [],
@@ -279,10 +273,9 @@ export const useChatStore = create<ChatState>()(
               currentMessageCount: session.messages.length,
             })
             
-            // Idempotency guard: never add the same messageId twice.
-            // This defends against SSE event replay resending a message that is
-            // already committed to the session (e.g. after a reconnect without a
-            // proper lastProcessedEventIndex reset).
+            // Idempotency guard: never add the same messageId twice. This defends
+            // against SSE event replay resending a message that is already committed
+            // to the session, e.g. after a reconnect replays history from scratch.
             if (session.messages.some(m => (m.messageId || m.id) === msgId)) {
               console.log('addMessage: Skipping duplicate messageId:', msgId)
               return state
@@ -439,8 +432,16 @@ export const useChatStore = create<ChatState>()(
 
         addReasoningBlock: (messageId, blockId) => {
           set((state) => {
-            const message = state.streamingMessages[messageId]
-            if (!message) return state
+            // A reasoning block has no preceding TEXT_MESSAGE_START, so it gets its own
+            // streamingMessages entry (keyed by the reasoning block's own id) rather than
+            // attaching to an existing one.
+            const message: StreamingMessage = state.streamingMessages[messageId] ?? {
+              messageId,
+              role: 'assistant',
+              content: '',
+              isComplete: false,
+              toolCalls: [],
+            }
             return {
               streamingMessages: {
                 ...state.streamingMessages,
@@ -566,8 +567,8 @@ export const useChatStore = create<ChatState>()(
           })
         },
 
-        // Confirmation actions
-        showConfirmation: (sessionId, confirmation) => {
+        // Interrupt actions
+        showInterrupt: (sessionId, interrupt) => {
           set((state) => {
             const session = state.sessions[sessionId]
             if (!session) return state
@@ -576,10 +577,10 @@ export const useChatStore = create<ChatState>()(
                 ...state.sessions,
                 [sessionId]: {
                   ...session,
-                  confirmations: {
-                    ...session.confirmations,
-                    [confirmation.confirmationId]: {
-                      ...confirmation,
+                  interrupts: {
+                    ...session.interrupts,
+                    [interrupt.interruptId]: {
+                      ...interrupt,
                       status: 'pending',
                       createdAt: Date.now(),
                     },
@@ -591,36 +592,36 @@ export const useChatStore = create<ChatState>()(
           })
         },
 
-        updateConfirmationStatus: (sessionId, confirmationId, status, answer) => {
+        updateInterruptStatus: (sessionId, interruptId, status, answer) => {
           set((state) => {
             const session = state.sessions[sessionId]
-            const confirmation = session?.confirmations[confirmationId]
-            if (!session || !confirmation) return state
-            const updatedConfirmations = {
-              ...session.confirmations,
-              [confirmationId]: { ...confirmation, status, answer, confirmedAt: Date.now() },
+            const interrupt = session?.interrupts[interruptId]
+            if (!session || !interrupt) return state
+            const updatedInterrupts = {
+              ...session.interrupts,
+              [interruptId]: { ...interrupt, status, answer, resolvedAt: Date.now() },
             }
             return {
               sessions: {
                 ...state.sessions,
-                [sessionId]: { ...session, confirmations: updatedConfirmations },
+                [sessionId]: { ...session, interrupts: updatedInterrupts },
               },
-              isInputDisabled: Object.values(updatedConfirmations).some(
-                (c) => c.confirmationId !== confirmationId && c.status === 'pending'
+              isInputDisabled: Object.values(updatedInterrupts).some(
+                (c) => c.interruptId !== interruptId && c.status === 'pending'
               ),
             }
           })
         },
 
-        hideConfirmation: (sessionId, confirmationId) => {
+        hideInterrupt: (sessionId, interruptId) => {
           set((state) => {
             const session = state.sessions[sessionId]
             if (!session) return state
-            const { [confirmationId]: _removed, ...remaining } = session.confirmations
+            const { [interruptId]: _removed, ...remaining } = session.interrupts
             return {
               sessions: {
                 ...state.sessions,
-                [sessionId]: { ...session, confirmations: remaining },
+                [sessionId]: { ...session, interrupts: remaining },
               },
               isInputDisabled: Object.values(remaining).some((c) => c.status === 'pending'),
             }
@@ -725,7 +726,7 @@ export const useChatStore = create<ChatState>()(
 
             if (afterId) {
               // Find the anchor item, then advance past any items already linked to the same parent
-              // so repeated confirmations for the same tool call stack in arrival order.
+              // so repeated interrupts for the same tool call stack in arrival order.
               const baseIdx = timeline.findIndex((t) => t.id === afterId)
               let insertAt = baseIdx === -1 ? timeline.length : baseIdx + 1
               while (insertAt < timeline.length && timeline[insertAt].linkedId === afterId) {
@@ -854,17 +855,7 @@ export const useChatStore = create<ChatState>()(
           if (existing) existing.close()
           set({ sseConnection: connection })
         },
-        
-        incrementReconnectAttempts: () => {
-          set((state) => ({
-            reconnectAttempts: state.reconnectAttempts + 1,
-          }))
-        },
-        
-        resetReconnectAttempts: () => {
-          set({ reconnectAttempts: 0 })
-        },
-        
+
         // Utility actions
         getActiveSession: () => {
           const state = get()
@@ -889,7 +880,7 @@ export const useChatStore = create<ChatState>()(
                   isStreaming: false,
                   typingIndicator: undefined,
                   toolCalls: {},
-                  confirmations: {},
+                  interrupts: {},
                   corrections: {},
                   activePlan: null,
                   timeline: [],
@@ -925,7 +916,7 @@ export const useChatStore = create<ChatState>()(
 // Stable empty references to prevent unnecessary re-renders from reference inequality
 const EMPTY_MESSAGES: Message[] = []
 const EMPTY_TOOL_CALLS: Record<string, ActiveToolCall> = {}
-const EMPTY_CONFIRMATIONS: Record<string, ActiveConfirmation> = {}
+const EMPTY_INTERRUPTS: Record<string, ActiveInterrupt> = {}
 const EMPTY_CORRECTIONS: Record<string, CorrectionEvent> = {}
 
 /**
@@ -1024,39 +1015,39 @@ export function useToolCalls(sessionId?: string) {
 }
 
 /**
- * Hook for confirmations — scoped to the given session (or active session).
+ * Hook for interrupts — scoped to the given session (or active session).
  * Returns pre-bound action wrappers so callers don't need to pass sessionId.
  */
-export function useConfirmations(sessionId?: string) {
+export function useInterrupts(sessionId?: string) {
   const activeSessionId = useChatStore((state) => state.activeSessionId)
   const targetId = sessionId ?? activeSessionId
-  const activeConfirmations = useChatStore((state) =>
-    targetId ? (state.sessions[targetId]?.confirmations ?? EMPTY_CONFIRMATIONS) : EMPTY_CONFIRMATIONS
+  const activeInterrupts = useChatStore((state) =>
+    targetId ? (state.sessions[targetId]?.interrupts ?? EMPTY_INTERRUPTS) : EMPTY_INTERRUPTS
   )
-  const _showConfirmation = useChatStore((state) => state.showConfirmation)
-  const _updateConfirmationStatus = useChatStore((state) => state.updateConfirmationStatus)
-  const _hideConfirmation = useChatStore((state) => state.hideConfirmation)
+  const _showInterrupt = useChatStore((state) => state.showInterrupt)
+  const _updateInterruptStatus = useChatStore((state) => state.updateInterruptStatus)
+  const _hideInterrupt = useChatStore((state) => state.hideInterrupt)
 
-  const pendingConfirmations = useMemo(
-    () => Object.values(activeConfirmations).filter((c) => c.status === 'pending'),
-    [activeConfirmations]
+  const pendingInterrupts = useMemo(
+    () => Object.values(activeInterrupts).filter((c) => c.status === 'pending'),
+    [activeInterrupts]
   )
-  const resolvedConfirmations = useMemo(
-    () => Object.values(activeConfirmations).filter((c) => c.status !== 'pending'),
-    [activeConfirmations]
+  const resolvedInterrupts = useMemo(
+    () => Object.values(activeInterrupts).filter((c) => c.status !== 'pending'),
+    [activeInterrupts]
   )
 
   return {
-    activeConfirmations,
-    pendingConfirmations,
-    resolvedConfirmations,
-    showConfirmation: (confirmation: Omit<ActiveConfirmation, 'status' | 'createdAt'>) =>
-      targetId ? _showConfirmation(targetId, confirmation) : undefined,
-    updateConfirmationStatus: (confirmationId: string, status: 'confirmed' | 'rejected', answer?: string) =>
-      targetId ? _updateConfirmationStatus(targetId, confirmationId, status, answer) : undefined,
-    hideConfirmation: (confirmationId: string) =>
-      targetId ? _hideConfirmation(targetId, confirmationId) : undefined,
-    hasActiveConfirmations: pendingConfirmations.length > 0,
+    activeInterrupts,
+    pendingInterrupts,
+    resolvedInterrupts,
+    showInterrupt: (interrupt: Omit<ActiveInterrupt, 'status' | 'createdAt'>) =>
+      targetId ? _showInterrupt(targetId, interrupt) : undefined,
+    updateInterruptStatus: (interruptId: string, status: 'resolved' | 'rejected', answer?: string) =>
+      targetId ? _updateInterruptStatus(targetId, interruptId, status, answer) : undefined,
+    hideInterrupt: (interruptId: string) =>
+      targetId ? _hideInterrupt(targetId, interruptId) : undefined,
+    hasActiveInterrupts: pendingInterrupts.length > 0,
   }
 }
 

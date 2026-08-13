@@ -4,19 +4,19 @@ import { motion, AnimatePresence } from 'framer-motion'
 import { AlertCircle, X } from 'lucide-react'
 import { springPresets } from '@/lib/constants/animations'
 
-interface PendingConfirmationBannerProps {
+interface PendingInterruptBannerProps {
   count: number
   onScrollToFirst: () => void
   onDismiss: () => void
   isVisible: boolean
 }
 
-export function PendingConfirmationBanner({
+export function PendingInterruptBanner({
   count,
   onScrollToFirst,
   onDismiss,
   isVisible,
-}: PendingConfirmationBannerProps) {
+}: PendingInterruptBannerProps) {
   if (count === 0) return null
 
   return (
@@ -48,7 +48,7 @@ export function PendingConfirmationBanner({
 
               <div className="flex-1">
                 <p className="text-sm font-medium text-text-primary">
-                  {count} {count === 1 ? 'confirmation' : 'confirmations'} pending
+                  {count} {count === 1 ? 'interrupt' : 'interrupts'} pending
                 </p>
                 <p className="text-xs text-text-secondary">
                   Your response is required to continue

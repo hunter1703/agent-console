@@ -613,19 +613,20 @@ export function openSessionStream(
   sessionId: string,
   onEvent: (event: MessageEvent) => void,
   onError?: (error: Event) => void,
-  liveOnly = false
+  liveOnly = false,
+  onOpen?: () => void
 ): EventSource {
   const baseUrl = process.env.NEXT_PUBLIC_API_BASE_URL || 'http://localhost:8080'
   const url = `${baseUrl}/v1/session/${sessionId}/stream${liveOnly ? '?liveOnly=true' : ''}`
-  
+
   console.log('Opening EventSource to:', url)
-  
+
   const eventSource = new EventSource(url, {
     withCredentials: false, // Don't send credentials for CORS
   })
-  
+
   let eventCount = 0
-  
+
   eventSource.onmessage = (event) => {
     eventCount++
     if (eventCount <= 5) {
@@ -633,28 +634,28 @@ export function openSessionStream(
     }
     onEvent(event)
   }
-  
+
   eventSource.onerror = (error) => {
-    // EventSource fires onerror when connection closes, even for normal closures
-    // This is expected behavior after the backend finishes streaming the response
+    // EventSource fires onerror both for genuine drops and for the server ending the
+    // response normally — the API gives no way to tell those apart. We always close
+    // here (to stop the browser's own auto-reconnect) and let the caller decide
+    // whether to reconnect; see lib/sse/managedStream.ts.
     console.log('EventSource closed')
     console.log('EventSource readyState:', eventSource.readyState)
     console.log(`Received ${eventCount} events total`)
-    
-    // CRITICAL: Close the EventSource immediately to prevent browser auto-reconnect
-    // The browser will try to reconnect automatically when the connection closes,
-    // but we want to control when to reconnect (only after user sends a message)
+
     eventSource.close()
-    
+
     if (onError) {
       onError(error)
     }
   }
-  
+
   eventSource.onopen = () => {
     console.log('EventSource connection opened successfully')
+    onOpen?.()
   }
-  
+
   return eventSource
 }
 
@@ -664,15 +665,15 @@ export function openSessionStream(
  */
 export async function confirmToolExecution(
   sessionId: string,
-  confirmationId: string,
+  interruptId: string,
   request: ConfirmToolRequest,
   options?: RequestOptions
 ): Promise<void> {
   return apiClient.post<void>(
     `/v1/session/${sessionId}/confirm`,
     {
-      interruptId: confirmationId,
-      status: 'resolved',
+      interruptId: interruptId,
+      status: 'RESOLVED',
       payload: {
         confirmed: request.approved,
         answer: request.reason,
@@ -683,12 +684,12 @@ export async function confirmToolExecution(
 }
 
 /**
- * Submit a confirmation response.
+ * Submit a interrupt response.
  * POST /v1/session/{sessionId}/confirm — AG-UI Resume payload.
  */
-export async function submitConfirmation(
+export async function submitInterrupt(
   sessionId: string,
-  confirmationId: string,
+  interruptId: string,
   request: {
     confirmed: boolean
     answer?: string
@@ -698,8 +699,8 @@ export async function submitConfirmation(
   return apiClient.post<void>(
     `/v1/session/${sessionId}/confirm`,
     {
-      interruptId: confirmationId,
-      status: 'resolved',
+      interruptId: interruptId,
+      status: 'RESOLVED',
       payload: {
         confirmed: request.confirmed,
         answer: request.answer,

@@ -20,9 +20,10 @@ import { TypingIndicator } from '@/components/chat/TypingIndicator'
 import { EmptyState } from '@/components/chat/EmptyState'
 import { ToolExecutionCard } from '@/components/chat/ToolExecutionCard'
 import { PlanWidget } from '@/components/chat/PlanWidget'
-import { ConfirmationRequestCard } from '@/components/chat/ConfirmationRequestCard'
-import { PendingConfirmationBanner } from '@/components/chat/PendingConfirmationBanner'
+import { InterruptRequestCard } from '@/components/chat/InterruptRequestCard'
+import { PendingInterruptBanner } from '@/components/chat/PendingInterruptBanner'
 import { CorrectionCard } from '@/components/chat/CorrectionCard'
+import { ReasoningBlock } from '@/components/chat/ReasoningBlock'
 import { PageTransition } from '@/components/common/PageTransition'
 import { Skeleton } from '@/components/common/Skeleton'
 import { Card } from '@/components/common/Card'
@@ -34,6 +35,8 @@ import { getAgent, getSession, listSessions, listAgents } from '@/lib/api/servic
 import { queryKeys } from '@/lib/query/client'
 import { useUIStore, useToasts } from '@/lib/store/ui'
 import { useAgentInfo, getAgentDisplayName } from '@/lib/hooks/useAgentInfo'
+import { useSessionStream } from '@/lib/hooks/useSessionStream'
+import type { Session } from '@/lib/api/types'
 import { useAgentNameResolver } from '@/lib/hooks/useAgentNameResolver'
 import {
   useChatStore,
@@ -47,11 +50,49 @@ import {
 } from '@/lib/store/chat'
 import { Message } from '@/components/chat/Message'
 import { OpenFileToolCard } from '@/components/chat/OpenFileToolCard'
-import { useConfirmationStore } from '@/lib/stores/confirmationStore'
+import { useInterruptStore } from '@/lib/stores/interruptStore'
 import { isPlanningToolCall } from '@/lib/sse/events'
 
 
 import { ErrorBoundary } from '@/components/common/ErrorBoundary'
+import { ConnectionStatusBanner } from '@/components/chat/ConnectionStatusBanner'
+
+// Backend session status is passed through as an untyped string (see the `status: (session.status
+// as any)` cast in the session-loading effect below), so this checks the real wire values rather
+// than trusting lib/api/types.ts's SessionStatus union, which doesn't match what the API sends.
+const TERMINAL_SESSION_STATUSES = new Set(['COMPLETED', 'FAILED', 'ERROR', 'CANCELLED'])
+function isTerminalSessionStatus(status: string | undefined): boolean {
+  return !!status && TERMINAL_SESSION_STATUSES.has(status)
+}
+
+/**
+ * (Re)opens a GET session stream for a session that already has state in the store —
+ * used both to recover from a dropped invoke stream and for the manual "Reconnect"
+ * banner action. Commits any partial streaming text first and resets dedup, since the
+ * replay resends each message's full accumulated text as one chunk (which would
+ * otherwise get appended onto whatever already streamed in live).
+ */
+async function reconnectToSession(sessionId: string): Promise<void> {
+  const { openManagedSessionStream } = await import('@/lib/sse/managedStream')
+  const { getAGUIEventHandler } = await import('@/lib/sse/handler')
+  const eventHandler = getAGUIEventHandler()
+  const store = useChatStore.getState()
+
+  store.commitIncompleteStreamingMessages(sessionId)
+  eventHandler.resetSessionIndex(sessionId)
+
+  const stream = openManagedSessionStream(sessionId, {
+    onEvent: (event) => eventHandler.handleSSEMessage(event, sessionId),
+    onStatusChange: (status) => {
+      useChatStore.getState().updateSession(sessionId, { connectionStatus: status })
+      if (status === 'disconnected') {
+        useChatStore.getState().commitIncompleteStreamingMessages(sessionId)
+      }
+    },
+    shouldReconnect: () => useChatStore.getState().sessions[sessionId]?.isStreaming === true,
+  })
+  store.setSSEConnection(stream)
+}
 
 export default function ChatPage() {
   return (
@@ -80,13 +121,13 @@ function ChatPageContent() {
   const { streamingMessages, isStreaming } = useStreamingState()
   const currentSessionId = sessionId || activeSession?.sessionId
   const { activeToolCalls } = useToolCalls(currentSessionId)
-  const confirmationsMap = useConfirmationStore((state) => state.confirmations)
-  const pendingCount = useConfirmationStore((state) => state.pendingCount)
-  const pendingConfirmations = useMemo(
-    () => Array.from(confirmationsMap.values()).filter((c) => c.status === 'pending'),
-    [confirmationsMap]
+  const interruptsMap = useInterruptStore((state) => state.interrupts)
+  const pendingCount = useInterruptStore((state) => state.pendingCount)
+  const pendingInterrupts = useMemo(
+    () => Array.from(interruptsMap.values()).filter((c) => c.status === 'pending'),
+    [interruptsMap]
   )
-  const hasActiveConfirmations = pendingCount > 0
+  const hasActiveInterrupts = pendingCount > 0
   const { correctionEvents, removeCorrectionEvent } = useCorrectionEvents(currentSessionId)
   const timeline = useTimeline(currentSessionId)
   const isInputDisabled = useChatStore(state => state.isInputDisabled)
@@ -96,13 +137,6 @@ function ChatPageContent() {
   const [isSending, setIsSending] = useState(false)
   const sendingRef = useRef(false)
 
-  // Set to true while handleSendMessage is creating a new session and has not
-  // yet had the URL updated by Next.js. Prevents the "No sessionId in URL"
-  // effect from incorrectly tearing down the active session during the
-  // transitional renders that occur between setActiveSession() and the URL
-  // param update propagating through useSearchParams().
-  const isNavigatingToSessionRef = useRef(false)
-  
   // Sidebar state
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false)
   const [sidebarView, setSidebarView] = useState<'agents' | 'chats'>('chats')
@@ -192,150 +226,17 @@ function ChatPageContent() {
     return () => timers.forEach(clearTimeout)
   }, [agent, session, setPageTitle])
 
-  // Handle session creation/loading
-  useEffect(() => {
-    // Only process session if we have both session data AND sessionId in URL
-    // This prevents processing stale session data after navigation
-    if (session && sessionId && session.id === sessionId) {
-      // Check if this is a different session than the current active one
-      const isDifferentSession = !activeSession || activeSession.sessionId !== session.id
-      
-      if (isDifferentSession) {
-        // Navigation to a real session URL has landed — clear the flag that
-        // was suppressing the "no sessionId" cleanup effect during the transition.
-        isNavigatingToSessionRef.current = false
+  // Owns the GET session-stream lifecycle: opens it when the URL resolves to a session
+  // that isn't yet active, tears it down on navigating away. See lib/hooks/useSessionStream.ts.
+  const { markNavigatingToSession } = useSessionStream(session as Session | undefined, sessionId)
 
-        const chatStore = useChatStore.getState()
-
-        // If there is already a live connection to this exact session (opened by
-        // handleSendMessage moments before the URL update triggered this effect),
-        // do not close and reopen it — that would kill the active stream mid-flight.
-        const existingConn = chatStore.sseConnection
-        const alreadyConnectedToThisSession =
-          existingConn !== null &&
-          existingConn.readyState !== EventSource.CLOSED &&
-          existingConn.url?.includes(session.id)
-
-        if (alreadyConnectedToThisSession) {
-          // SSE stream already open for this session (opened by handleSendMessage
-          // before the URL update triggered this effect). Just ensure the active
-          // session pointer is correct and leave the stream alone.
-          setActiveSession(session.id)
-          return
-        }
-
-        // Close any existing connection to a *different* session
-        if (existingConn) {
-          console.log('Closing previous SSE connection')
-          existingConn.close()
-          chatStore.setSSEConnection(null)
-        }
-
-        // Preserve any state already in the store for this session (e.g. user messages
-        // added optimistically before the backend sessionId was known, and the event
-        // index used for SSE deduplication). Without this, the effect overwrites the
-        // migrated session on every router.replace, wiping the user message and
-        // resetting the deduplication counter to -1, which causes the first run's
-        // events to be re-processed on the second message send.
-        const existingInStore = chatStore.sessions[session.id]
-
-        // Add session to store and set as active
-        const chatSession: ChatSession = {
-          ...session,
-          sessionId: session.id,
-          messages: existingInStore?.messages ?? [],
-          isStreaming: existingInStore?.isStreaming ?? false,
-          connectionStatus: existingInStore?.connectionStatus ?? 'disconnected' as const,
-          lastActivity: typeof session.updatedTime === 'string' ? session.updatedTime : new Date().toISOString(),
-          lastProcessedEventIndex: existingInStore?.lastProcessedEventIndex ?? -1,
-          messageCount: (session as any).messageCount || 0,
-          status: (session.status as any) || 'ACTIVE',
-          createdTime: typeof session.createdTime === 'string' ? session.createdTime : new Date().toISOString(),
-          updatedTime: typeof session.updatedTime === 'string' ? session.updatedTime : new Date().toISOString(),
-          toolCalls: existingInStore?.toolCalls ?? {},
-          confirmations: existingInStore?.confirmations ?? {},
-          corrections: existingInStore?.corrections ?? {},
-          activePlan: existingInStore?.activePlan ?? null,
-          timeline: existingInStore?.timeline ?? [],
-        }
-        
-        addSession(chatSession)
-        setActiveSession(session.id)
-        
-        // Always open SSE stream to get session events (both historic and new)
-        // The backend will send all events through the stream
-        const openStreamForSession = async () => {
-          try {
-            const { getAGUIEventHandler } = await import('@/lib/sse/handler')
-            const { openSessionStream } = await import('@/lib/api/services')
-            const { useConfirmationStore } = await import('@/lib/stores/confirmationStore')
-            const eventHandler = getAGUIEventHandler()
-
-            // Clear confirmations and timeline so the replayed event stream is the sole source of truth
-            useConfirmationStore.getState().clearConfirmations()
-            useChatStore.getState().clearTimeline(session.id)
-            
-            // Always reset the handler's per-connection counter when opening a new
-            // SSE stream. The backend replays from event index 0 on every connection,
-            // so the handler counter must also start from 0. The store's
-            // lastProcessedEventIndex independently controls which replayed events
-            // get skipped, so resetting the handler counter here is always safe.
-            const skipUpTo = chatStore.sessions[session.id]?.lastProcessedEventIndex ?? -1
-            console.log('Opening SSE stream for session:', session.id, '— handler counter reset, skipping events 0..', skipUpTo)
-            eventHandler.resetSessionIndex(session.id)
-            
-            console.log('Opening SSE stream for session:', session.id, 'status:', session.status)
-            const eventSource = openSessionStream(
-              session.id,
-              (event) => {
-                eventHandler.handleSSEMessage(event, session.id)
-              },
-              (_error) => {
-                useChatStore.getState().commitIncompleteStreamingMessages(session.id)
-              }
-            )
-            
-            // Store the event source
-            chatStore.setSSEConnection(eventSource)
-          } catch (error) {
-            console.error('Failed to open SSE stream for session:', error)
-          }
-        }
-        
-        openStreamForSession()
-      }
-    }
-  }, [session, sessionId, activeSession])
-
-  // Clear session state when navigating away from session URL
-  useEffect(() => {
-    // If we don't have a sessionId in URL but have an active session, clear it
-    if (!sessionId && activeSession) {
-      // Skip during new-session creation. handleSendMessage sets activeSession
-      // to the real backend ID before router.replace() has a chance to update
-      // useSearchParams(). The flag prevents these transitional renders from
-      // tearing down the session that was just established.
-      if (isNavigatingToSessionRef.current) return
-
-      console.log('No sessionId in URL, clearing active session')
-      const chatStore = useChatStore.getState()
-
-      if (chatStore.sseConnection) {
-        chatStore.sseConnection.close()
-        chatStore.setSSEConnection(null)
-      }
-
-      chatStore.setActiveSession(null)
-    }
-  }, [sessionId, activeSession])
-
-  // Ensure input is enabled when page loads and no confirmations are active
+  // Ensure input is enabled when page loads and no interrupts are active
   useEffect(() => {
     const chatStore = useChatStore.getState()
-    if (!hasActiveConfirmations && chatStore.isInputDisabled) {
+    if (!hasActiveInterrupts && chatStore.isInputDisabled) {
       chatStore.setInputDisabled(false)
     }
-  }, [hasActiveConfirmations])
+  }, [hasActiveInterrupts])
 
   // Handle errors (removed to prevent infinite loops)
   // useEffect(() => {
@@ -353,7 +254,7 @@ function ChatPageContent() {
   // Handle message sending with streaming support
   const handleSendMessage = async (message: string, attachments?: Array<{ type: 'file'; fileDetails: import('@/lib/api/services').FileDetails }>) => {
     if ((!message.trim() && (!attachments || attachments.length === 0)) || isSending || sendingRef.current) return
-    
+
     sendingRef.current = true
     
     try {
@@ -381,7 +282,6 @@ function ChatPageContent() {
             isStreaming: false,
             connectionStatus: 'disconnected' as const,
             lastActivity: new Date().toISOString(),
-            lastProcessedEventIndex: -1, // Initialize event index tracking
             id: newSessionId,
             status: 'ACTIVE' as const,
             messageCount: 0,
@@ -389,7 +289,7 @@ function ChatPageContent() {
             updatedTime: new Date().toISOString(),
             // Session-scoped widget state
             toolCalls: {},
-            confirmations: {},
+            interrupts: {},
             corrections: {},
             activePlan: null,
             timeline: [],
@@ -481,7 +381,7 @@ function ChatPageContent() {
                 }
 
                 currentSessionId = backendSessionId
-                isNavigatingToSessionRef.current = true
+                markNavigatingToSession()
                 setActiveSession(backendSessionId)
                 router.replace(`/chat?session=${backendSessionId}`, { scroll: false })
               },
@@ -504,15 +404,29 @@ function ChatPageContent() {
           const now = new Date().toISOString()
           const id = `error-${Date.now()}`
           const sid = currentSessionId!
+          // Once RUN_STARTED has resolved a real backend session id, the run itself keeps
+          // going server-side regardless of this connection — only the client's visibility
+          // into it was lost. Fall back to the GET stream instead of leaving the user
+          // stranded with no further updates.
+          const isRealSession = !sid.startsWith('session-')
+
           chatStore.addMessage(sid, {
             id, messageId: id, sessionId: sid,
             role: 'assistant',
             content: apiError.message?.includes('timeout')
               ? 'Request timed out. Please try again.'
-              : 'An error occurred while processing your message. Please try again.',
+              : isRealSession
+                ? 'Lost connection while the agent was responding. Reconnecting…'
+                : 'An error occurred while processing your message. Please try again.',
             createdTime: now, updatedTime: now,
           })
+
+          if (isRealSession) {
+            await reconnectToSession(sid)
+          }
         }
+      } else {
+        error('No agent selected', 'Choose an agent from "My Agents" before starting a conversation.')
       }
     } catch (err: any) {
       console.error('Failed to send message', err.message)
@@ -538,10 +452,33 @@ function ChatPageContent() {
     setInputValue(prompt)
   }
 
-  // Handle scroll to first pending confirmation
-  const handleScrollToFirstConfirmation = () => {
-    const firstConfirmation = document.querySelector('[data-confirmation-status="pending"]')
-    firstConfirmation?.scrollIntoView({ behavior: 'smooth', block: 'center' })
+  // Shared by the header "New Chat" button and the session list's empty-state affordance.
+  // Both need an agent to start a chat against; if none is resolvable from the current
+  // URL/session context, send the user to pick one instead of failing silently.
+  const handleNewChat = () => {
+    const targetAgentId = agentId || session?.agentId || sessionAgentId || displayAgent?.id
+
+    if (!targetAgentId) {
+      error('No agent selected', 'Choose an agent to start a new chat with.')
+      setSidebarView('agents')
+      return
+    }
+
+    const chatStore = useChatStore.getState()
+    if (chatStore.sseConnection) {
+      chatStore.sseConnection.close()
+      chatStore.setSSEConnection(null)
+    }
+
+    chatStore.setActiveSession(null)
+    setInputValue('')
+    router.replace(`/chat?agent=${targetAgentId}`, { scroll: false })
+  }
+
+  // Handle scroll to first pending interrupt
+  const handleScrollToFirstInterrupt = () => {
+    const firstInterrupt = document.querySelector('[data-interrupt-status="pending"]')
+    firstInterrupt?.scrollIntoView({ behavior: 'smooth', block: 'center' })
   }
 
   // Check if we're loading session data (not just the initial query state)
@@ -618,8 +555,7 @@ function ChatPageContent() {
   })
 
   return (
-    <PageTransition pageKey={sessionId || agentId || 'new-chat'}>
-      <div className="h-screen bg-background flex overflow-hidden relative">
+    <div className="h-screen bg-background flex overflow-hidden relative">
         {/* Sidebar */}
         <Sidebar
           isOpen={true}
@@ -645,27 +581,7 @@ function ChatPageContent() {
                 icon={<Plus size={16} />}
                 onClick={() => {
                   if (sidebarView === 'chats') {
-                    // Get agent ID for new chat from current context
-                    const targetAgentId = agentId || session?.agentId || sessionAgentId || displayAgent?.id
-                    
-                    if (!targetAgentId) {
-                      console.error('No agent ID available for new chat')
-                      return
-                    }
-                    
-                    // Close any active SSE connections
-                    const chatStore = useChatStore.getState()
-                    if (chatStore.sseConnection) {
-                      chatStore.sseConnection.close()
-                      chatStore.setSSEConnection(null)
-                    }
-                    
-                    // Clear only the active session, keep sessions for sidebar
-                    chatStore.setActiveSession(null)
-                    setInputValue('')
-                    
-                    // Navigate to new chat with agent
-                    router.replace(`/chat?agent=${targetAgentId}`, { scroll: false })
+                    handleNewChat()
                   } else {
                     // Navigate to create agent page
                     router.push('/agents/new')
@@ -703,29 +619,7 @@ function ChatPageContent() {
                 // TODO: Implement session deletion
                 console.log('Delete session:', sessionId)
               }}
-              onCreateSession={() => {
-                // Get agent ID for new chat
-                const targetAgentId = agentId || session?.agentId || sessionAgentId || displayAgent?.id
-                
-                if (!targetAgentId) {
-                  console.error('No agent ID available for new chat')
-                  return
-                }
-                
-                // Close any active SSE connections
-                const chatStore = useChatStore.getState()
-                if (chatStore.sseConnection) {
-                  chatStore.sseConnection.close()
-                  chatStore.setSSEConnection(null)
-                }
-                
-                // Clear only the active session, keep sessions for sidebar
-                chatStore.setActiveSession(null)
-                setInputValue('')
-                
-                // Navigate to new chat with agent
-                router.replace(`/chat?agent=${targetAgentId}`, { scroll: false })
-              }}
+              onCreateSession={handleNewChat}
             />
           ) : (
             <AgentList
@@ -747,8 +641,9 @@ function ChatPageContent() {
           )}
         </Sidebar>
 
-        {/* Main Chat Area */}
-        <div className="flex-1 flex flex-col overflow-hidden relative z-10">
+        {/* Main Chat Area — scoped to just this pane so switching sessions doesn't
+            fade/re-mount the sidebar along with it. */}
+        <PageTransition pageKey={sessionId || agentId || 'new-chat'} className="flex-1 flex flex-col overflow-hidden relative z-10">
           {/* Header */}
           <header className="flex-shrink-0 border-b border-border-subtle bg-surface">
             <div className="max-w-4xl mx-auto px-6 py-4">
@@ -779,13 +674,25 @@ function ChatPageContent() {
             </div>
           </header>
 
-          {/* Pending Confirmations Banner */}
-          {hasActiveConfirmations && (
+          {/* Connection Status Banner — a terminal session's stream ends the same way a
+              dropped one does (see managedStream.ts), so a "reconnect" affordance would be
+              misleading here: there's nothing left to reconnect to. */}
+          {activeSession?.connectionStatus === 'error' && !isTerminalSessionStatus(activeSession.status) && (
             <div className="flex-shrink-0">
-              <PendingConfirmationBanner
-                count={pendingConfirmations.length}
-                onScrollToFirst={handleScrollToFirstConfirmation}
-                onDismiss={() => useConfirmationStore.getState().clearConfirmations()}
+              <ConnectionStatusBanner
+                isVisible={true}
+                onReconnect={() => reconnectToSession(activeSession.sessionId)}
+              />
+            </div>
+          )}
+
+          {/* Pending Interrupts Banner */}
+          {hasActiveInterrupts && (
+            <div className="flex-shrink-0">
+              <PendingInterruptBanner
+                count={pendingInterrupts.length}
+                onScrollToFirst={handleScrollToFirstInterrupt}
+                onDismiss={() => useInterruptStore.getState().clearInterrupts()}
                 isVisible={true}
               />
             </div>
@@ -949,17 +856,17 @@ function ChatPageContent() {
                         )
                       }
 
-                      if (item.type === 'confirmation') {
-                        const confirmation = confirmationsMap.get(item.id)
-                        if (!confirmation) return null
-                        const agentName = confirmation.requestingAgentId
-                          ? resolveAgentName(confirmation.requestingAgentId)
+                      if (item.type === 'interrupt') {
+                        const interrupt = interruptsMap.get(item.id)
+                        if (!interrupt) return null
+                        const agentName = interrupt.requestingAgentId
+                          ? resolveAgentName(interrupt.requestingAgentId)
                           : undefined
                         return (
-                          <div key={item.id} className="mt-6" data-confirmation-status={confirmation.status}>
-                            <ConfirmationRequestCard
-                              confirmation={confirmation}
-                              linkedToolName={confirmation.linkedToolCallId ? `Tool ${confirmation.linkedToolCallId}` : undefined}
+                          <div key={item.id} className="mt-6" data-interrupt-status={interrupt.status}>
+                            <InterruptRequestCard
+                              interrupt={interrupt}
+                              linkedToolName={interrupt.originalToolName}
                               sessionId={activeSession?.sessionId}
                               agentName={agentName}
                             />
@@ -978,6 +885,12 @@ function ChatPageContent() {
                             />
                           </div>
                         )
+                      }
+
+                      if (item.type === 'reasoning') {
+                        const block = streamingMessages[item.id]?.reasoning?.[0]
+                        if (!block) return null
+                        return <ReasoningBlock key={item.id} block={block} />
                       }
 
                       return null
@@ -1009,8 +922,7 @@ function ChatPageContent() {
               }
             />
           </div>
-        </div>
+        </PageTransition>
       </div>
-    </PageTransition>
   )
 }

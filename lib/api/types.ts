@@ -164,7 +164,7 @@ export interface Message extends BaseEntity {
   }
   toolCalls?: ToolCall[]
   reasoning?: ReasoningBlock[]
-  confirmations?: Confirmation[]
+  interrupts?: Interrupt[]
   files?: any[]
   sources?: any[]
   attachments?: MessageAttachment[]
@@ -214,20 +214,20 @@ export interface ReasoningThought {
   timestamp: string
 }
 
-export interface Confirmation {
-  confirmationId: string
+export interface Interrupt {
+  interruptId: string
   prompt: string
-  kind: ConfirmationKind
+  kind: InterruptKind
   options?: string[]
-  response?: ConfirmationResponse
+  response?: InterruptResponse
   timeout?: number
   originalToolCallId?: string
 }
 
-export type ConfirmationKind = 'DECISION' | 'TEXT' | 'UNKNOWN'
+export type InterruptKind = 'DECISION' | 'TEXT' | 'UNKNOWN'
 
-export interface ConfirmationResponse {
-  confirmed: boolean
+export interface InterruptResponse {
+  accepted: boolean
   answer?: string
   timestamp: string
 }
@@ -325,9 +325,9 @@ export interface SendMessageRequest {
   metadata?: Record<string, unknown>
 }
 
-export interface ConfirmationRequest {
-  confirmationId: string
-  confirmed: boolean
+export interface InterruptRequest {
+  interruptId: string
+  accepted: boolean
   answer?: string
 }
 

@@ -2,7 +2,7 @@
  * AGUI Event Handler
  *
  * Processes AGUI events and updates the chat store accordingly.
- * Handles all event types including messages, tool calls, reasoning, and confirmations.
+ * Handles all event types including messages, tool calls, reasoning, and interrupts.
  *
  * Deduplication uses stable entity IDs (runId, messageId, toolCallId) rather than
  * stream-position counters, so it works correctly across both invoke streams (live-only)
@@ -24,8 +24,8 @@ import {
   isToolCallArgsEvent,
   isToolCallEndEvent,
   isToolCallResultEvent,
-  isConfirmationRequestedEvent,
-  isConfirmedEvent,
+  isInterruptRequestedEvent,
+  isResumedEvent,
   isAttachmentEvent,
   isReasoningStartEvent,
   isReasoningMessageStartEvent,
@@ -37,7 +37,7 @@ import {
 } from './events'
 
 import { useChatStore } from '../store/chat'
-import { useConfirmationStore } from '../stores/confirmationStore'
+import { useInterruptStore } from '../stores/interruptStore'
 
 export class AGUIEventHandler {
   // Per-session sets of already-processed entity IDs (runId / messageId / toolCallId).
@@ -48,6 +48,10 @@ export class AGUIEventHandler {
   private processedToolCallIds: Map<string, Set<string>> = new Map()
   // Maps runId → agentId so every event in a run can be attributed to the right agent.
   private runAgentIds: Map<string, string> = new Map()
+  // The currently-open outer reasoning block id per session. REASONING_MESSAGE_START carries
+  // no link to its parent block on the wire — the protocol relies on stream order instead
+  // (a REASONING_START always immediately precedes its child REASONING_MESSAGE_START events).
+  private openReasoningBlockId: Map<string, string> = new Map()
 
   private getChatStore() {
     return useChatStore.getState()
@@ -58,6 +62,7 @@ export class AGUIEventHandler {
     this.processedRunIds.delete(sessionId)
     this.processedMessageIds.delete(sessionId)
     this.processedToolCallIds.delete(sessionId)
+    this.openReasoningBlockId.delete(sessionId)
     // Clear run→agent mappings for this session's runs
     // (we can't easily scope by session, so we clear all — safe since streams are per-session)
     this.runAgentIds.clear()
@@ -87,7 +92,11 @@ export class AGUIEventHandler {
     return false
   }
 
-  /** Entry point for fetch-based invoke SSE streams (live-only, no dedup needed). */
+  /**
+   * Entry point for fetch-based invoke SSE streams. Runs through the same dedup gates as
+   * {@link handleSSEMessage} — harmless on an already-unique live stream, and load-bearing
+   * when a dropped invoke stream falls back to a GET stream reconnect mid-conversation.
+   */
   handleEvent(rawData: string, sessionId: string): void {
     const aguiEvent = parseAGUIEvent(rawData)
     if (!aguiEvent) return
@@ -166,13 +175,12 @@ export class AGUIEventHandler {
         isStreaming: true,
         connectionStatus: 'connected',
         lastActivity: new Date().toISOString(),
-        lastProcessedEventIndex: -1,
         toolCalls: {},
-        confirmations: {},
+        interrupts: {},
         corrections: {},
         activePlan: null,
         timeline: [],
-      })
+      } as any)
     } else {
       chatStore.updateSession(sessionId, {
         isStreaming: true,
@@ -208,34 +216,21 @@ export class AGUIEventHandler {
     if (!isRunErrorEvent(event)) return
 
     const chatStore = this.getChatStore()
-    
-    // Parse the error message from the JSON string
-    let errorMessage = 'An error occurred'
-    try {
-      const errorData = JSON.parse(event.error)
-      if (errorData.error && errorData.error.message) {
-        errorMessage = errorData.error.message
-      }
-    } catch {
-      // If parsing fails, use the raw error string
-      errorMessage = event.error
-    }
+    const errorMessage = event.message || 'An error occurred'
 
     // Add error message as a special assistant message
     const now = new Date().toISOString()
-    const errorMessageId = `error-${event.runId || Date.now()}`
-    
+    const errorMessageId = `error-${Date.now()}`
+
     chatStore.addMessage(sessionId, {
       id: errorMessageId,
       messageId: errorMessageId,
       sessionId,
       role: 'assistant',
       content: `❌ **Error**: ${errorMessage}`,
-      timestamp: now,
       createdTime: now,
       updatedTime: now,
-      isError: true, // Special flag to indicate this is an error message
-    })
+    } as any)
 
     // Update session to indicate error state
     chatStore.updateSession(sessionId, {
@@ -314,10 +309,9 @@ export class AGUIEventHandler {
         sessionId,
         role: streamingMessage.role,
         content: finalContent,
-        timestamp: eventTime,
         createdTime: eventTime,
         updatedTime: new Date().toISOString(),
-        toolCalls: streamingMessage.toolCalls,
+        toolCalls: streamingMessage.toolCalls as any,
         metadata: agentId ? { agentId } : undefined,
         attachments: pendingAttachments.length > 0 ? pendingAttachments : undefined,
       })
@@ -416,9 +410,6 @@ export class AGUIEventHandler {
 
     chatStore.completeToolCall(sessionId, event.toolCallId, {
       content: event.content,
-      success: event.success,
-      error: event.error,
-      duration: event.duration,
     })
 
     if (toolCall) {
@@ -433,38 +424,27 @@ export class AGUIEventHandler {
   private handleReasoningStart(event: any, sessionId: string): void {
     if (!isReasoningStartEvent(event)) return
 
+    this.openReasoningBlockId.set(sessionId, event.messageId)
     this.getChatStore().addReasoningBlock(event.messageId, event.messageId)
+    this.getChatStore().addTimelineItem(sessionId, { type: 'reasoning', id: event.messageId })
   }
 
   private handleReasoningMessageStart(event: any, sessionId: string): void {
     if (!isReasoningMessageStartEvent(event)) return
 
+    const blockId = this.openReasoningBlockId.get(sessionId)
+    if (!blockId) return
     // A new inner thought begins — seed an empty thought entry via appendToReasoningBlock
-    this.getChatStore().appendToReasoningBlock(
-      event.parentMessageId,
-      event.parentMessageId,
-      event.messageId,
-      ''
-    )
+    this.getChatStore().appendToReasoningBlock(blockId, blockId, event.messageId, '')
   }
 
   private handleReasoningMessageContent(event: any, sessionId: string): void {
     if (!isReasoningMessageContentEvent(event)) return
+    if (!event.delta) return
 
-    // Append the content delta to the matching thought in the parent block.
-    // We don't have the parent block ID here, so we search all blocks.
-    const chatStore = this.getChatStore()
-    const streamingMessages = chatStore.streamingMessages
-    for (const [msgId, msg] of Object.entries(streamingMessages)) {
-      if (!(msg as any).reasoning) continue
-      const block = (msg as any).reasoning.find((b: any) =>
-        b.thoughts.some((t: any) => t.thoughtId === event.messageId)
-      )
-      if (block) {
-        chatStore.appendToReasoningBlock(msgId, block.blockId, event.messageId, event.delta)
-        break
-      }
-    }
+    const blockId = this.openReasoningBlockId.get(sessionId)
+    if (!blockId) return
+    this.getChatStore().appendToReasoningBlock(blockId, blockId, event.messageId, event.delta)
   }
 
   private handleReasoningMessageEnd(event: any, sessionId: string): void {
@@ -476,15 +456,16 @@ export class AGUIEventHandler {
     if (!isReasoningEndEvent(event)) return
 
     this.getChatStore().completeReasoningBlock(event.messageId, event.messageId)
+    this.openReasoningBlockId.delete(sessionId)
   }
 
   private handleCustomEvent(event: any, sessionId: string): void {
     const chatStore = this.getChatStore()
-    const confirmationStore = useConfirmationStore.getState()
+    const interruptStore = useInterruptStore.getState()
 
-    if (isConfirmationRequestedEvent(event)) {
-      confirmationStore.addConfirmation({
-        id: event.value.confirmationId,
+    if (isInterruptRequestedEvent(event)) {
+      interruptStore.addInterrupt({
+        id: event.value.interruptId,
         sessionId,
         type: event.value.kind,
         prompt: event.value.prompt,
@@ -495,21 +476,22 @@ export class AGUIEventHandler {
           value: opt,
         })),
         linkedToolCallId: event.value.originalToolCallId,
-        requestingAgentId: (event.rawEvent as any)?.author as string | undefined,
+        originalToolName: event.value.originalToolName,
+        requestingAgentId: (event.rawEvent as any)?.agentId || (event.rawEvent as any)?.author || (event.runId ? this.runAgentIds.get(event.runId) : chatStore.sessions[sessionId]?.agentId),
         createdAt: new Date().toISOString(),
       })
       // Insert confirmation after its linked tool call if one exists; otherwise append in arrival order.
       chatStore.addTimelineItem(
         sessionId,
-        { type: 'confirmation', id: event.value.confirmationId, linkedId: event.value.originalToolCallId },
+        { type: 'interrupt', id: event.value.interruptId, linkedId: event.value.originalToolCallId },
         event.value.originalToolCallId
       )
-    } else if (isConfirmedEvent(event)) {
-      // Update regardless — if already resolved this is a no-op since updateConfirmation
+    } else if (isResumedEvent(event)) {
+      // Update regardless — if already resolved this is a no-op since updateInterrupt
       // only decrements pendingCount when transitioning from pending.
-      confirmationStore.updateConfirmation(
-        event.value.confirmationId,
-        event.value.confirmed ? 'confirmed' : 'rejected',
+      interruptStore.updateInterrupt(
+        event.value.interruptId,
+        event.value.accepted ? 'resolved' : 'rejected',
         event.value.answer
       )
     } else if (isAttachmentEvent(event)) {

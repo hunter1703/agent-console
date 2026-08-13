@@ -47,8 +47,7 @@ export interface RunFinishedEvent extends BaseAGUIEvent {
 
 export interface RunErrorEvent extends BaseAGUIEvent {
   type: 'RUN_ERROR'
-  runId: string
-  error: string
+  message: string
   code?: string
 }
 
@@ -120,11 +119,10 @@ export interface ToolCallEndEvent extends BaseAGUIEvent {
 
 export interface ToolCallResultEvent extends BaseAGUIEvent {
   type: 'TOOL_CALL_RESULT'
+  messageId: string
   toolCallId: string
   content: string
-  success: boolean
-  error?: string
-  duration?: number
+  role?: string
 }
 
 // ============================================================================
@@ -139,9 +137,8 @@ export interface ReasoningStartEvent extends BaseAGUIEvent {
 
 export interface ReasoningMessageStartEvent extends BaseAGUIEvent {
   type: 'REASONING_MESSAGE_START'
-  messageId: string // Inner thought message ID
-  parentMessageId: string // Outer reasoning block ID
-  role: 'assistant'
+  messageId: string // Inner thought message ID — the wire event carries no link to its
+  // outer reasoning block; the client must track "currently open reasoning block" itself.
 }
 
 export interface ReasoningMessageContentEvent extends BaseAGUIEvent {
@@ -173,24 +170,26 @@ export interface CustomEvent extends BaseAGUIEvent {
   [key: string]: unknown
 }
 
-export interface ConfirmationRequestedEvent extends CustomEvent {
-  name: 'confirmation_requested'
+export interface InterruptRequestedEvent extends CustomEvent {
+  name: 'interrupt_requested'
   value: {
-    confirmationId: string
+    interruptId: string
     prompt: string
     originalToolCallId?: string
+    originalToolName?: string
     options?: string[]
     kind: 'DECISION' | 'TEXT'
     timeout?: number
   }
 }
 
-export interface ConfirmedEvent extends CustomEvent {
-  name: 'confirmed'
+export interface ResumedEvent extends CustomEvent {
+  name: 'resumed'
   value: {
-    confirmationId: string
-    confirmed: boolean
+    interruptId: string
+    accepted: boolean
     answer?: string
+    originalToolName?: string
   }
 }
 
@@ -241,8 +240,8 @@ export type AGUIEvent =
   | ReasoningMessageContentEvent
   | ReasoningMessageEndEvent
   | ReasoningEndEvent
-  | ConfirmationRequestedEvent
-  | ConfirmedEvent
+  | InterruptRequestedEvent
+  | ResumedEvent
   | CorrectionEvent
   | AttachmentEvent
   | CustomEvent
@@ -307,12 +306,12 @@ export function isToolCallResultEvent(event: AGUIEvent): event is ToolCallResult
   return event.type === 'TOOL_CALL_RESULT'
 }
 
-export function isConfirmationRequestedEvent(event: AGUIEvent): event is ConfirmationRequestedEvent {
-  return event.type === 'CUSTOM' && (event as CustomEvent).name === 'confirmation_requested'
+export function isInterruptRequestedEvent(event: AGUIEvent): event is InterruptRequestedEvent {
+  return event.type === 'CUSTOM' && (event as CustomEvent).name === 'interrupt_requested'
 }
 
-export function isConfirmedEvent(event: AGUIEvent): event is ConfirmedEvent {
-  return event.type === 'CUSTOM' && (event as CustomEvent).name === 'confirmed'
+export function isResumedEvent(event: AGUIEvent): event is ResumedEvent {
+  return event.type === 'CUSTOM' && (event as CustomEvent).name === 'resumed'
 }
 
 export function isAttachmentEvent(event: AGUIEvent): event is AttachmentEvent {

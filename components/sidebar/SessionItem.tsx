@@ -128,15 +128,28 @@ const SessionItemComponent = function SessionItem({
           <div className="absolute left-0 top-1.5 bottom-1.5 w-0.5 bg-primary rounded-full z-10" />
         )}
 
-        {/* Visual layer: receives hover animation */}
+        {/* Visual layer: receives hover animation. role="button" rather than a native
+            <button> because it wraps real <button> children (expand/delete) below —
+            buttons can't nest, so keyboard/AT semantics are added explicitly instead. */}
         <motion.div
           onClick={onClick}
+          onKeyDown={(e) => {
+            if (e.key === 'Enter' || e.key === ' ') {
+              e.preventDefault()
+              onClick?.()
+            }
+          }}
+          role="button"
+          tabIndex={0}
+          aria-label={`Open chat: ${sessionTitle}`}
+          aria-current={isActive ? 'true' : undefined}
           whileHover={shouldAnimate ? { x: 2 } : undefined}
           transition={springPresets.snappy}
           data-testid="recent-session"
           className={cn(
             'relative cursor-pointer py-3 rounded-lg',
             'transition-colors duration-150',
+            'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/60',
             isActive ? 'bg-primary/8 pl-2' : 'hover:bg-surface-hover',
           )}
           style={{

@@ -128,29 +128,29 @@ export async function invokeAgent(
 }
 
 /**
- * Submit confirmation — AG-UI Resume payload.
+ * Submit interrupt — AG-UI Resume payload.
  */
-export interface ConfirmationRequest {
+export interface InterruptRequest {
   confirmed: boolean;
   answer?: string;
 }
 
-export async function submitConfirmation(
+export async function submitInterrupt(
   sessionId: string,
-  confirmationId: string,
-  request: ConfirmationRequest
+  interruptId: string,
+  request: InterruptRequest
 ): Promise<void> {
   // Check if should save to backend (respects temporary mode)
   if (!useShouldSaveToBackend(sessionId)) {
-    console.log('Skipping confirmation submission - temporary mode enabled');
+    console.log('Skipping interrupt submission - temporary mode enabled');
     return;
   }
 
   return post<void>(
     `/v1/session/${sessionId}/confirm`,
     {
-      interruptId: confirmationId,
-      status: 'resolved',
+      interruptId: interruptId,
+      status: 'RESOLVED',
       payload: {
         confirmed: request.confirmed,
         answer: request.answer,

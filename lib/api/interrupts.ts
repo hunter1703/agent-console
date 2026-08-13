@@ -1,42 +1,42 @@
 /**
- * Confirmation API Integration
+ * Interrupt API Integration
  *
- * All confirmation responses are sent as a single AG-UI Resume payload to:
- *   POST /v1/session/{sessionId}/confirm
+ * All interrupt responses are sent as a single AG-UI Resume payload to:
+ *   POST /v1/session/{sessionId}/resume
  *
  * Resume shape:
  *   {
- *     interruptId: string,        // the confirmation/interrupt ID
- *     status: "resolved" | "cancelled",
- *     payload: {                  // present when status = "resolved"
- *       confirmed?: boolean,      // binary DECISION: true = Approve, false = Decline
+ *     interruptId: string,        // the interrupt ID
+ *     status: "RESOLVED" | "CANCELLED",
+ *     payload: {                  // present when status = "RESOLVED"
+ *       accepted?: boolean,       // binary DECISION: true = Approve, false = Decline
  *       answer?: string,          // TEXT or multi-choice DECISION: the user's answer
  *     }
  *   }
  *
  * Kind-specific rules:
  *   TEXT kind:
- *     - status = "resolved", payload.answer = user's text
+ *     - status = "RESOLVED", payload.answer = user's text
  *
  *   DECISION kind with options (multiple-choice):
- *     - status = "resolved", payload.answer = selected option value or custom text
+ *     - status = "RESOLVED", payload.answer = selected option value or custom text
  *
  *   DECISION kind without options (binary yes/no):
- *     - status = "resolved", payload.confirmed = true | false
+ *     - status = "RESOLVED", payload.accepted = true | false
  *
  * Resolution rule:
  *   Resolve the widget only when the backend returns 2xx (202 Accepted).
  *   Any other status code = do not resolve, show error.
  */
 
-import type { ConfirmationType } from '@/types/confirmation'
+import type { InterruptType } from '@/types/interrupt'
 
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8080'
 
-export type ConfirmationKind = ConfirmationType // 'DECISION' | 'TEXT'
+export type InterruptKind = InterruptType // 'DECISION' | 'TEXT'
 
-export interface ConfirmationPayload {
-  kind: ConfirmationKind
+export interface InterruptPayload {
+  kind: InterruptKind
   /** Present for DECISION with options, or TEXT. Absent for binary DECISION. */
   options?: string[]
   /** The user's answer — text input or selected option value */
@@ -46,15 +46,15 @@ export interface ConfirmationPayload {
 }
 
 /**
- * POST /v1/session/{sessionId}/confirm
+ * POST /v1/session/{sessionId}/resume
  *
- * Builds a Resume payload based on confirmation kind and resolves on 202.
+ * Builds a Resume payload based on interrupt kind and resolves on 202.
  * Throws on non-2xx.
  */
-export async function submitConfirmationResponse(
+export async function submitInterruptResponse(
   sessionId: string,
-  confirmationId: string,
-  payload: ConfirmationPayload,
+  interruptId: string,
+  payload: InterruptPayload,
 ): Promise<void> {
   const resumePayload: Record<string, unknown> = {}
 
@@ -64,17 +64,17 @@ export async function submitConfirmationResponse(
     resumePayload.answer = payload.answer
   } else {
     // Binary DECISION (no options)
-    resumePayload.confirmed = payload.approved
+    resumePayload.accepted = payload.approved
   }
 
   const body = {
-    interruptId: confirmationId,
-    status: 'resolved',
+    interruptId: interruptId,
+    status: 'RESOLVED',
     payload: resumePayload,
   }
 
   const response = await fetch(
-    `${API_BASE_URL}/v1/session/${sessionId}/confirm`,
+    `${API_BASE_URL}/v1/session/${sessionId}/resume`,
     {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -85,7 +85,7 @@ export async function submitConfirmationResponse(
   if (!response.ok) {
     const errorText = await response.text().catch(() => '')
     throw new Error(
-      `Confirmation failed: HTTP ${response.status}${errorText ? ` — ${errorText}` : ''}`,
+      `Interrupt response failed: HTTP ${response.status}${errorText ? ` — ${errorText}` : ''}`,
     )
   }
   // 2xx → success, widget can be resolved by caller

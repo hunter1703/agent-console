@@ -26,7 +26,7 @@ export function useMemoizedMessageChain(
  * Memoized timeline building
  */
 export interface TimelineItem {
-  type: 'message' | 'tool' | 'plan' | 'confirmation';
+  type: 'message' | 'tool' | 'plan' | 'interrupt';
   id: string;
   timestamp: number;
   data: any;
@@ -36,7 +36,7 @@ export function useMemoizedTimeline(
   messages: Message[],
   toolCalls: Record<string, ToolCall>,
   plans: Record<string, Plan>,
-  confirmations: Record<string, any>
+  interrupts: Record<string, any>
 ): TimelineItem[] {
   return useMemo(() => {
     const items: TimelineItem[] = [];
@@ -71,11 +71,11 @@ export function useMemoizedTimeline(
       });
     });
 
-    // Add confirmations
-    Object.values(confirmations).forEach((conf) => {
+    // Add interrupts
+    Object.values(interrupts).forEach((conf) => {
       items.push({
-        type: 'confirmation',
-        id: conf.confirmationId,
+        type: 'interrupt',
+        id: conf.interruptId,
         timestamp: Date.now(),
         data: conf,
       });
@@ -83,7 +83,7 @@ export function useMemoizedTimeline(
 
     // Sort by timestamp
     return items.sort((a, b) => a.timestamp - b.timestamp);
-  }, [messages, toolCalls, plans, confirmations]);
+  }, [messages, toolCalls, plans, interrupts]);
 }
 
 /**
