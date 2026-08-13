@@ -169,31 +169,38 @@ export interface ReasoningEndEvent extends BaseAGUIEvent {
 export interface CustomEvent extends BaseAGUIEvent {
   type: 'CUSTOM'
   name: string
+  value?: unknown
   [key: string]: unknown
 }
 
 export interface ConfirmationRequestedEvent extends CustomEvent {
   name: 'confirmation_requested'
-  confirmationId: string
-  prompt: string
-  originalToolCallId?: string
-  options?: string[]
-  kind: 'DECISION' | 'TEXT'
-  timeout?: number
+  value: {
+    confirmationId: string
+    prompt: string
+    originalToolCallId?: string
+    options?: string[]
+    kind: 'DECISION' | 'TEXT'
+    timeout?: number
+  }
 }
 
 export interface ConfirmedEvent extends CustomEvent {
   name: 'confirmed'
-  confirmationId: string
-  confirmed: boolean
-  answer?: string
+  value: {
+    confirmationId: string
+    confirmed: boolean
+    answer?: string
+  }
 }
 
 export interface CorrectionEvent extends CustomEvent {
   name: 'correction'
-  correctionType: string
-  code: string
-  message: string
+  value: {
+    correctionType?: string
+    code?: string
+    message: string
+  }
 }
 
 export interface AttachmentFileDetails {
@@ -206,8 +213,10 @@ export interface AttachmentFileDetails {
 
 export interface AttachmentEvent extends CustomEvent {
   name: 'attachment'
-  parentMessageId: string
-  fileDetails: AttachmentFileDetails
+  value: {
+    parentMessageId: string
+    fileDetails: AttachmentFileDetails
+  }
 }
 
 // ============================================================================

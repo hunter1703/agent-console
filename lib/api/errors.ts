@@ -6,10 +6,10 @@
  */
 
 // Re-export error classes from client
-export { ApiClientError, NetworkError, TimeoutError } from './client'
+export { APIError } from './client'
 
 // Import for local use
-import { ApiClientError, NetworkError, TimeoutError } from './client'
+import { APIError } from './client'
 
 // ============================================================================
 // Error Types
@@ -42,10 +42,10 @@ export interface FormErrors {
  * Check if error is retryable
  */
 export function isRetryableError(error: unknown): boolean {
-  if (error instanceof NetworkError) return true
-  if (error instanceof TimeoutError) return true
+  if (error instanceof Error && error.name === 'TypeError') return true // Network error
   
-  if (error instanceof ApiClientError) {
+  if (error instanceof APIError) {
+    if (error.status === 408) return true // Timeout
     // Server errors (5xx) are retryable
     return error.status ? error.status >= 500 : false
   }
@@ -57,14 +57,14 @@ export function isRetryableError(error: unknown): boolean {
  * Check if error is a validation error
  */
 export function isValidationError(error: unknown): boolean {
-  return error instanceof ApiClientError && error.status === 400
+  return error instanceof APIError && error.status === 400
 }
 
 /**
  * Check if error is an authentication error
  */
 export function isAuthError(error: unknown): boolean {
-  return error instanceof ApiClientError && 
+  return error instanceof APIError && 
     (error.status === 401 || error.status === 403)
 }
 
@@ -72,14 +72,14 @@ export function isAuthError(error: unknown): boolean {
  * Check if error is a not found error
  */
 export function isNotFoundError(error: unknown): boolean {
-  return error instanceof ApiClientError && error.status === 404
+  return error instanceof APIError && error.status === 404
 }
 
 /**
  * Check if error is a server error
  */
 export function isServerError(error: unknown): boolean {
-  return error instanceof ApiClientError && 
+  return error instanceof APIError && 
     error.status ? error.status >= 500 : false
 }
 
@@ -92,7 +92,7 @@ export function isServerError(error: unknown): boolean {
  */
 export function getErrorMessage(error: unknown): UserFriendlyError {
   // Network errors
-  if (error instanceof NetworkError) {
+  if (error instanceof Error && error.name === 'TypeError') {
     return {
       title: 'Connection Error',
       message: 'Unable to connect to the server. Please check your internet connection.',
@@ -102,19 +102,18 @@ export function getErrorMessage(error: unknown): UserFriendlyError {
     }
   }
 
-  // Timeout errors
-  if (error instanceof TimeoutError) {
-    return {
-      title: 'Request Timeout',
-      message: 'The request took too long to complete. Please try again.',
-      action: 'Retry',
-      retryable: true,
-      severity: 'warning'
-    }
-  }
-
   // API client errors
-  if (error instanceof ApiClientError) {
+  if (error instanceof APIError) {
+    if (error.status === 408) {
+      return {
+        title: 'Request Timeout',
+        message: 'The request took too long to complete. Please try again.',
+        action: 'Retry',
+        retryable: true,
+        severity: 'warning'
+      }
+    }
+
     switch (error.status) {
       case 400:
         return {
@@ -223,7 +222,7 @@ export function getErrorMessage(error: unknown): UserFriendlyError {
  * Parse validation errors from API response
  */
 export function parseValidationErrors(error: unknown): FormErrors {
-  if (!(error instanceof ApiClientError) || !error.details) {
+  if (!(error instanceof APIError) || !error.details) {
     return {
       general: getErrorMessage(error).message,
       fields: {}

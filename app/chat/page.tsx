@@ -447,13 +447,6 @@ function ChatPageContent() {
         const { invokeAgentStream } = await import('@/lib/api/services')
         const eventHandler = getAGUIEventHandler()
 
-        // Build parts array
-        const parts: Array<{ type: 'text' | 'image' | 'file'; text?: string; base64?: string; mimeType?: string; fileDetails?: any }> = []
-        if (message.trim()) parts.push({ type: 'text', text: message.trim() })
-        if (attachments) {
-          attachments.forEach(a => parts.push({ type: 'file', fileDetails: a.fileDetails }))
-        }
-
         // Close any existing GET EventSource — the invoke stream replaces it for this turn.
         if (chatStore.sseConnection) {
           chatStore.sseConnection.close()
@@ -464,8 +457,9 @@ function ChatPageContent() {
           await invokeAgentStream(
             targetAgentId,
             {
-              parts,
-              sessionId: currentSessionId.startsWith('session-') ? undefined : currentSessionId,
+              threadId: currentSessionId.startsWith('session-') ? undefined : currentSessionId,
+              text: message.trim() || undefined,
+              files: attachments?.map(a => a.fileDetails),
             },
             {
               onSessionId: (backendSessionId) => {

@@ -73,7 +73,7 @@ export async function deleteSession(sessionId: string): Promise<void> {
     return;
   }
   
-  return del<void>(`/v1/sessions/${sessionId}`);
+  return del<void>(`/v1/session/${sessionId}`);
 }
 
 /**
@@ -128,11 +128,11 @@ export async function invokeAgent(
 }
 
 /**
- * Submit confirmation
+ * Submit confirmation — AG-UI Resume payload.
  */
 export interface ConfirmationRequest {
   confirmed: boolean;
-  message?: string;
+  answer?: string;
 }
 
 export async function submitConfirmation(
@@ -145,9 +145,16 @@ export async function submitConfirmation(
     console.log('Skipping confirmation submission - temporary mode enabled');
     return;
   }
-  
+
   return post<void>(
-    `/v1/sessions/${sessionId}/confirmations/${confirmationId}`,
-    request
+    `/v1/session/${sessionId}/confirm`,
+    {
+      interruptId: confirmationId,
+      status: 'resolved',
+      payload: {
+        confirmed: request.confirmed,
+        answer: request.answer,
+      },
+    }
   );
 }

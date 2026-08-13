@@ -201,7 +201,7 @@ describe('APIClient', () => {
 
         await client.deleteSession('session-1')
         expect(mockFetch).toHaveBeenCalledWith(
-          'http://localhost:8080/v1/agent/session/session-1',
+          'http://localhost:8080/v1/session/session-1',
           expect.objectContaining({ method: 'DELETE' })
         )
       })

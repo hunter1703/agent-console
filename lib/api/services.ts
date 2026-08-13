@@ -50,14 +50,23 @@ export interface Message {
 }
 
 export interface InvokeRequest {
-  sessionId?: string;
-  parts: Array<{
-    type: 'text' | 'image' | 'file';
-    text?: string;
-    base64?: string;
-    mimeType?: string;
-    fileDetails?: FileDetails;
-  }>;
+  /**
+   * The conversation thread ID. Pass the existing backend session ID when
+   * continuing a session. Omit (or leave undefined) for the first message —
+   * the backend will create the session and return its ID via the RUN_STARTED
+   * event's threadId field.
+   */
+  threadId?: string;
+  /**
+   * File attachments previously uploaded via POST /v1/storage/upload.
+   * Each is sent as a Context entry so the backend can resolve them separately
+   * from the text message.
+   */
+  files?: FileDetails[];
+  /**
+   * The user's text message. May be empty when the user sends files only.
+   */
+  text?: string;
   options?: {
     temperature?: number
     maxTokens?: number
@@ -449,7 +458,23 @@ export async function deleteSession(
   sessionId: string,
   options?: RequestOptions
 ): Promise<void> {
-  return apiClient.delete<void>(`/v1/agent/session/${sessionId}`, options)
+  return apiClient.delete<void>(`/v1/session/${sessionId}`, options)
+}
+
+/**
+ * Roll back a session to before the given run.
+ * POST /v1/session/{sessionId}/rollback?runId={runId}
+ */
+export async function rollbackSession(
+  sessionId: string,
+  runId: string,
+  options?: RequestOptions
+): Promise<void> {
+  return apiClient.post<void>(
+    `/v1/session/${sessionId}/rollback?runId=${encodeURIComponent(runId)}`,
+    undefined,
+    options
+  )
 }
 
 // ============================================================================
@@ -503,6 +528,12 @@ export interface InvokeStreamCallbacks {
  * Invoke an agent and stream the resulting AG-UI events.
  *
  * POST /v1/agent/{agentId}/invoke returns an SSE stream directly (live-only).
+ * The request body follows the AG-UI RunAgentInput spec:
+ *   - threadId   = existing session ID, or a temporary client ID for new sessions
+ *   - runId      = fresh UUID for this specific invocation
+ *   - messages   = [{ id, role: "user", content: text }] when text is provided
+ *   - context    = [{ description, value: JSON(FileDetails) }] per file attachment
+ *
  * The real sessionId is extracted from the first RUN_STARTED event's threadId
  * and delivered via onSessionId before any onEvent calls are made, so callers
  * can migrate temp sessions before processing events.
@@ -515,8 +546,28 @@ export async function invokeAgentStream(
   const { createAGUIStream } = await import('@/lib/sse/streaming')
   const baseUrl = process.env.NEXT_PUBLIC_API_BASE_URL || 'http://localhost:8080'
 
-  const body: Record<string, unknown> = { message: { parts: request.parts } }
-  if (request.sessionId) body.sessionId = request.sessionId
+  // Build messages[] — only include a UserMessage when there is text.
+  const messages: Array<{ id: string; role: 'user'; content: string }> = []
+  if (request.text?.trim()) {
+    messages.push({
+      id: crypto.randomUUID(),
+      role: 'user',
+      content: request.text.trim(),
+    })
+  }
+
+  // Build context[] — one entry per file attachment.
+  const context: Array<{ description: string; value: string }> =
+    (request.files ?? []).map((fd) => ({
+      description: fd.name,
+      value: JSON.stringify(fd),
+    }))
+
+  const body: Record<string, unknown> = {
+    messages,
+    context,
+  }
+  if (request.threadId) body.threadId = request.threadId
 
   const response = await fetch(`${baseUrl}/v1/agent/${agentId}/invoke`, {
     method: 'POST',
@@ -548,7 +599,7 @@ export async function invokeAgentStream(
       callbacks.onSessionId(resolvedSessionId)
     }
 
-    const sid = resolvedSessionId ?? (request.sessionId ?? '')
+    const sid = resolvedSessionId ?? (request.threadId ?? '')
     callbacks.onEvent(JSON.stringify(event), sid)
   }
 }
@@ -608,43 +659,51 @@ export function openSessionStream(
 }
 
 /**
- * Confirm a tool execution
- * New API: POST /v1/session/{sessionId}/confirm/{confirmationId} → { confirmed: true }
+ * Confirm a tool execution.
+ * POST /v1/session/{sessionId}/confirm — AG-UI Resume payload.
  */
 export async function confirmToolExecution(
   sessionId: string,
   confirmationId: string,
   request: ConfirmToolRequest,
   options?: RequestOptions
-): Promise<{ confirmed: boolean }> {
-  return apiClient.post<{ confirmed: boolean }>(
-    `/v1/session/${sessionId}/confirm/${confirmationId}`,
+): Promise<void> {
+  return apiClient.post<void>(
+    `/v1/session/${sessionId}/confirm`,
     {
-      confirmed: request.approved,
-      message: request.reason,
+      interruptId: confirmationId,
+      status: 'resolved',
+      payload: {
+        confirmed: request.approved,
+        answer: request.reason,
+      },
     },
     options
   )
 }
 
 /**
- * Submit a confirmation response
- * New API: POST /v1/session/{sessionId}/confirm/{confirmationId} → { confirmed: true }
+ * Submit a confirmation response.
+ * POST /v1/session/{sessionId}/confirm — AG-UI Resume payload.
  */
 export async function submitConfirmation(
   sessionId: string,
   confirmationId: string,
   request: {
     confirmed: boolean
-    message?: string
+    answer?: string
   },
   options?: RequestOptions
-): Promise<{ confirmed: boolean }> {
-  return apiClient.post<{ confirmed: boolean }>(
-    `/v1/session/${sessionId}/confirm/${confirmationId}`,
+): Promise<void> {
+  return apiClient.post<void>(
+    `/v1/session/${sessionId}/confirm`,
     {
-      confirmed: request.confirmed,
-      message: request.message,
+      interruptId: confirmationId,
+      status: 'resolved',
+      payload: {
+        confirmed: request.confirmed,
+        answer: request.answer,
+      },
     },
     options
   )

@@ -1,18 +1,28 @@
 /**
  * Confirmation API Integration
  *
- * Payload rules (per backend spec):
+ * All confirmation responses are sent as a single AG-UI Resume payload to:
+ *   POST /v1/session/{sessionId}/confirm
+ *
+ * Resume shape:
+ *   {
+ *     interruptId: string,        // the confirmation/interrupt ID
+ *     status: "resolved" | "cancelled",
+ *     payload: {                  // present when status = "resolved"
+ *       confirmed?: boolean,      // binary DECISION: true = Approve, false = Decline
+ *       answer?: string,          // TEXT or multi-choice DECISION: the user's answer
+ *     }
+ *   }
+ *
+ * Kind-specific rules:
  *   TEXT kind:
- *     - message = user's text (required, non-blank enforced in UI)
- *     - confirmed = omitted
+ *     - status = "resolved", payload.answer = user's text
  *
  *   DECISION kind with options (multiple-choice):
- *     - message = selected option value or custom answer text
- *     - confirmed = omitted
+ *     - status = "resolved", payload.answer = selected option value or custom text
  *
  *   DECISION kind without options (binary yes/no):
- *     - confirmed = true (Approve) | false (Decline)
- *     - message = omitted
+ *     - status = "resolved", payload.confirmed = true | false
  *
  * Resolution rule:
  *   Resolve the widget only when the backend returns 2xx (202 Accepted).
@@ -28,7 +38,7 @@ export type ConfirmationKind = ConfirmationType // 'DECISION' | 'TEXT'
 export interface ConfirmationPayload {
   kind: ConfirmationKind
   /** Present for DECISION with options, or TEXT. Absent for binary DECISION. */
-  options?: string[] // whether options were provided (determines binary vs choice)
+  options?: string[]
   /** The user's answer — text input or selected option value */
   answer?: string
   /** Only for binary DECISION: true = Approve, false = Decline */
@@ -36,9 +46,9 @@ export interface ConfirmationPayload {
 }
 
 /**
- * POST /v1/session/{sessionId}/confirm/{confirmationId}
+ * POST /v1/session/{sessionId}/confirm
  *
- * Builds the correct payload based on confirmation kind and resolves on 202.
+ * Builds a Resume payload based on confirmation kind and resolves on 202.
  * Throws on non-2xx.
  */
 export async function submitConfirmationResponse(
@@ -46,21 +56,25 @@ export async function submitConfirmationResponse(
   confirmationId: string,
   payload: ConfirmationPayload,
 ): Promise<void> {
-  const body: Record<string, unknown> = {}
+  const resumePayload: Record<string, unknown> = {}
 
   if (payload.kind === 'TEXT') {
-    // TEXT: send message only
-    body.message = payload.answer
+    resumePayload.answer = payload.answer
   } else if (payload.kind === 'DECISION' && payload.options && payload.options.length > 0) {
-    // DECISION with options: send message (selected/custom answer) only
-    body.message = payload.answer
+    resumePayload.answer = payload.answer
   } else {
-    // Binary DECISION (no options): send confirmed only
-    body.confirmed = payload.approved
+    // Binary DECISION (no options)
+    resumePayload.confirmed = payload.approved
+  }
+
+  const body = {
+    interruptId: confirmationId,
+    status: 'resolved',
+    payload: resumePayload,
   }
 
   const response = await fetch(
-    `${API_BASE_URL}/v1/session/${sessionId}/confirm/${confirmationId}`,
+    `${API_BASE_URL}/v1/session/${sessionId}/confirm`,
     {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },

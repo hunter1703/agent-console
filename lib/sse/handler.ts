@@ -484,61 +484,62 @@ export class AGUIEventHandler {
 
     if (isConfirmationRequestedEvent(event)) {
       confirmationStore.addConfirmation({
-        id: event.confirmationId,
+        id: event.value.confirmationId,
         sessionId,
-        type: event.kind,
-        prompt: event.prompt,
+        type: event.value.kind,
+        prompt: event.value.prompt,
         status: 'pending',
-        options: event.options?.map((opt: string, idx: number) => ({
+        options: event.value.options?.map((opt: string, idx: number) => ({
           id: idx.toString(),
           label: opt,
           value: opt,
         })),
-        linkedToolCallId: event.originalToolCallId,
+        linkedToolCallId: event.value.originalToolCallId,
         requestingAgentId: (event.rawEvent as any)?.author as string | undefined,
         createdAt: new Date().toISOString(),
       })
       // Insert confirmation after its linked tool call if one exists; otherwise append in arrival order.
       chatStore.addTimelineItem(
         sessionId,
-        { type: 'confirmation', id: event.confirmationId, linkedId: event.originalToolCallId },
-        event.originalToolCallId
+        { type: 'confirmation', id: event.value.confirmationId, linkedId: event.value.originalToolCallId },
+        event.value.originalToolCallId
       )
     } else if (isConfirmedEvent(event)) {
       // Update regardless — if already resolved this is a no-op since updateConfirmation
       // only decrements pendingCount when transitioning from pending.
       confirmationStore.updateConfirmation(
-        event.confirmationId,
-        event.confirmed ? 'confirmed' : 'rejected',
-        event.answer
+        event.value.confirmationId,
+        event.value.confirmed ? 'confirmed' : 'rejected',
+        event.value.answer
       )
     } else if (isAttachmentEvent(event)) {
       // The attachment event may arrive before TEXT_MESSAGE_END commits the message.
       // Try to attach directly; if the message isn't committed yet, stage it as pending
       // so handleTextMessageEnd can pick it up when the message is committed.
       const attachment = {
-        name: event.fileDetails.name,
-        source: event.fileDetails.source,
-        type: event.fileDetails.type,
-        mimeType: event.fileDetails.mimeType,
-        size: event.fileDetails.size,
+        name: event.value.fileDetails.name,
+        source: event.value.fileDetails.source,
+        type: event.value.fileDetails.type,
+        mimeType: event.value.fileDetails.mimeType,
+        size: event.value.fileDetails.size,
       }
       const session = chatStore.sessions[sessionId]
       const alreadyCommitted = session?.messages.some(
-        (m) => (m.messageId || m.id) === event.parentMessageId
+        (m) => (m.messageId || m.id) === event.value.parentMessageId
       )
       if (alreadyCommitted) {
-        chatStore.addAttachmentToMessage(sessionId, event.parentMessageId, attachment)
+        chatStore.addAttachmentToMessage(sessionId, event.value.parentMessageId, attachment)
       } else {
-        chatStore.stagePendingAttachment(event.parentMessageId, attachment)
+        chatStore.stagePendingAttachment(event.value.parentMessageId, attachment)
       }
     } else if (event.name === 'correction') {
       const correctionId = `correction-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`
+      const val = (event as any).value || {}
       chatStore.addCorrectionEvent(sessionId, {
         correctionId,
-        correctionType: event.correctionType || 'violation',
-        code: event.code || 'unknown',
-        message: event.message || 'Correction event received',
+        correctionType: val.correctionType || 'violation',
+        code: val.code || 'unknown',
+        message: val.message || 'Correction event received',
       })
       chatStore.addTimelineItem(sessionId, { type: 'correction', id: correctionId })
     }
