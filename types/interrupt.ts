@@ -22,8 +22,8 @@ export interface InterruptRequest {
   options?: InterruptOption[] // For MULTIPLE_CHOICE
   answer?: string // User's answer
   resolvedAt?: string // ISO timestamp
-  linkedToolCallId?: string // ID of the tool call that triggered this
-  originalToolName?: string // Name of the tool call that triggered this
+  linkedToolCallId?: string // ID of the tool call that triggered this — the backend never sends
+  // a name alongside it, so look it up via the session's toolCalls map when displaying it.
   requestingAgentId?: string // Agent ID that requested this interrupt
   createdAt: string // ISO timestamp
 }

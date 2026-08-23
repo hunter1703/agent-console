@@ -68,9 +68,14 @@ function isTerminalSessionStatus(status: string | undefined): boolean {
 /**
  * (Re)opens a GET session stream for a session that already has state in the store —
  * used both to recover from a dropped invoke stream and for the manual "Reconnect"
- * banner action. Commits any partial streaming text first and resets dedup, since the
- * replay resends each message's full accumulated text as one chunk (which would
- * otherwise get appended onto whatever already streamed in live).
+ * banner action.
+ *
+ * Deliberately leaves existing timeline/message/dedup state alone rather than committing
+ * partial text or resetting anything up front: the replay resends each message's full
+ * accumulated text as one chunk under the same canonical id (see lib/sse/id.ts), and
+ * handleTextMessageStart already reinitializes a message's streaming buffer from scratch
+ * on every START — so replayed content merges in cleanly without needing a pre-emptive
+ * wipe, and without risking freezing truncated text in place (see useSessionStream.ts).
  */
 async function reconnectToSession(sessionId: string): Promise<void> {
   const { openManagedSessionStream } = await import('@/lib/sse/managedStream')
@@ -78,14 +83,14 @@ async function reconnectToSession(sessionId: string): Promise<void> {
   const eventHandler = getAGUIEventHandler()
   const store = useChatStore.getState()
 
-  store.commitIncompleteStreamingMessages(sessionId)
-  eventHandler.resetSessionIndex(sessionId)
-
   const stream = openManagedSessionStream(sessionId, {
     onEvent: (event) => eventHandler.handleSSEMessage(event, sessionId),
     onStatusChange: (status) => {
       useChatStore.getState().updateSession(sessionId, { connectionStatus: status })
-      if (status === 'disconnected') {
+      // Only commit partial text once reconnection is truly exhausted — see the matching
+      // comment in useSessionStream.ts for why 'disconnected' (a transient, about-to-retry
+      // state) is the wrong trigger for this.
+      if (status === 'error') {
         useChatStore.getState().commitIncompleteStreamingMessages(sessionId)
       }
     },
@@ -146,8 +151,8 @@ function ChatPageContent() {
     data: sessionsData,
     isLoading: isLoadingSessions,
   } = useQuery({
-    queryKey: queryKeys.sessions.list(),
-    queryFn: () => listSessions(),
+    queryKey: queryKeys.sessions.list({ sort: { field: 'updatedTime', order: 'DESC' } }),
+    queryFn: () => listSessions({ sort: { field: 'updatedTime', order: 'DESC' } }),
     staleTime: 30 * 1000, // 30 seconds
   })
   
@@ -862,11 +867,17 @@ function ChatPageContent() {
                         const agentName = interrupt.requestingAgentId
                           ? resolveAgentName(interrupt.requestingAgentId)
                           : undefined
+                        // The backend's interrupt_requested event never sends a tool name,
+                        // only originalToolCallId — look the name up from that call's own
+                        // TOOL_CALL_START instead.
+                        const linkedToolName = interrupt.linkedToolCallId
+                          ? activeToolCalls[interrupt.linkedToolCallId]?.toolName
+                          : undefined
                         return (
                           <div key={item.id} className="mt-6" data-interrupt-status={interrupt.status}>
                             <InterruptRequestCard
                               interrupt={interrupt}
-                              linkedToolName={interrupt.originalToolName}
+                              linkedToolName={linkedToolName}
                               sessionId={activeSession?.sessionId}
                               agentName={agentName}
                             />

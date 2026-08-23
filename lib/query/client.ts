@@ -102,7 +102,13 @@ export const queryKeys = {
     detail: (id: string) => [...queryKeys.agents.details(), id] as const,
     schema: (mode: string) => [...queryKeys.agents.all, 'schema', mode] as const,
   },
-  
+
+  // Schedule queries
+  schedules: {
+    all: ['schedules'] as const,
+    list: (agentId: string) => [...queryKeys.schedules.all, 'list', agentId] as const,
+  },
+
   // Session queries
   sessions: {
     all: ['sessions'] as const,

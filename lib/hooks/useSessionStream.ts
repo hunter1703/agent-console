@@ -133,24 +133,26 @@ export function useSessionStream(
           try {
             const { getAGUIEventHandler } = await import('@/lib/sse/handler')
             const { openManagedSessionStream } = await import('@/lib/sse/managedStream')
-            const { useInterruptStore } = await import('@/lib/stores/interruptStore')
             if (isSuperseded()) return
             const eventHandler = getAGUIEventHandler()
 
-            // Clear interrupts and timeline so the replayed event stream is the sole source of truth
-            useInterruptStore.getState().clearInterrupts()
-            useChatStore.getState().clearTimeline(session.id)
-
-            // The backend replays from event index 0 on every connection, so the handler's
-            // dedup sets must also start fresh.
-            eventHandler.resetSessionIndex(session.id)
+            // Deliberately NOT clearing interrupts/timeline/dedup state here: every event
+            // handler is idempotent under re-delivery (see lib/sse/handler.ts), so it's safe
+            // to just let the replay merge into what's already here rather than wiping
+            // known-good local state and trusting a fresh connection to rebuild it all.
 
             console.log('Opening SSE stream for session:', session.id, 'status:', session.status)
             const stream = openManagedSessionStream(session.id, {
               onEvent: (event) => eventHandler.handleSSEMessage(event, session.id),
               onStatusChange: (status) => {
                 useChatStore.getState().updateSession(session.id, { connectionStatus: status })
-                if (status === 'disconnected') {
+                // Only commit partial streaming text as "final" once reconnection attempts are
+                // exhausted (status: 'error') — 'disconnected' fires on every transient blip
+                // that's about to auto-retry, and the retry's replay resends the FULL message
+                // text as one chunk, not just the missing remainder. Committing early would
+                // freeze the truncated text in place: the replay's full text would then be
+                // skipped as a duplicate of an id that's "already committed."
+                if (status === 'error') {
                   useChatStore.getState().commitIncompleteStreamingMessages(session.id)
                 }
               },

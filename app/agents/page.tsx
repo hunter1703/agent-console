@@ -11,7 +11,7 @@ import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { motion, AnimatePresence } from 'framer-motion'
-import { Plus, Search, Edit, Trash2 } from 'lucide-react'
+import { Plus, Search, Edit, Trash2, Clock } from 'lucide-react'
 
 import { Button } from '@/components/common/Button'
 import { Card } from '@/components/common/Card'
@@ -100,6 +100,10 @@ export default function AgentsPage() {
 
   const handleEditAgent = (agentId: string) => {
     router.push(`/agents/${agentId}/edit`)
+  }
+
+  const handleScheduleAgent = (agentId: string) => {
+    router.push(`/agents/${agentId}/schedule`)
   }
 
   const handleDeleteAgent = (agent: Agent) => {
@@ -241,6 +245,7 @@ export default function AgentsPage() {
                             key={agent.id}
                             agent={agent}
                             onEdit={() => handleEditAgent(agent.id)}
+                            onSchedule={() => handleScheduleAgent(agent.id)}
                             onDelete={() => handleDeleteAgent(agent)}
                             isDeleting={deleteAgentMutation.isPending}
                           />
@@ -262,6 +267,7 @@ export default function AgentsPage() {
 interface AgentTableRowProps {
   agent: Agent
   onEdit: () => void
+  onSchedule: () => void
   onDelete: () => void
   isDeleting: boolean
 }
@@ -269,6 +275,7 @@ interface AgentTableRowProps {
 function AgentTableRow({
   agent,
   onEdit,
+  onSchedule,
   onDelete,
   isDeleting,
 }: AgentTableRowProps) {
@@ -323,6 +330,18 @@ function AgentTableRow({
             aria-label="Edit agent"
           >
             <Edit size={14} />
+          </Button>
+          <Button
+            size="sm"
+            variant="ghost"
+            onClick={(e) => {
+              e.stopPropagation()
+              onSchedule()
+            }}
+            className="p-1.5 opacity-60 hover:opacity-100 transition-opacity cursor-pointer"
+            aria-label="Schedule agent"
+          >
+            <Clock size={14} />
           </Button>
           <Button
             size="sm"

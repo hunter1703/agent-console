@@ -74,11 +74,6 @@ export interface InvokeRequest {
   }
 }
 
-export interface ConfirmToolRequest {
-  approved: boolean
-  reason?: string
-}
-
 export interface PaginatedResult<T> {
   items: T[]
   hasMore: boolean
@@ -189,6 +184,74 @@ export async function deleteAgent(
   options?: RequestOptions
 ): Promise<void> {
   return apiClient.delete<void>(`/v1/agent/${agentId}`, options)
+}
+
+// ============================================================================
+// Schedule Services
+// ============================================================================
+
+export interface ScheduleAgentRequest {
+  cron: string
+  message: string
+  singletonSession: boolean
+}
+
+export interface JobDefinition {
+  id: string
+  jobClassName: string
+  jobTags?: string[]
+  cronSchedule: string
+  payload: {
+    agentId: string
+    message: string
+    singletonSession: boolean
+    sessionId?: string
+  }
+  createdTime?: number
+  updatedTime?: number
+}
+
+/**
+ * Schedule a recurring invocation of an agent
+ */
+export async function scheduleAgent(
+  agentId: string,
+  request: ScheduleAgentRequest,
+  options?: RequestOptions
+): Promise<JobDefinition> {
+  return apiClient.post<JobDefinition>(`/v1/agent/${agentId}/schedule`, request, options)
+}
+
+/**
+ * List scheduled jobs for an agent, via the generic resource catalog. The backend scopes the
+ * "InvokeAgentJob" asset type to that job class server-side, so no client-side job-type filter
+ * is needed (or possible) here.
+ */
+export async function listAgentSchedules(
+  agentId: string,
+  options?: RequestOptions
+): Promise<JobDefinition[]> {
+  const result = await apiClient.post<PaginatedResult<JobDefinition>>(
+    '/v1/catalog/search',
+    {
+      assetType: 'InvokeAgentJob',
+      query: {
+        filter: { field: 'payload.agentId', op: 'EQ', values: [agentId] },
+      },
+    },
+    options
+  )
+  return result.items
+}
+
+/**
+ * Cancel a scheduled job
+ */
+export async function cancelAgentSchedule(
+  jobId: string,
+  options?: RequestOptions
+): Promise<void> {
+  return apiClient.delete<void>(`/v1/agent/schedule/${jobId}`, options)
 }
 
 // ============================================================================
@@ -657,57 +720,6 @@ export function openSessionStream(
   }
 
   return eventSource
-}
-
-/**
- * Confirm a tool execution.
- * POST /v1/session/{sessionId}/confirm — AG-UI Resume payload.
- */
-export async function confirmToolExecution(
-  sessionId: string,
-  interruptId: string,
-  request: ConfirmToolRequest,
-  options?: RequestOptions
-): Promise<void> {
-  return apiClient.post<void>(
-    `/v1/session/${sessionId}/confirm`,
-    {
-      interruptId: interruptId,
-      status: 'RESOLVED',
-      payload: {
-        confirmed: request.approved,
-        answer: request.reason,
-      },
-    },
-    options
-  )
-}
-
-/**
- * Submit a interrupt response.
- * POST /v1/session/{sessionId}/confirm — AG-UI Resume payload.
- */
-export async function submitInterrupt(
-  sessionId: string,
-  interruptId: string,
-  request: {
-    confirmed: boolean
-    answer?: string
-  },
-  options?: RequestOptions
-): Promise<void> {
-  return apiClient.post<void>(
-    `/v1/session/${sessionId}/confirm`,
-    {
-      interruptId: interruptId,
-      status: 'RESOLVED',
-      payload: {
-        confirmed: request.confirmed,
-        answer: request.answer,
-      },
-    },
-    options
-  )
 }
 
 // ============================================================================

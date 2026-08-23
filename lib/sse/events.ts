@@ -98,8 +98,7 @@ export interface TextMessageEndEvent extends BaseAGUIEvent {
 export interface ToolCallStartEvent extends BaseAGUIEvent {
   type: 'TOOL_CALL_START'
   toolCallId: string
-  toolName: string
-  toolCallName?: string // Backend uses toolCallName instead of toolName
+  toolCallName: string
   parentMessageId?: string
   runId: string
 }
@@ -176,7 +175,6 @@ export interface InterruptRequestedEvent extends CustomEvent {
     interruptId: string
     prompt: string
     originalToolCallId?: string
-    originalToolName?: string
     options?: string[]
     kind: 'DECISION' | 'TEXT'
     timeout?: number
@@ -189,7 +187,6 @@ export interface ResumedEvent extends CustomEvent {
     interruptId: string
     accepted: boolean
     answer?: string
-    originalToolName?: string
   }
 }
 

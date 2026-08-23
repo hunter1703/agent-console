@@ -4,9 +4,19 @@
  * Processes AGUI events and updates the chat store accordingly.
  * Handles all event types including messages, tool calls, reasoning, and interrupts.
  *
- * Deduplication uses stable entity IDs (runId, messageId, toolCallId) rather than
- * stream-position counters, so it works correctly across both invoke streams (live-only)
- * and GET session streams (replay + live) without needing to coordinate offsets.
+ * Deduplication uses canonical entity IDs (runId, toolCallId, and messageId normalized via
+ * canonicalStreamId — see ./id.ts) rather than stream-position counters, so it works
+ * correctly across both invoke streams (live-only) and GET session streams (replay + live)
+ * without needing to coordinate offsets, and survives the backend minting a different raw
+ * messageId/stepName for the same logical event depending on which endpoint served it.
+ *
+ * Dedup state is intentionally NOT reset around a reconnect: every GET session-stream
+ * connection replays the full committed history from scratch (there is no server-side
+ * "you already saw this" state carried between connections), so treating "replay just
+ * started" as "wipe everything and trust only the replay" would just re-run every mutation
+ * a second time for no reason. Instead, every mutation here is written to be idempotent
+ * under re-delivery, so replayed events safely merge into whatever's already known rather
+ * than requiring a clean slate.
  */
 
 import {
@@ -38,6 +48,7 @@ import {
 
 import { useChatStore } from '../store/chat'
 import { useInterruptStore } from '../stores/interruptStore'
+import { canonicalStreamId } from './id'
 
 export class AGUIEventHandler {
   // Per-session sets of already-processed entity IDs (runId / messageId / toolCallId).
@@ -57,7 +68,11 @@ export class AGUIEventHandler {
     return useChatStore.getState()
   }
 
-  /** Clear dedup state for a session. Call when opening a fresh GET stream. */
+  /**
+   * Clear dedup state for a session. NOT part of the reconnect flow (see class doc) — call
+   * this only when a session's client-side state is itself being discarded (e.g. removed
+   * from the store), so the Maps don't grow unbounded across many sessions in one tab.
+   */
   resetSessionIndex(sessionId: string): void {
     this.processedRunIds.delete(sessionId)
     this.processedMessageIds.delete(sessionId)
@@ -127,7 +142,8 @@ export class AGUIEventHandler {
     } else if (isStepStartedEvent(event) || isStepFinishedEvent(event)) {
       // informational only
     } else if (isTextMessageStartEvent(event)) {
-      if (this.seenMessage(sessionId, event.messageId)) return
+      // Not gated by seenMessage: a START always (re)initializes the streaming buffer for
+      // its canonical id. This is required for replay correctness — see handleTextMessageStart.
       this.handleTextMessageStart(event, sessionId)
     } else if (isTextMessageChunkEvent(event)) {
       this.handleTextMessageChunk(event, sessionId)
@@ -143,7 +159,8 @@ export class AGUIEventHandler {
     } else if (isToolCallResultEvent(event)) {
       this.handleToolCallResult(event, sessionId)
     } else if (isReasoningStartEvent(event)) {
-      if (event.messageId && this.seenMessage(sessionId, event.messageId)) return
+      const blockId = canonicalStreamId(event.messageId)
+      if (blockId && this.seenMessage(sessionId, blockId)) return
       this.handleReasoningStart(event, sessionId)
     } else if (isReasoningMessageStartEvent(event)) {
       this.handleReasoningMessageStart(event, sessionId)
@@ -167,10 +184,18 @@ export class AGUIEventHandler {
     const chatStore = this.getChatStore()
     const existingSession = chatStore.sessions[sessionId]
 
+    // The wire event carries the agent id as rawEvent.author, not the typed `agentId`
+    // field (which real payloads never populate) — track it per-run so interrupt/message
+    // attribution for nested/sub-agent runs can look it up later.
+    const runAgentId = event.agentId || (event.rawEvent?.author as string | undefined)
+    if (event.runId && runAgentId) {
+      this.runAgentIds.set(event.runId, runAgentId)
+    }
+
     if (!existingSession) {
       chatStore.addSession({
         sessionId,
-        agentId: event.agentId,
+        agentId: runAgentId,
         messages: [],
         isStreaming: true,
         connectionStatus: 'connected',
@@ -196,9 +221,7 @@ export class AGUIEventHandler {
     // Handle multi-agent sessions (parent-child relationships)
     if (event.parentRunId) {
       // This is a child session - add to tabs
-      if (!chatStore.sessionTabs.includes(sessionId)) {
-        chatStore.sessionTabs.push(sessionId)
-      }
+      chatStore.addSessionTab(sessionId)
     }
   }
 
@@ -232,10 +255,14 @@ export class AGUIEventHandler {
       updatedTime: now,
     } as any)
 
-    // Update session to indicate error state
+    // RUN_ERROR is a business-level failure reported by the agent (e.g. "tool not found") —
+    // the SSE transport itself is fine and the stream typically ends normally right after.
+    // connectionStatus is reserved for actual transport health (see managedStream.ts's
+    // onStatusChange), so it's deliberately left untouched here — otherwise every agent-level
+    // error would trigger the "Connection lost, reconnect to keep watching" banner even though
+    // nothing is wrong with the connection.
     chatStore.updateSession(sessionId, {
       isStreaming: false,
-      connectionStatus: 'error',
       lastActivity: now,
     })
   }
@@ -244,19 +271,35 @@ export class AGUIEventHandler {
     if (!isTextMessageStartEvent(event)) return
 
     const chatStore = this.getChatStore()
+    const messageId = canonicalStreamId(event.messageId)
     const author = event.rawEvent?.author as string | undefined
-    const isUserAuthor = !author || author === 'user'
+    const role = event.role || 'assistant'
 
-    chatStore.startStreamingMessage(event.messageId, isUserAuthor ? 'user' : 'assistant')
+    // A session-stream replay resends every historical message's START, even ones already
+    // fully committed here (from a live invoke stream, or an earlier pass of this same
+    // replay). If we already have the final content, re-opening a streaming buffer for it
+    // would transiently shadow the committed message with an empty one (streamingMessages
+    // is checked before committed messages when rendering) — so this is a no-op instead.
+    const session = chatStore.sessions[sessionId]
+    const alreadyCommitted = session?.messages.some((m) => (m.messageId || m.id) === messageId)
+    if (alreadyCommitted) return
 
-    if (isUserAuthor) {
-      // Only show the first user message — subsequent user-role messages are sub-agent
-      // orchestration messages (e.g. spawn_agent message param) and should not render.
-      const hasExistingUserMessage = useChatStore.getState().sessions[sessionId]?.messages.some(m => m.role === 'user')
-      if (hasExistingUserMessage) return
-      chatStore.addTimelineItem(sessionId, { type: 'message', id: event.messageId, role: 'user' }, undefined, true)
-    } else {
-      chatStore.addTimelineItem(sessionId, { type: 'message', id: event.messageId, role: 'assistant', agentId: author })
+    // Always (re)initialize the buffer, even if a stale partial one exists for this id —
+    // a START event means "here comes this message's content from the top," and the
+    // replay resends the full accumulated text as one shot rather than the missing
+    // remainder, so appending onto old partial content would duplicate/garble it.
+    chatStore.startStreamingMessage(messageId, role)
+
+    // Assistant/system text streams live, token by token, and needs a timeline slot right
+    // away so the reader watches it appear. A user message, by contrast, is always an echo
+    // of something the sender already said — the sender has their own optimistic local echo
+    // (added directly in app/chat/page.tsx when they hit send, with a temp-user-* id).
+    // Placing a SECOND timeline slot here, under the real id, before that echo has had a
+    // chance to reconcile against it in handleTextMessageEnd/addMessage, is exactly how the
+    // same message ends up rendered twice. So this is deferred to handleTextMessageEnd,
+    // once the final content is known and can be matched against the pending echo.
+    if (role !== 'user') {
+      chatStore.addTimelineItem(sessionId, { type: 'message', id: messageId, role: 'assistant', agentId: author })
     }
   }
 
@@ -267,8 +310,9 @@ export class AGUIEventHandler {
     if (!event.delta) return
 
     const chatStore = this.getChatStore()
-    if (chatStore.streamingMessages[event.messageId]) {
-      chatStore.appendToStreamingMessage(event.messageId, event.delta)
+    const messageId = canonicalStreamId(event.messageId)
+    if (chatStore.streamingMessages[messageId]) {
+      chatStore.appendToStreamingMessage(messageId, event.delta)
     }
   }
 
@@ -276,10 +320,11 @@ export class AGUIEventHandler {
     if (!isTextMessageEndEvent(event)) return
 
     const chatStore = this.getChatStore()
-    const streamingMessage = chatStore.streamingMessages[event.messageId]
-    
+    const messageId = canonicalStreamId(event.messageId)
+    const streamingMessage = chatStore.streamingMessages[messageId]
+
     if (streamingMessage) {
-      chatStore.completeStreamingMessage(event.messageId)
+      chatStore.completeStreamingMessage(messageId)
 
       const finalContent = event.content || streamingMessage.content
       const eventTime = event.timestamp
@@ -291,21 +336,11 @@ export class AGUIEventHandler {
         : undefined
 
       // Drain any attachments that arrived before this message was committed
-      const pendingAttachments = chatStore.drainPendingAttachments(event.messageId)
-
-      // If this is a user message that was skipped by the "only first user message" rule
-      // but has attachments (image-only message), ensure it has a timeline slot.
-      if (pendingAttachments.length > 0 && streamingMessage.role === 'user') {
-        const session = chatStore.sessions[sessionId]
-        const alreadyInTimeline = session?.timeline.some((t) => t.id === event.messageId)
-        if (!alreadyInTimeline) {
-          chatStore.addTimelineItem(sessionId, { type: 'message', id: event.messageId, role: 'user' }, undefined, true)
-        }
-      }
+      const pendingAttachments = chatStore.drainPendingAttachments(messageId)
 
       chatStore.addMessage(sessionId, {
-        id: event.messageId,
-        messageId: event.messageId,
+        id: messageId,
+        messageId: messageId,
         sessionId,
         role: streamingMessage.role,
         content: finalContent,
@@ -315,17 +350,29 @@ export class AGUIEventHandler {
         metadata: agentId ? { agentId } : undefined,
         attachments: pendingAttachments.length > 0 ? pendingAttachments : undefined,
       })
+
+      // handleTextMessageStart deliberately skipped placing a user message in the timeline
+      // (see there for why) — addMessage above just had its one chance to reconcile this
+      // against a pending optimistic echo (matching by content and renaming the echo's temp
+      // id to this real one, in place). If that happened, the timeline already has a slot for
+      // this id. Otherwise — no local echo existed to match (e.g. viewing another session, or
+      // the echo already got swept up by a different match) — give it one now.
+      if (streamingMessage.role === 'user') {
+        const session = chatStore.sessions[sessionId]
+        const alreadyInTimeline = session?.timeline.some((t) => t.id === messageId)
+        if (!alreadyInTimeline) {
+          chatStore.addTimelineItem(sessionId, { type: 'message', id: messageId, role: 'user' })
+        }
+      }
     }
   }
 
   private handleToolCallStart(event: any, sessionId: string): void {
     if (!isToolCallStartEvent(event)) return
 
-    // Backend uses toolCallName, frontend uses toolName
-    const toolName = event.toolName || (event as any).toolCallName
-    
+    const toolName = event.toolCallName
     if (!toolName) {
-      console.error('Tool call start event missing toolName/toolCallName:', event)
+      console.error('Tool call start event missing toolCallName:', event)
       return
     }
 
@@ -361,7 +408,12 @@ export class AGUIEventHandler {
     const chatStore = this.getChatStore()
     const session = chatStore.sessions[sessionId]
     const existingToolCall = session?.toolCalls[event.toolCallId]
-    if (existingToolCall) {
+    // TOOL_CALL_START is gated (toolCallId is a stable id, unlike messageId — see ./id.ts),
+    // but ARGS/END/RESULT are not, since they're only ever expected once each per call. A
+    // session-stream replay resends them anyway for every historical tool call, so a call
+    // that's already 'completed' here means this delta is a stale re-delivery — reprocessing
+    // it would revert the call to 'running' and re-accumulate onto already-final arguments.
+    if (existingToolCall && existingToolCall.status !== 'completed') {
       const currentArgsString = existingToolCall.arguments?.raw || ''
       const newArgsString = currentArgsString + event.delta
 
@@ -387,6 +439,10 @@ export class AGUIEventHandler {
     if (!isToolCallEndEvent(event)) return
 
     const chatStore = this.getChatStore()
+    const existingToolCall = chatStore.sessions[sessionId]?.toolCalls[event.toolCallId]
+    // See handleToolCallArgs — a replayed END for an already-completed call is a stale
+    // re-delivery, not a genuine second completion.
+    if (existingToolCall?.status === 'completed') return
 
     if (!event.arguments || event.arguments === 'undefined') {
       chatStore.updateToolCall(sessionId, event.toolCallId, { status: 'running' })
@@ -407,6 +463,10 @@ export class AGUIEventHandler {
 
     const chatStore = this.getChatStore()
     const toolCall = chatStore.sessions[sessionId]?.toolCalls[event.toolCallId]
+    // See handleToolCallArgs — skip a replayed RESULT for a call that already has one;
+    // rerunning its planning/standard-tool side effects on every reconnect is unnecessary
+    // even where those side effects happen to be idempotent.
+    if (toolCall?.status === 'completed') return
 
     chatStore.completeToolCall(sessionId, event.toolCallId, {
       content: event.content,
@@ -424,9 +484,10 @@ export class AGUIEventHandler {
   private handleReasoningStart(event: any, sessionId: string): void {
     if (!isReasoningStartEvent(event)) return
 
-    this.openReasoningBlockId.set(sessionId, event.messageId)
-    this.getChatStore().addReasoningBlock(event.messageId, event.messageId)
-    this.getChatStore().addTimelineItem(sessionId, { type: 'reasoning', id: event.messageId })
+    const blockId = canonicalStreamId(event.messageId)
+    this.openReasoningBlockId.set(sessionId, blockId)
+    this.getChatStore().addReasoningBlock(blockId, blockId)
+    this.getChatStore().addTimelineItem(sessionId, { type: 'reasoning', id: blockId })
   }
 
   private handleReasoningMessageStart(event: any, sessionId: string): void {
@@ -455,7 +516,8 @@ export class AGUIEventHandler {
   private handleReasoningEnd(event: any, sessionId: string): void {
     if (!isReasoningEndEvent(event)) return
 
-    this.getChatStore().completeReasoningBlock(event.messageId, event.messageId)
+    const blockId = canonicalStreamId(event.messageId)
+    this.getChatStore().completeReasoningBlock(blockId, blockId)
     this.openReasoningBlockId.delete(sessionId)
   }
 
@@ -476,7 +538,6 @@ export class AGUIEventHandler {
           value: opt,
         })),
         linkedToolCallId: event.value.originalToolCallId,
-        originalToolName: event.value.originalToolName,
         requestingAgentId: (event.rawEvent as any)?.agentId || (event.rawEvent as any)?.author || (event.runId ? this.runAgentIds.get(event.runId) : chatStore.sessions[sessionId]?.agentId),
         createdAt: new Date().toISOString(),
       })
@@ -505,14 +566,15 @@ export class AGUIEventHandler {
         mimeType: event.value.fileDetails.mimeType,
         size: event.value.fileDetails.size,
       }
+      const parentMessageId = canonicalStreamId(event.value.parentMessageId)
       const session = chatStore.sessions[sessionId]
       const alreadyCommitted = session?.messages.some(
-        (m) => (m.messageId || m.id) === event.value.parentMessageId
+        (m) => (m.messageId || m.id) === parentMessageId
       )
       if (alreadyCommitted) {
-        chatStore.addAttachmentToMessage(sessionId, event.value.parentMessageId, attachment)
+        chatStore.addAttachmentToMessage(sessionId, parentMessageId, attachment)
       } else {
-        chatStore.stagePendingAttachment(event.value.parentMessageId, attachment)
+        chatStore.stagePendingAttachment(parentMessageId, attachment)
       }
     } else if (event.name === 'correction') {
       const correctionId = `correction-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`
@@ -641,10 +703,7 @@ export class AGUIEventHandler {
       const chatStore = this.getChatStore()
 
       if (toolCall.toolName === 'spawn_agent' && result.child_session_id) {
-        const childSessionId = result.child_session_id
-        if (!chatStore.sessionTabs.includes(childSessionId)) {
-          chatStore.sessionTabs.push(childSessionId)
-        }
+        chatStore.addSessionTab(result.child_session_id)
       }
     } catch (error) {
       console.error('Failed to parse standard tool result:', error)

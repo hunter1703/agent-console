@@ -13,10 +13,10 @@
  * toasts and modals are rendered above all other content.
  */
 
-import { useEffect } from 'react'
+import { useEffect, useState } from 'react'
 import { ToastContainer } from '@/components/common/Toast'
 import { Modal } from '@/components/common/Modal'
-import { useUIStore, useToasts, useDialogs } from '@/lib/store/ui'
+import { useUIStore, useToasts, useDialogs, type Dialog } from '@/lib/store/ui'
 import { Button } from '@/components/common/Button'
 
 export function UIProvider({ children }: { children: React.ReactNode }) {
@@ -73,61 +73,70 @@ export function UIProvider({ children }: { children: React.ReactNode }) {
       
       {/* Modal Dialogs */}
       {dialogs.map(dialog => (
-        <Modal
-          key={dialog.id}
-          isOpen={true}
-          onClose={() => {
-            dialog.onCancel?.()
-            hideDialog(dialog.id)
-          }}
-          title={dialog.title}
-          footer={
-            dialog.type === 'confirm' ? (
-              <div className="flex gap-3">
-                <Button
-                  variant="ghost"
-                  onClick={() => {
-                    dialog.onCancel?.()
-                    hideDialog(dialog.id)
-                  }}
-                >
-                  {dialog.cancelText}
-                </Button>
-                <Button
-                  variant={dialog.variant === 'danger' ? 'destructive' : 'default'}
-                  onClick={async () => {
-                    try {
-                      await dialog.onConfirm?.()
-                      hideDialog(dialog.id)
-                    } catch (error) {
-                      console.error('Dialog confirm error:', error)
-                      // Keep dialog open on error
-                    }
-                  }}
-                >
-                  {dialog.confirmText}
-                </Button>
-              </div>
-            ) : dialog.type === 'alert' ? (
-              <Button
-                onClick={() => hideDialog(dialog.id)}
-              >
-                OK
-              </Button>
-            ) : null
-          }
-        >
-          {dialog.message && (
-            <p className="text-text-secondary">
-              {dialog.message}
-            </p>
-          )}
-          
-          {dialog.component && (
-            <dialog.component {...dialog.props} />
-          )}
-        </Modal>
+        <DialogModal key={dialog.id} dialog={dialog} onHide={() => hideDialog(dialog.id)} />
       ))}
     </>
+  )
+}
+
+function DialogModal({ dialog, onHide }: { dialog: Dialog; onHide: () => void }) {
+  // Guards against a fast double-click firing onConfirm twice before the first call
+  // resolves and the dialog closes — e.g. two identical DELETE requests for a confirm
+  // action, where the second 404s because the first already completed it.
+  const [isConfirming, setIsConfirming] = useState(false)
+
+  const handleConfirm = async () => {
+    if (isConfirming) return
+    setIsConfirming(true)
+    try {
+      await dialog.onConfirm?.()
+      onHide()
+    } catch (error) {
+      console.error('Dialog confirm error:', error)
+      // Keep dialog open on error
+    } finally {
+      setIsConfirming(false)
+    }
+  }
+
+  return (
+    <Modal
+      isOpen={true}
+      onClose={() => {
+        dialog.onCancel?.()
+        onHide()
+      }}
+      title={dialog.title}
+      footer={
+        dialog.type === 'confirm' ? (
+          <div className="flex gap-3">
+            <Button
+              variant="ghost"
+              disabled={isConfirming}
+              onClick={() => {
+                dialog.onCancel?.()
+                onHide()
+              }}
+            >
+              {dialog.cancelText}
+            </Button>
+            <Button
+              variant={dialog.variant === 'danger' ? 'danger' : 'primary'}
+              disabled={isConfirming}
+              loading={isConfirming}
+              onClick={handleConfirm}
+            >
+              {dialog.confirmText}
+            </Button>
+          </div>
+        ) : dialog.type === 'alert' ? (
+          <Button onClick={onHide}>OK</Button>
+        ) : null
+      }
+    >
+      {dialog.message && <p className="text-text-secondary">{dialog.message}</p>}
+
+      {dialog.component && <dialog.component {...dialog.props} />}
+    </Modal>
   )
 }

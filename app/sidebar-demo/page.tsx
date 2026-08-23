@@ -13,7 +13,7 @@ import { motion } from 'framer-motion'
 import { Sidebar, SidebarToggle, AgentList, SessionList, ThemeToggle } from '@/components/sidebar'
 import type { SidebarView, Agent, Session } from '@/components/sidebar'
 import { Button } from '@/components/common/Button'
-import { apiClient } from '@/lib/api'
+import { listAgents, listSessions, deleteAgent, deleteSession } from '@/lib/api/services'
 import { useMediaQuery } from '@/lib/hooks/useMediaQuery'
 
 export default function SidebarDemoPage() {
@@ -35,8 +35,8 @@ export default function SidebarDemoPage() {
     setIsLoadingAgents(true)
     setError(undefined)
     try {
-      const data = await apiClient.listAgents()
-      setAgents(data)
+      const data = await listAgents()
+      setAgents(data.items || [])
     } catch (err: any) {
       console.error('Failed to fetch agents:', err)
       setError(err.message || 'Failed to load agents')
@@ -70,8 +70,8 @@ export default function SidebarDemoPage() {
     setIsLoadingSessions(true)
     setError(undefined)
     try {
-      const data = await apiClient.listSessions()
-      setSessions(data)
+      const data = await listSessions({ sort: { field: 'updatedTime', order: 'DESC' } })
+      setSessions(data.items || [])
     } catch (err: any) {
       console.error('Failed to fetch sessions:', err)
       setError(err.message || 'Failed to load sessions')
@@ -128,7 +128,7 @@ export default function SidebarDemoPage() {
   const handleAgentDelete = async (agentId: string) => {
     if (confirm('Are you sure you want to delete this agent?')) {
       try {
-        await apiClient.deleteAgent(agentId)
+        await deleteAgent(agentId)
         setAgents(agents.filter(a => a.id !== agentId))
       } catch (err: any) {
         console.error('Failed to delete agent:', err)
@@ -146,7 +146,7 @@ export default function SidebarDemoPage() {
   const handleSessionDelete = async (sessionId: string) => {
     if (confirm('Are you sure you want to delete this session?')) {
       try {
-        await apiClient.deleteSession(sessionId)
+        await deleteSession(sessionId)
         setSessions(sessions.filter(s => s.id !== sessionId))
       } catch (err: any) {
         console.error('Failed to delete session:', err)

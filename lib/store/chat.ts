@@ -7,9 +7,8 @@
 
 import { create } from 'zustand'
 import { devtools, subscribeWithSelector } from 'zustand/middleware'
-import { useMemo } from 'react'
 import { DEV_CONFIG } from '@/lib/config/env'
-import type { Session, Message, ToolCall, Interrupt } from '@/lib/api/types'
+import type { Session, Message } from '@/lib/api/types'
 import type { MessageAttachment } from '@/lib/api/types'
 import type { Plan, Task } from '@/types/planning'
 import type { SessionStreamHandle } from '@/lib/sse/managedStream'
@@ -41,8 +40,9 @@ export interface ChatSession extends Session {
   connectionStatus: 'connected' | 'connecting' | 'disconnected' | 'error'
   lastActivity: string
   // Per-session widget state — scoped here so switching sessions doesn't bleed widgets across tabs
+  // Interrupts are NOT tracked here — that's owned entirely by useInterruptStore
+  // (lib/stores/interruptStore.ts), which is what lib/sse/handler.ts actually writes to.
   toolCalls: Record<string, ActiveToolCall>
-  interrupts: Record<string, ActiveInterrupt>
   corrections: Record<string, CorrectionEvent>
   activePlan: Plan | null
   timeline: TimelineItem[]
@@ -57,19 +57,6 @@ export interface ActiveToolCall {
   startTime: string
   endTime?: string
   parentMessageId?: string
-}
-
-export interface ActiveInterrupt {
-  interruptId: string
-  prompt: string
-  kind: 'DECISION' | 'TEXT'
-  options?: string[]
-  originalToolCallId?: string
-  timeout?: number
-  status: 'pending' | 'resolved' | 'rejected'
-  answer?: string
-  resolvedAt?: number
-  createdAt: number
 }
 
 export interface CorrectionEvent {
@@ -123,6 +110,8 @@ export interface ChatState {
   addSession: (session: ChatSession) => void
   updateSession: (sessionId: string, updates: Partial<ChatSession>) => void
   removeSession: (sessionId: string) => void
+  /** Dedup-append a session id to sessionTabs (e.g. a spawned child session). */
+  addSessionTab: (sessionId: string) => void
   
   // Message actions
   addMessage: (sessionId: string, message: Message) => void
@@ -141,11 +130,6 @@ export interface ChatState {
   updateToolCall: (sessionId: string, toolCallId: string, updates: Partial<ActiveToolCall>) => void
   completeToolCall: (sessionId: string, toolCallId: string, result: any) => void
 
-  // Interrupt actions
-  showInterrupt: (sessionId: string, interrupt: Omit<ActiveInterrupt, 'status' | 'createdAt'>) => void
-  updateInterruptStatus: (sessionId: string, interruptId: string, status: 'resolved' | 'rejected', answer?: string) => void
-  hideInterrupt: (sessionId: string, interruptId: string) => void
-  
   // Correction actions
   addCorrectionEvent: (sessionId: string, correction: Omit<CorrectionEvent, 'timestamp'>) => void
   removeCorrectionEvent: (sessionId: string, correctionId: string) => void
@@ -161,10 +145,11 @@ export interface ChatState {
   /**
    * Add an item to the session timeline.
    * - `afterId`: insert immediately after the item with this id (used for linked confirmations).
-   * - `insertBeforeTools`: insert before the first plan/tool_call after the last user message
-   *   (used to correctly position user messages that the backend replays after tool calls).
+   * - Otherwise appended in arrival order, which is always chronological order — the backend
+   *   guarantees events within a session are totally ordered and that a turn's user-message
+   *   event is emitted before that turn's own tool-call events, live or on replay.
    */
-  addTimelineItem: (sessionId: string, item: TimelineItem, afterId?: string, insertBeforeTools?: boolean) => void
+  addTimelineItem: (sessionId: string, item: TimelineItem, afterId?: string) => void
   clearTimeline: (sessionId: string) => void
 
   // Planning actions
@@ -218,7 +203,6 @@ export const useChatStore = create<ChatState>()(
               [session.sessionId]: {
                 ...session,
                 toolCalls: session.toolCalls ?? {},
-                interrupts: session.interrupts ?? {},
                 corrections: session.corrections ?? {},
                 activePlan: session.activePlan ?? null,
                 timeline: session.timeline ?? [],
@@ -247,11 +231,19 @@ export const useChatStore = create<ChatState>()(
             return {
               sessions: remainingSessions,
               sessionTabs: state.sessionTabs.filter(id => id !== sessionId),
-              activeSessionId: state.activeSessionId === sessionId 
+              activeSessionId: state.activeSessionId === sessionId
                 ? state.sessionTabs.find(id => id !== sessionId) || null
                 : state.activeSessionId,
             }
           })
+        },
+
+        addSessionTab: (sessionId) => {
+          set((state) =>
+            state.sessionTabs.includes(sessionId)
+              ? state
+              : { sessionTabs: [...state.sessionTabs, sessionId] }
+          )
         },
         
         // Message actions
@@ -287,29 +279,33 @@ export const useChatStore = create<ChatState>()(
             let updatedTimeline = session.timeline ?? []
 
             if (message.role === 'user' && !msgId.startsWith('temp-user-')) {
-              // Find the MOST RECENT temp user message
-              const tempMessageIndex = session.messages.length - 1 -
-                [...session.messages].reverse().findIndex(
-                  msg => msg.role === 'user' && msg.messageId.startsWith('temp-user-')
-                )
+              // Match the OLDEST unresolved temp message with matching content — not just the
+              // most recent one. Because the backend only ever replays a session's first user
+              // message (later turns' real echoes never arrive), several optimistic temp-user-*
+              // placeholders can be pending at once; matching only the most recent one means an
+              // earlier turn's real message would never find its placeholder (they'd end up as
+              // two separate bubbles: the orphaned temp one and a freshly-inserted real one).
+              const tempMessageIndex = session.messages.findIndex(
+                (msg) =>
+                  msg.role === 'user' &&
+                  msg.messageId.startsWith('temp-user-') &&
+                  msg.content === message.content
+              )
 
-              if (tempMessageIndex >= 0 && tempMessageIndex < session.messages.length) {
+              if (tempMessageIndex >= 0) {
                 const tempMessage = session.messages[tempMessageIndex]
-                // Only replace if the content matches
-                if (tempMessage.content === message.content) {
-                  console.log('addMessage: Replacing temp user message with backend message:', {
-                    tempId: tempMessage.messageId,
-                    backendId: msgId,
-                  })
-                  // Remove the temp message and update the timeline entry to use the real ID
-                  updatedMessages = [
-                    ...session.messages.slice(0, tempMessageIndex),
-                    ...session.messages.slice(tempMessageIndex + 1),
-                  ]
-                  updatedTimeline = updatedTimeline.map((t) =>
-                    t.type === 'message' && t.id === tempMessage.messageId ? { ...t, id: msgId } : t
-                  )
-                }
+                console.log('addMessage: Replacing temp user message with backend message:', {
+                  tempId: tempMessage.messageId,
+                  backendId: msgId,
+                })
+                // Remove the temp message and update the timeline entry to use the real ID
+                updatedMessages = [
+                  ...session.messages.slice(0, tempMessageIndex),
+                  ...session.messages.slice(tempMessageIndex + 1),
+                ]
+                updatedTimeline = updatedTimeline.map((t) =>
+                  t.type === 'message' && t.id === tempMessage.messageId ? { ...t, id: msgId } : t
+                )
               }
             }
 
@@ -395,14 +391,31 @@ export const useChatStore = create<ChatState>()(
 
         commitIncompleteStreamingMessages: (sessionId) => {
           set((state) => {
-            const incomplete = Object.values(state.streamingMessages)
-            if (incomplete.length === 0) return state
-
             const session = state.sessions[sessionId]
+            if (!session) return state
+
+            // streamingMessages is a single global map shared by every open session/tab (a
+            // streaming message carries no sessionId of its own), so this must only pick out
+            // entries that actually belong to THIS session's timeline — otherwise a disconnect
+            // on one session would wrongly sweep up (and attribute to it) whatever another
+            // session/tab happens to be mid-stream on right now, corrupting both.
+            const timelineIds = new Set(session.timeline.map((t) => t.id))
+            const ownEntries = Object.entries(state.streamingMessages).filter(([id]) =>
+              timelineIds.has(id)
+            )
+            if (ownEntries.length === 0) {
+              // Nothing of this session's was mid-stream, but the caller is reporting this
+              // session's connection as done for good — still clear its streaming flag so
+              // the typing indicator doesn't spin forever.
+              return session.isStreaming
+                ? { sessions: { ...state.sessions, [sessionId]: { ...session, isStreaming: false } } }
+                : state
+            }
+
             const now = new Date().toISOString()
-            const additionalMessages: Message[] = incomplete
-              .filter((msg) => msg.content.trim().length > 0)
-              .map((msg) => ({
+            const additionalMessages: Message[] = ownEntries
+              .filter(([, msg]) => msg.content.trim().length > 0)
+              .map(([, msg]) => ({
                 id: msg.messageId,
                 messageId: msg.messageId,
                 sessionId,
@@ -412,20 +425,22 @@ export const useChatStore = create<ChatState>()(
                 updatedTime: now,
               }))
 
+            const remainingStreamingMessages = { ...state.streamingMessages }
+            for (const [id] of ownEntries) delete remainingStreamingMessages[id]
+
             return {
-              streamingMessages: {},
-              ...(session && additionalMessages.length > 0
-                ? {
-                    sessions: {
-                      ...state.sessions,
-                      [sessionId]: {
-                        ...session,
-                        messages: [...session.messages, ...additionalMessages],
-                        isStreaming: false,
-                      },
-                    },
-                  }
-                : {}),
+              streamingMessages: remainingStreamingMessages,
+              sessions: {
+                ...state.sessions,
+                [sessionId]: {
+                  ...session,
+                  messages:
+                    additionalMessages.length > 0
+                      ? [...session.messages, ...additionalMessages]
+                      : session.messages,
+                  isStreaming: false,
+                },
+              },
             }
           })
         },
@@ -567,67 +582,6 @@ export const useChatStore = create<ChatState>()(
           })
         },
 
-        // Interrupt actions
-        showInterrupt: (sessionId, interrupt) => {
-          set((state) => {
-            const session = state.sessions[sessionId]
-            if (!session) return state
-            return {
-              sessions: {
-                ...state.sessions,
-                [sessionId]: {
-                  ...session,
-                  interrupts: {
-                    ...session.interrupts,
-                    [interrupt.interruptId]: {
-                      ...interrupt,
-                      status: 'pending',
-                      createdAt: Date.now(),
-                    },
-                  },
-                },
-              },
-              isInputDisabled: true,
-            }
-          })
-        },
-
-        updateInterruptStatus: (sessionId, interruptId, status, answer) => {
-          set((state) => {
-            const session = state.sessions[sessionId]
-            const interrupt = session?.interrupts[interruptId]
-            if (!session || !interrupt) return state
-            const updatedInterrupts = {
-              ...session.interrupts,
-              [interruptId]: { ...interrupt, status, answer, resolvedAt: Date.now() },
-            }
-            return {
-              sessions: {
-                ...state.sessions,
-                [sessionId]: { ...session, interrupts: updatedInterrupts },
-              },
-              isInputDisabled: Object.values(updatedInterrupts).some(
-                (c) => c.interruptId !== interruptId && c.status === 'pending'
-              ),
-            }
-          })
-        },
-
-        hideInterrupt: (sessionId, interruptId) => {
-          set((state) => {
-            const session = state.sessions[sessionId]
-            if (!session) return state
-            const { [interruptId]: _removed, ...remaining } = session.interrupts
-            return {
-              sessions: {
-                ...state.sessions,
-                [sessionId]: { ...session, interrupts: remaining },
-              },
-              isInputDisabled: Object.values(remaining).some((c) => c.status === 'pending'),
-            }
-          })
-        },
-
         // Correction actions
         addCorrectionEvent: (sessionId, correction) => {
           set((state) => {
@@ -708,19 +662,13 @@ export const useChatStore = create<ChatState>()(
         },
 
         // Timeline actions
-        addTimelineItem: (sessionId, item, afterId, insertBeforeTools) => {
-          console.log('🔧 addTimelineItem called:', { sessionId, item, afterId, insertBeforeTools })
+        addTimelineItem: (sessionId, item, afterId) => {
           set((state) => {
             const session = state.sessions[sessionId]
-            if (!session) {
-              console.log('❌ No session found for:', sessionId)
-              return state
-            }
+            if (!session) return state
             const timeline = session.timeline ?? []
-            console.log('📋 Current timeline length:', timeline.length, 'items:', timeline)
             // Dedup: never add the same id+type twice
             if (timeline.some((t) => t.id === item.id && t.type === item.type)) {
-              console.log('⚠️ Duplicate item, skipping:', item)
               return state
             }
 
@@ -733,34 +681,9 @@ export const useChatStore = create<ChatState>()(
                 insertAt++
               }
               const updated = [...timeline.slice(0, insertAt), item, ...timeline.slice(insertAt)]
-              console.log('✅ Inserted after', afterId, 'at index', insertAt, '→ new length:', updated.length)
               return { sessions: { ...state.sessions, [sessionId]: { ...session, timeline: updated } } }
             }
 
-            if (insertBeforeTools) {
-              // The backend replays user messages AFTER tool-call events for the same run.
-              // Find the last user-message item in the timeline, then locate the first plan/tool_call
-              // after it and insert this user message there — restoring the logical order.
-              let lastUserIdx = -1
-              for (let i = timeline.length - 1; i >= 0; i--) {
-                if (timeline[i].type === 'message' && timeline[i].role === 'user') {
-                  lastUserIdx = i
-                  break
-                }
-              }
-              let insertAt = timeline.length
-              for (let i = lastUserIdx + 1; i < timeline.length; i++) {
-                if (timeline[i].type === 'plan' || timeline[i].type === 'tool_call') {
-                  insertAt = i
-                  break
-                }
-              }
-              const updated = [...timeline.slice(0, insertAt), item, ...timeline.slice(insertAt)]
-              console.log('✅ Inserted before tools at index', insertAt, '→ new length:', updated.length)
-              return { sessions: { ...state.sessions, [sessionId]: { ...session, timeline: updated } } }
-            }
-
-            console.log('✅ Appended to timeline → new length:', timeline.length + 1)
             return {
               sessions: { ...state.sessions, [sessionId]: { ...session, timeline: [...timeline, item] } },
             }
@@ -880,7 +803,6 @@ export const useChatStore = create<ChatState>()(
                   isStreaming: false,
                   typingIndicator: undefined,
                   toolCalls: {},
-                  interrupts: {},
                   corrections: {},
                   activePlan: null,
                   timeline: [],
@@ -916,7 +838,6 @@ export const useChatStore = create<ChatState>()(
 // Stable empty references to prevent unnecessary re-renders from reference inequality
 const EMPTY_MESSAGES: Message[] = []
 const EMPTY_TOOL_CALLS: Record<string, ActiveToolCall> = {}
-const EMPTY_INTERRUPTS: Record<string, ActiveInterrupt> = {}
 const EMPTY_CORRECTIONS: Record<string, CorrectionEvent> = {}
 
 /**
@@ -1011,43 +932,6 @@ export function useToolCalls(sessionId?: string) {
     startToolCall,
     updateToolCall,
     completeToolCall,
-  }
-}
-
-/**
- * Hook for interrupts — scoped to the given session (or active session).
- * Returns pre-bound action wrappers so callers don't need to pass sessionId.
- */
-export function useInterrupts(sessionId?: string) {
-  const activeSessionId = useChatStore((state) => state.activeSessionId)
-  const targetId = sessionId ?? activeSessionId
-  const activeInterrupts = useChatStore((state) =>
-    targetId ? (state.sessions[targetId]?.interrupts ?? EMPTY_INTERRUPTS) : EMPTY_INTERRUPTS
-  )
-  const _showInterrupt = useChatStore((state) => state.showInterrupt)
-  const _updateInterruptStatus = useChatStore((state) => state.updateInterruptStatus)
-  const _hideInterrupt = useChatStore((state) => state.hideInterrupt)
-
-  const pendingInterrupts = useMemo(
-    () => Object.values(activeInterrupts).filter((c) => c.status === 'pending'),
-    [activeInterrupts]
-  )
-  const resolvedInterrupts = useMemo(
-    () => Object.values(activeInterrupts).filter((c) => c.status !== 'pending'),
-    [activeInterrupts]
-  )
-
-  return {
-    activeInterrupts,
-    pendingInterrupts,
-    resolvedInterrupts,
-    showInterrupt: (interrupt: Omit<ActiveInterrupt, 'status' | 'createdAt'>) =>
-      targetId ? _showInterrupt(targetId, interrupt) : undefined,
-    updateInterruptStatus: (interruptId: string, status: 'resolved' | 'rejected', answer?: string) =>
-      targetId ? _updateInterruptStatus(targetId, interruptId, status, answer) : undefined,
-    hideInterrupt: (interruptId: string) =>
-      targetId ? _hideInterrupt(targetId, interruptId) : undefined,
-    hasActiveInterrupts: pendingInterrupts.length > 0,
   }
 }
 
