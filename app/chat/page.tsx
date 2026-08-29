@@ -830,6 +830,7 @@ function ChatPageContent() {
                                 duration={toolCall.endTime
                                   ? (new Date(toolCall.endTime).getTime() - new Date(toolCall.startTime).getTime()) / 1000
                                   : undefined}
+                                agentName={toolCall.agentId ? resolveAgentName(toolCall.agentId) : undefined}
                               />
                             </div>
                           )
@@ -847,6 +848,7 @@ function ChatPageContent() {
                               duration={toolCall.endTime
                                 ? (new Date(toolCall.endTime).getTime() - new Date(toolCall.startTime).getTime()) / 1000
                                 : undefined}
+                              agentName={toolCall.agentId ? resolveAgentName(toolCall.agentId) : undefined}
                             />
                           </div>
                         )

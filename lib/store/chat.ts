@@ -57,6 +57,7 @@ export interface ActiveToolCall {
   startTime: string
   endTime?: string
   parentMessageId?: string
+  agentId?: string
 }
 
 export interface CorrectionEvent {

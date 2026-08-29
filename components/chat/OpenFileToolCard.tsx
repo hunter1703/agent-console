@@ -38,6 +38,7 @@ export interface OpenFileToolCardProps {
   status: 'pending' | 'running' | 'completed' | 'failed'
   timestamp: Date
   duration?: number
+  agentName?: string
   className?: string
 }
 
@@ -159,6 +160,7 @@ export function OpenFileToolCard({
   status,
   timestamp,
   duration,
+  agentName,
   className,
 }: OpenFileToolCardProps) {
   const [elapsed, setElapsed] = useState(0)
@@ -206,9 +208,14 @@ export function OpenFileToolCard({
       {/* Header */}
       <div className="flex items-center gap-3">
         <FolderOpen size={20} style={{ color: COLOR }} strokeWidth={2} className="flex-shrink-0" />
-        <span className="flex-1 text-[15px] font-semibold" style={{ color: COLOR }}>
-          Open File
-        </span>
+        <div className="flex-1 min-w-0">
+          <span className="text-[15px] font-semibold" style={{ color: COLOR }}>
+            Open File
+          </span>
+          {agentName && (
+            <p className="text-[11px] text-text-tertiary mt-0.5">{agentName}</p>
+          )}
+        </div>
         {(duration != null || status === 'running' || status === 'pending') && (
           <span className="text-[11px] text-text-tertiary font-mono">
             {formatDuration(duration ?? elapsed)}

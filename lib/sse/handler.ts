@@ -377,12 +377,14 @@ export class AGUIEventHandler {
     }
 
     const chatStore = this.getChatStore()
+    const author = event.rawEvent?.author as string | undefined
     chatStore.startToolCall(sessionId, {
       toolCallId: event.toolCallId,
       toolName,
       status: 'pending',
       arguments: {},
       parentMessageId: event.parentMessageId,
+      agentId: author,
     })
 
     // Handle different tool types with specific UI updates
