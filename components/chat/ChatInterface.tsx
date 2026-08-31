@@ -18,6 +18,8 @@ export interface ChatInterfaceProps {
   className?: string
   /** Dependencies that trigger auto-scroll to bottom (e.g. message count, streaming state) */
   scrollDependencies?: any[]
+  /** Optional external ref to the scroll container */
+  scrollRef?: React.RefObject<HTMLDivElement>
 }
 
 export function ChatInterface({
@@ -28,8 +30,19 @@ export function ChatInterface({
   emptyState,
   className,
   scrollDependencies = [],
+  scrollRef,
 }: ChatInterfaceProps) {
   const { containerRef } = useAutoScroll({ dependencies: scrollDependencies })
+  
+  // Merge refs so both useAutoScroll and external consumers can access the scroll container
+  const setRefs = (node: HTMLDivElement) => {
+    if (containerRef) {
+      (containerRef as React.MutableRefObject<HTMLDivElement | null>).current = node
+    }
+    if (scrollRef) {
+      (scrollRef as React.MutableRefObject<HTMLDivElement | null>).current = node
+    }
+  }
 
   return (
     <div
@@ -47,7 +60,7 @@ export function ChatInterface({
       )}
 
       {/* Main Content Area - Scrollable messages */}
-      <div ref={containerRef} className="flex-1 min-h-0 overflow-y-auto overflow-x-hidden relative z-10">
+      <div ref={setRefs} className="flex-1 min-h-0 overflow-y-auto overflow-x-hidden relative z-10">
         <div className="flex justify-center min-h-full">
           <div
             className={cn('w-full', 'px-4 md:px-6')}

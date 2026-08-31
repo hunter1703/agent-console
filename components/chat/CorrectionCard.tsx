@@ -1,5 +1,6 @@
 'use client'
 
+import React from 'react'
 import { AlertTriangle, X } from 'lucide-react'
 import { Card } from '../common/Card'
 import { Button } from '../common/Button'
@@ -10,7 +11,7 @@ interface CorrectionCardProps {
   onDismiss?: () => void
 }
 
-export function CorrectionCard({ correction, onDismiss }: CorrectionCardProps) {
+const CorrectionCardComponent = function CorrectionCard({ correction, onDismiss }: CorrectionCardProps) {
   return (
     <Card className="border-l-4 border-l-warning bg-warning/5 p-4">
       <div className="flex items-start gap-3">
@@ -59,3 +60,8 @@ export function CorrectionCard({ correction, onDismiss }: CorrectionCardProps) {
     </Card>
   )
 }
+function areCorrectionCardPropsEqual(prev: CorrectionCardProps, next: CorrectionCardProps) {
+  return JSON.stringify(prev.correction) === JSON.stringify(next.correction)
+}
+
+export const CorrectionCard = React.memo(CorrectionCardComponent, areCorrectionCardPropsEqual)

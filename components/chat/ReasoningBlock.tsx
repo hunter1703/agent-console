@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import React, { useState } from 'react'
 import { BrainCircuit, ChevronDown } from 'lucide-react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { cn } from '@/lib/utils'
@@ -11,7 +11,7 @@ interface ReasoningBlockProps {
   block: NonNullable<StreamingMessage['reasoning']>[number]
 }
 
-export function ReasoningBlock({ block }: ReasoningBlockProps) {
+const ReasoningBlockComponent = function ReasoningBlock({ block }: ReasoningBlockProps) {
   const [isExpanded, setIsExpanded] = useState(!block.isComplete)
   const text = block.thoughts.map((t) => t.content).join('\n\n')
 
@@ -56,3 +56,9 @@ export function ReasoningBlock({ block }: ReasoningBlockProps) {
     </div>
   )
 }
+
+function areReasoningBlockPropsEqual(prev: ReasoningBlockProps, next: ReasoningBlockProps) {
+  return JSON.stringify(prev.block) === JSON.stringify(next.block)
+}
+
+export const ReasoningBlock = React.memo(ReasoningBlockComponent, areReasoningBlockPropsEqual)

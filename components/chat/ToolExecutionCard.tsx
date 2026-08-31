@@ -17,7 +17,7 @@
 
 import { motion, AnimatePresence } from 'framer-motion'
 import { AlertCircle, CheckCircle, Clock, Loader2, Copy, Check } from 'lucide-react'
-import { useState, useEffect } from 'react'
+import React, { useState, useEffect, memo } from 'react'
 import { Prism as SyntaxHighlighter } from 'react-syntax-highlighter'
 import { vscDarkPlus } from 'react-syntax-highlighter/dist/esm/styles/prism'
 import { cn } from '@/lib/utils'
@@ -84,7 +84,7 @@ function CopyButton({
   )
 }
 
-export function ToolExecutionCard({
+const ToolExecutionCardComponent = function ToolExecutionCard({
   toolCallId,
   toolName,
   parameters,
@@ -384,3 +384,21 @@ export function ToolExecutionCard({
     </motion.div>
   )
 }
+
+function areToolExecutionPropsEqual(prev: ToolExecutionProps, next: ToolExecutionProps) {
+  return (
+    prev.toolCallId === next.toolCallId &&
+    prev.toolName === next.toolName &&
+    prev.status === next.status &&
+    prev.duration === next.duration &&
+    prev.agentName === next.agentName &&
+    prev.className === next.className &&
+    // Stringify to catch updates to these objects even if new `{}` is passed
+    JSON.stringify(prev.parameters) === JSON.stringify(next.parameters) &&
+    JSON.stringify(prev.result) === JSON.stringify(next.result) &&
+    prev.timestamp.getTime() === next.timestamp.getTime()
+  )
+}
+
+export const ToolExecutionCard = React.memo(ToolExecutionCardComponent, areToolExecutionPropsEqual)
+

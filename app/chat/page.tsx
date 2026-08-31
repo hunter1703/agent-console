@@ -49,6 +49,7 @@ import {
   ChatSession
 } from '@/lib/store/chat'
 import { Message } from '@/components/chat/Message'
+import { VirtualTimelineList } from '@/components/chat/VirtualTimelineList'
 import { OpenFileToolCard } from '@/components/chat/OpenFileToolCard'
 import { useInterruptStore } from '@/lib/stores/interruptStore'
 import { isPlanningToolCall } from '@/lib/sse/events'
@@ -136,8 +137,9 @@ function ChatPageContent() {
   const { correctionEvents, removeCorrectionEvent } = useCorrectionEvents(currentSessionId)
   const timeline = useTimeline(currentSessionId)
   const isInputDisabled = useChatStore(state => state.isInputDisabled)
+  const scrollContainerRef = useRef<HTMLDivElement>(null)
   
-  // Message input state
+  // Create a map of complete messages for fast lookup
   const [inputValue, setInputValue] = useState('')
   const [isSending, setIsSending] = useState(false)
   const sendingRef = useRef(false)
@@ -559,6 +561,182 @@ function ChatPageContent() {
     attachments: msg.attachments,
   })
 
+  const renderTimelineItem = (idx: number) => {
+    const item = timeline[idx];
+    
+                      const prevItem = idx > 0 ? timeline[idx - 1] : null
+
+                      if (item.type === 'message') {
+                        const streaming = streamingMessages[item.id]
+                        const committed = messageById.get(item.id)
+
+                        if (streaming) {
+                          const isUserMsg = item.role === 'user'
+                          const displayName = isUserMsg ? 'You' : resolveAgentName(item.agentId)
+                          return (
+                            <div
+                              key={item.id}
+                              className="flex gap-4 group relative mt-10"
+                              data-role={isUserMsg ? 'user' : 'assistant'}
+                            >
+                              <div className="flex-shrink-0">
+                                <Avatar
+                                  src={isUserMsg ? undefined : (displayAgent as any)?.avatar}
+                                  name={displayName}
+                                  size="sm"
+                                  variant={isUserMsg ? 'user' : 'agent'}
+                                />
+                              </div>
+                              <div className="flex-1 min-w-0">
+                                <div className="flex items-baseline gap-2 mb-2">
+                                  <span className="text-sm font-semibold text-text-primary">
+                                    {displayName}
+                                  </span>
+                                  <span className="text-xs text-text-tertiary">
+                                    {new Date().toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' })}
+                                  </span>
+                                </div>
+                                <div className="text-[15px] text-text-primary whitespace-pre-wrap break-words leading-[1.75] font-normal tracking-[-0.01em] select-text cursor-text">
+                                  {streaming.content}
+                                  {!streaming.isComplete && (
+                                    <span className="inline-block ml-1 w-2 h-4 bg-text-primary animate-pulse" />
+                                  )}
+                                </div>
+                              </div>
+                            </div>
+                          )
+                        }
+
+                        if (committed) {
+                          const props = toMessageProps(committed)
+                          const prevCommitted = prevItem?.type === 'message'
+                            ? (messageById.get(prevItem.id) ?? streamingMessages[prevItem.id])
+                            : null
+                          const prevSender = prevCommitted
+                            ? ((prevCommitted as any).role === 'user' ? 'user' : 'agent')
+                            : null
+                          const prevAgentId = prevItem?.agentId
+                          const timeDiff = prevCommitted
+                            ? props.timestamp.getTime() - new Date(
+                                (prevCommitted as any).createdTime ||
+                                (prevCommitted as any).updatedTime ||
+                                Date.now()
+                              ).getTime()
+                            : Infinity
+                          // Only cluster if same sender AND same agent (different agents must always show their name)
+                          const isClusteredWithPrevious =
+                            prevSender === props.sender &&
+                            prevAgentId === item.agentId &&
+                            timeDiff < 2 * 60 * 1000
+
+                          return (
+                            <Message
+                              key={item.id}
+                              {...props}
+                              isClusteredWithPrevious={isClusteredWithPrevious}
+                            />
+                          )
+                        }
+
+                        return null
+                      }
+
+                      if (item.type === 'tool_call') {
+                        const toolCall = activeToolCalls[item.id]
+                        if (!toolCall) return null
+
+                        if (toolCall.toolName === 'open_file') {
+                          return (
+                            <div key={item.id} className="mt-6">
+                              <OpenFileToolCard
+                                toolCallId={toolCall.toolCallId}
+                                parameters={toolCall.arguments || {}}
+                                result={toolCall.result}
+                                status={toolCall.status}
+                                timestamp={new Date(toolCall.startTime)}
+                                duration={toolCall.endTime
+                                  ? (new Date(toolCall.endTime).getTime() - new Date(toolCall.startTime).getTime()) / 1000
+                                  : undefined}
+                                agentName={toolCall.agentId ? resolveAgentName(toolCall.agentId) : undefined}
+                              />
+                            </div>
+                          )
+                        }
+
+                        return (
+                          <div key={item.id} className="mt-6">
+                            <ToolExecutionCard
+                              toolCallId={toolCall.toolCallId}
+                              toolName={toolCall.toolName}
+                              status={toolCall.status}
+                              parameters={toolCall.arguments || {}}
+                              result={toolCall.result}
+                              timestamp={new Date(toolCall.startTime)}
+                              duration={toolCall.endTime
+                                ? (new Date(toolCall.endTime).getTime() - new Date(toolCall.startTime).getTime()) / 1000
+                                : undefined}
+                              agentName={toolCall.agentId ? resolveAgentName(toolCall.agentId) : undefined}
+                            />
+                          </div>
+                        )
+                      }
+
+                      if (item.type === 'plan') {
+                        if (!activePlan) return null
+                        return (
+                          <div key={item.id} className="mt-6">
+                            <PlanWidget plan={activePlan} />
+                          </div>
+                        )
+                      }
+
+                      if (item.type === 'interrupt') {
+                        const interrupt = interruptsMap.get(item.id)
+                        if (!interrupt) return null
+                        const agentName = interrupt.requestingAgentId
+                          ? resolveAgentName(interrupt.requestingAgentId)
+                          : undefined
+                        // The backend's interrupt_requested event never sends a tool name,
+                        // only originalToolCallId — look the name up from that call's own
+                        // TOOL_CALL_START instead.
+                        const linkedToolName = interrupt.linkedToolCallId
+                          ? activeToolCalls[interrupt.linkedToolCallId]?.toolName
+                          : undefined
+                        return (
+                          <div key={item.id} className="mt-6" data-interrupt-status={interrupt.status}>
+                            <InterruptRequestCard
+                              interrupt={interrupt}
+                              linkedToolName={linkedToolName}
+                              sessionId={activeSession?.sessionId}
+                              agentName={agentName}
+                            />
+                          </div>
+                        )
+                      }
+
+                      if (item.type === 'correction') {
+                        const correction = correctionEvents[item.id]
+                        if (!correction) return null
+                        return (
+                          <div key={item.id} className="mt-6">
+                            <CorrectionCard
+                              correction={correction}
+                              onDismiss={() => removeCorrectionEvent(correction.correctionId)}
+                            />
+                          </div>
+                        )
+                      }
+
+                      if (item.type === 'reasoning') {
+                        const block = streamingMessages[item.id]?.reasoning?.[0]
+                        if (!block) return null
+                        return <ReasoningBlock key={item.id} block={block} />
+                      }
+
+                      return null
+
+  };
+
   return (
     <div className="h-screen bg-background flex overflow-hidden relative">
         {/* Sidebar */}
@@ -736,178 +914,11 @@ function ChatPageContent() {
                   </div>
                 ) : hasMessages ? (
                   <div className="space-y-0" data-testid="message-list">
-                    {timeline.map((item, idx) => {
-                      const prevItem = idx > 0 ? timeline[idx - 1] : null
-
-                      if (item.type === 'message') {
-                        const streaming = streamingMessages[item.id]
-                        const committed = messageById.get(item.id)
-
-                        if (streaming) {
-                          const isUserMsg = item.role === 'user'
-                          const displayName = isUserMsg ? 'You' : resolveAgentName(item.agentId)
-                          return (
-                            <div
-                              key={item.id}
-                              className="flex gap-4 group relative mt-10"
-                              data-role={isUserMsg ? 'user' : 'assistant'}
-                            >
-                              <div className="flex-shrink-0">
-                                <Avatar
-                                  src={isUserMsg ? undefined : (displayAgent as any)?.avatar}
-                                  name={displayName}
-                                  size="sm"
-                                  variant={isUserMsg ? 'user' : 'agent'}
-                                />
-                              </div>
-                              <div className="flex-1 min-w-0">
-                                <div className="flex items-baseline gap-2 mb-2">
-                                  <span className="text-sm font-semibold text-text-primary">
-                                    {displayName}
-                                  </span>
-                                  <span className="text-xs text-text-tertiary">
-                                    {new Date().toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' })}
-                                  </span>
-                                </div>
-                                <div className="text-[15px] text-text-primary whitespace-pre-wrap break-words leading-[1.75] font-normal tracking-[-0.01em] select-text cursor-text">
-                                  {streaming.content}
-                                  {!streaming.isComplete && (
-                                    <span className="inline-block ml-1 w-2 h-4 bg-text-primary animate-pulse" />
-                                  )}
-                                </div>
-                              </div>
-                            </div>
-                          )
-                        }
-
-                        if (committed) {
-                          const props = toMessageProps(committed)
-                          const prevCommitted = prevItem?.type === 'message'
-                            ? (messageById.get(prevItem.id) ?? streamingMessages[prevItem.id])
-                            : null
-                          const prevSender = prevCommitted
-                            ? ((prevCommitted as any).role === 'user' ? 'user' : 'agent')
-                            : null
-                          const prevAgentId = prevItem?.agentId
-                          const timeDiff = prevCommitted
-                            ? props.timestamp.getTime() - new Date(
-                                (prevCommitted as any).createdTime ||
-                                (prevCommitted as any).updatedTime ||
-                                Date.now()
-                              ).getTime()
-                            : Infinity
-                          // Only cluster if same sender AND same agent (different agents must always show their name)
-                          const isClusteredWithPrevious =
-                            prevSender === props.sender &&
-                            prevAgentId === item.agentId &&
-                            timeDiff < 2 * 60 * 1000
-
-                          return (
-                            <Message
-                              key={item.id}
-                              {...props}
-                              isClusteredWithPrevious={isClusteredWithPrevious}
-                            />
-                          )
-                        }
-
-                        return null
-                      }
-
-                      if (item.type === 'tool_call') {
-                        const toolCall = activeToolCalls[item.id]
-                        if (!toolCall) return null
-
-                        if (toolCall.toolName === 'open_file') {
-                          return (
-                            <div key={item.id} className="mt-6">
-                              <OpenFileToolCard
-                                toolCallId={toolCall.toolCallId}
-                                parameters={toolCall.arguments || {}}
-                                result={toolCall.result}
-                                status={toolCall.status}
-                                timestamp={new Date(toolCall.startTime)}
-                                duration={toolCall.endTime
-                                  ? (new Date(toolCall.endTime).getTime() - new Date(toolCall.startTime).getTime()) / 1000
-                                  : undefined}
-                                agentName={toolCall.agentId ? resolveAgentName(toolCall.agentId) : undefined}
-                              />
-                            </div>
-                          )
-                        }
-
-                        return (
-                          <div key={item.id} className="mt-6">
-                            <ToolExecutionCard
-                              toolCallId={toolCall.toolCallId}
-                              toolName={toolCall.toolName}
-                              status={toolCall.status}
-                              parameters={toolCall.arguments || {}}
-                              result={toolCall.result}
-                              timestamp={new Date(toolCall.startTime)}
-                              duration={toolCall.endTime
-                                ? (new Date(toolCall.endTime).getTime() - new Date(toolCall.startTime).getTime()) / 1000
-                                : undefined}
-                              agentName={toolCall.agentId ? resolveAgentName(toolCall.agentId) : undefined}
-                            />
-                          </div>
-                        )
-                      }
-
-                      if (item.type === 'plan') {
-                        if (!activePlan) return null
-                        return (
-                          <div key={item.id} className="mt-6">
-                            <PlanWidget plan={activePlan} />
-                          </div>
-                        )
-                      }
-
-                      if (item.type === 'interrupt') {
-                        const interrupt = interruptsMap.get(item.id)
-                        if (!interrupt) return null
-                        const agentName = interrupt.requestingAgentId
-                          ? resolveAgentName(interrupt.requestingAgentId)
-                          : undefined
-                        // The backend's interrupt_requested event never sends a tool name,
-                        // only originalToolCallId — look the name up from that call's own
-                        // TOOL_CALL_START instead.
-                        const linkedToolName = interrupt.linkedToolCallId
-                          ? activeToolCalls[interrupt.linkedToolCallId]?.toolName
-                          : undefined
-                        return (
-                          <div key={item.id} className="mt-6" data-interrupt-status={interrupt.status}>
-                            <InterruptRequestCard
-                              interrupt={interrupt}
-                              linkedToolName={linkedToolName}
-                              sessionId={activeSession?.sessionId}
-                              agentName={agentName}
-                            />
-                          </div>
-                        )
-                      }
-
-                      if (item.type === 'correction') {
-                        const correction = correctionEvents[item.id]
-                        if (!correction) return null
-                        return (
-                          <div key={item.id} className="mt-6">
-                            <CorrectionCard
-                              correction={correction}
-                              onDismiss={() => removeCorrectionEvent(correction.correctionId)}
-                            />
-                          </div>
-                        )
-                      }
-
-                      if (item.type === 'reasoning') {
-                        const block = streamingMessages[item.id]?.reasoning?.[0]
-                        if (!block) return null
-                        return <ReasoningBlock key={item.id} block={block} />
-                      }
-
-                      return null
-                    })}
+                    <VirtualTimelineList 
+                      itemCount={timeline.length} 
+                      renderItem={renderTimelineItem} 
+                      scrollContainerRef={scrollContainerRef} 
+                    />
 
                     {/* Typing Indicator — shown when streaming but no text delta has arrived yet */}
                     {isStreaming && Object.keys(streamingMessages).length === 0 && (

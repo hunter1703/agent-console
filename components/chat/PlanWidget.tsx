@@ -12,7 +12,7 @@
  */
 
 import { motion, AnimatePresence } from 'framer-motion'
-import { useState, useEffect } from 'react'
+import React, { useState, useEffect } from 'react'
 import useMeasure from 'react-use-measure'
 import { useReducedMotion } from '@/lib/hooks/useReducedMotion'
 import { cn } from '@/lib/utils'
@@ -23,7 +23,7 @@ export interface PlanWidgetProps {
   onTaskClick?: (taskId: string) => void
 }
 
-export function PlanWidget({ plan, onTaskClick }: PlanWidgetProps) {
+const PlanWidgetComponent = function PlanWidget({ plan, onTaskClick }: PlanWidgetProps) {
   const [focusedTaskId, setFocusedTaskId] = useState<string | null>(null)
   const [navigationHistory, setNavigationHistory] = useState<(string | null)[]>([null])
   const [slideDirection, setSlideDirection] = useState<'left' | 'right'>('left')
@@ -388,3 +388,10 @@ export function PlanWidget({ plan, onTaskClick }: PlanWidgetProps) {
     </div>
   )
 }
+
+function arePlanWidgetPropsEqual(prev: PlanWidgetProps, next: PlanWidgetProps) {
+  // Deep equality for plan is necessary since tasks status might change
+  return JSON.stringify(prev.plan) === JSON.stringify(next.plan)
+}
+
+export const PlanWidget = React.memo(PlanWidgetComponent, arePlanWidgetPropsEqual)

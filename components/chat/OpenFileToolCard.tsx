@@ -15,7 +15,7 @@
  * - Skeleton shimmer while loading
  */
 
-import { useState, useEffect } from 'react'
+import React, { useState, useEffect } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { FolderOpen, CheckCircle, Loader2, AlertCircle, Clock, FileIcon, ImageIcon } from 'lucide-react'
 import { cn } from '@/lib/utils'
@@ -153,7 +153,7 @@ const COLOR = '#F97316'   // orange — file/media category
 const BG    = 'rgba(249, 115, 22, 0.05)'
 const BORDER = 'rgba(249, 115, 22, 0.2)'
 
-export function OpenFileToolCard({
+const OpenFileToolCardComponent = function OpenFileToolCard({
   toolCallId,
   parameters,
   result,
@@ -275,3 +275,18 @@ export function OpenFileToolCard({
     </motion.div>
   )
 }
+
+function areOpenFileToolCardPropsEqual(prev: OpenFileToolCardProps, next: OpenFileToolCardProps) {
+  return (
+    prev.toolCallId === next.toolCallId &&
+    prev.status === next.status &&
+    prev.duration === next.duration &&
+    prev.agentName === next.agentName &&
+    prev.className === next.className &&
+    JSON.stringify(prev.parameters) === JSON.stringify(next.parameters) &&
+    JSON.stringify(prev.result) === JSON.stringify(next.result) &&
+    prev.timestamp.getTime() === next.timestamp.getTime()
+  )
+}
+
+export const OpenFileToolCard = React.memo(OpenFileToolCardComponent, areOpenFileToolCardPropsEqual)
