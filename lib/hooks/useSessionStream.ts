@@ -49,6 +49,17 @@ export function useSessionStream(
     mountedRef.current = true
     return () => {
       mountedRef.current = false
+      // The "clear active session" effect below only closes the stream when sessionId
+      // transitions through falsy while this hook is still mounted — navigating away from
+      // /chat entirely (a nav-link click, not a URL param change) unmounts this hook
+      // without that ever happening, which otherwise leaves the stream open and
+      // auto-reconnecting in the background indefinitely, invisibly, for a page nobody is
+      // viewing. Read the connection fresh here rather than closing over a stale one.
+      const chatStore = useChatStore.getState()
+      if (chatStore.sseConnection) {
+        chatStore.sseConnection.close()
+        chatStore.setSSEConnection(null)
+      }
     }
   }, [])
 
@@ -61,6 +72,30 @@ export function useSessionStream(
       const isDifferentSession = !activeSession || activeSession.sessionId !== session.id
 
       if (isDifferentSession) {
+        // React StrictMode deliberately double-invokes this effect synchronously in
+        // development (mount → cleanup → mount, no render in between) to surface exactly
+        // this class of bug. `activeSession` above is a value captured from this render's
+        // closure — on the second invocation it is still stale (no re-render happened yet
+        // to reflect the first invocation's setActiveSession call below), so
+        // `isDifferentSession` is true both times and both invocations reach the
+        // `alreadyConnectedToThisSession` check below. That check is ALSO fooled: it reads
+        // chatStore.sseConnection, which the first invocation's async openStreamForSession
+        // hasn't set yet (it's still awaiting its dynamic imports/fetch). Both invocations
+        // then independently open a real GET .../stream connection to the same session —
+        // confirmed live via two simultaneous requests to the identical stream URL in the
+        // network tab — and since handleTextMessageChunk has no per-delta dedup, every
+        // streamed token from the live generation gets appended twice, which is what
+        // actually produced garbled, duplicated-word message text (e.g. "of lore of lore,",
+        // "She She directed them...") that reads as visual overlap once rendered.
+        //
+        // latestStreamRequestSessionIdRef is a ref, not component state, so — unlike
+        // `activeSession` — it IS already updated by the time the synchronous second
+        // invocation runs, making it the correct thing to guard on here.
+        if (latestStreamRequestSessionIdRef.current === session.id) {
+          setActiveSession(session.id)
+          return
+        }
+
         // Navigation to a real session URL has landed — clear the flag that
         // was suppressing the "no sessionId" cleanup effect during the transition.
         isNavigatingToSessionRef.current = false
@@ -112,7 +147,6 @@ export function useSessionStream(
           createdTime: typeof session.createdTime === 'string' ? session.createdTime : new Date().toISOString(),
           updatedTime: typeof session.updatedTime === 'string' ? session.updatedTime : new Date().toISOString(),
           toolCalls: existingInStore?.toolCalls ?? {},
-          interrupts: existingInStore?.interrupts ?? {},
           corrections: existingInStore?.corrections ?? {},
           activePlan: existingInStore?.activePlan ?? null,
           timeline: existingInStore?.timeline ?? [],
@@ -143,7 +177,7 @@ export function useSessionStream(
 
             console.log('Opening SSE stream for session:', session.id, 'status:', session.status)
             const stream = openManagedSessionStream(session.id, {
-              onEvent: (event) => eventHandler.handleSSEMessage(event, session.id),
+              onEvent: (rawData) => eventHandler.handleEvent(rawData, session.id),
               onStatusChange: (status) => {
                 useChatStore.getState().updateSession(session.id, { connectionStatus: status })
                 // Only commit partial streaming text as "final" once reconnection attempts are

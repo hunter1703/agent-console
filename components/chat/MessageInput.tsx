@@ -46,6 +46,12 @@ export function MessageInput({
   const [isFocused, setIsFocused] = useState(false)
   const [isHovered, setIsHovered] = useState(false)
   const [attachments, setAttachments] = useState<Array<{ type: 'file'; fileDetails: import('@/lib/api/services').FileDetails; preview?: string }>>([])
+  // Kept in sync so the unmount-cleanup effect below (deliberately empty deps — it must run
+  // only once, on unmount) can read the *latest* attachments instead of the empty array
+  // from the render it was created on, which meant attachments added after mount were
+  // never revoked on unmount.
+  const attachmentsRef = useRef(attachments)
+  attachmentsRef.current = attachments
   const [isProcessingFile, setIsProcessingFile] = useState(false)
   const [isDragOver, setIsDragOver] = useState(false)
 
@@ -65,7 +71,7 @@ export function MessageInput({
     
     try {
       const { uploadToStorage } = await import('@/lib/api/services')
-      const newAttachments = []
+      const newAttachments: Array<{ type: 'file'; fileDetails: import('@/lib/api/services').FileDetails; preview?: string }> = []
       const errors = []
       
       for (const file of Array.from(files)) {
@@ -143,7 +149,7 @@ export function MessageInput({
   // Cleanup object URLs on unmount
   useEffect(() => {
     return () => {
-      attachments.forEach(att => { if (att.preview) URL.revokeObjectURL(att.preview) })
+      attachmentsRef.current.forEach(att => { if (att.preview) URL.revokeObjectURL(att.preview) })
     }
   }, [])
 
@@ -187,8 +193,10 @@ export function MessageInput({
 
   // Handle keyboard shortcuts
   const handleKeyDown = (e: KeyboardEvent<HTMLTextAreaElement>) => {
-    // Enter to send (without modifiers)
-    if (e.key === 'Enter' && !e.shiftKey && !e.metaKey && !e.ctrlKey) {
+    // Enter to send (without modifiers). isComposing excludes the Enter that confirms an
+    // IME candidate (Japanese/Chinese/Korean input) — without it, that Enter both commits
+    // the composition *and* sends the message immediately, before the user meant to.
+    if (e.key === 'Enter' && !e.shiftKey && !e.metaKey && !e.ctrlKey && !e.nativeEvent.isComposing) {
       e.preventDefault()
       handleSend()
     }
@@ -214,9 +222,9 @@ export function MessageInput({
         <div className="mb-3 flex flex-wrap gap-2">
           {attachments.map((attachment, index) => (
             <div
-              key={index}
+              key={attachment.fileDetails.source}
               className="relative group rounded-lg overflow-hidden border border-border-subtle bg-surface"
-              role="img"
+              role="group"
               aria-label={`Attached file: ${attachment.fileDetails.name}`}
             >
               {attachment.preview ? (

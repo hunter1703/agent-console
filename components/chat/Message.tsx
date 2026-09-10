@@ -117,6 +117,10 @@ function MessageContent({
 }
 
 // Custom comparison function for memoization
+function attachmentsKey(attachments: MessageAttachment[] | undefined): string {
+  return attachments?.map((a) => a.source).join(',') ?? ''
+}
+
 function arePropsEqual(prevProps: MessageProps, nextProps: MessageProps): boolean {
   return (
     prevProps.id === nextProps.id &&
@@ -127,7 +131,10 @@ function arePropsEqual(prevProps: MessageProps, nextProps: MessageProps): boolea
     prevProps.timestamp.getTime() === nextProps.timestamp.getTime() &&
     prevProps.isClusteredWithPrevious === nextProps.isClusteredWithPrevious &&
     prevProps.className === nextProps.className &&
-    prevProps.attachments?.length === nextProps.attachments?.length
+    // Comparing just .length let a same-length attachments array with different contents
+    // (e.g. a corrected/edited source) bail out of re-rendering and keep showing stale
+    // AttachmentPreviews.
+    attachmentsKey(prevProps.attachments) === attachmentsKey(nextProps.attachments)
   )
 }
 
@@ -180,7 +187,7 @@ const MessageComponent = function Message({
       scale: 1,
       transition: {
         duration: 0.5,
-        ease: [0.25, 0.46, 0.45, 0.94],
+        ease: [0.25, 0.46, 0.45, 0.94] as const,
       },
     },
   }

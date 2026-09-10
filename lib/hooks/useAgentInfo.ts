@@ -51,9 +51,14 @@ export function useAgentInfo(agentId: string | undefined, enabled = true) {
 }
 
 /**
- * Get agent display name with fallback
+ * Get agent display name with fallback. Accepts any agent-shaped object with at least
+ * `name` — not just AgentInfo — since callers also pass the (structurally different)
+ * Agent type from lib/api/types.ts, and this only ever reads these two fields.
  */
-export function getAgentDisplayName(agentInfo: AgentInfo | undefined, fallback = 'Assistant'): string {
+export function getAgentDisplayName(
+  agentInfo: { name: string; displayName?: string } | null | undefined,
+  fallback = 'Assistant'
+): string {
   if (!agentInfo) return fallback
   return agentInfo.displayName || agentInfo.name || fallback
 }

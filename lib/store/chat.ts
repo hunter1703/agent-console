@@ -73,6 +73,8 @@ export interface StreamingMessage {
   role: 'assistant' | 'user' | 'system'
   content: string
   isComplete: boolean
+  /** Set once, when the message starts streaming — the fixed clock time to display for it. */
+  startedAt: string
   toolCalls: ActiveToolCall[]
   reasoning?: {
     blockId: string
@@ -151,7 +153,6 @@ export interface ChatState {
    *   event is emitted before that turn's own tool-call events, live or on replay.
    */
   addTimelineItem: (sessionId: string, item: TimelineItem, afterId?: string) => void
-  clearTimeline: (sessionId: string) => void
 
   // Planning actions
   setActivePlan: (sessionId: string, plan: Plan) => void
@@ -353,6 +354,7 @@ export const useChatStore = create<ChatState>()(
                 role,
                 content: '',
                 isComplete: false,
+                startedAt: new Date().toISOString(),
                 toolCalls: [],
               },
             },
@@ -414,8 +416,10 @@ export const useChatStore = create<ChatState>()(
             }
 
             const now = new Date().toISOString()
+            const hasContent = ([, msg]: (typeof ownEntries)[number]) =>
+              msg.content.trim().length > 0
             const additionalMessages: Message[] = ownEntries
-              .filter(([, msg]) => msg.content.trim().length > 0)
+              .filter(hasContent)
               .map(([, msg]) => ({
                 id: msg.messageId,
                 messageId: msg.messageId,
@@ -429,6 +433,22 @@ export const useChatStore = create<ChatState>()(
             const remainingStreamingMessages = { ...state.streamingMessages }
             for (const [id] of ownEntries) delete remainingStreamingMessages[id]
 
+            // A reasoning-only entry (empty .content — the actual thoughts live in
+            // .reasoning[].thoughts, which has nowhere permanent to go) never becomes a
+            // Message, so its own 'reasoning' timeline slot would otherwise dangle forever:
+            // deleted from streamingMessages above, never added to session.messages, and
+            // the renderer null-guards it into permanently rendering nothing instead of
+            // actually being removed.
+            const droppedIds = new Set(
+              ownEntries.filter((entry) => !hasContent(entry)).map(([id]) => id)
+            )
+            const timeline =
+              droppedIds.size > 0
+                ? session.timeline.filter(
+                    (t) => !(t.type === 'reasoning' && droppedIds.has(t.id))
+                  )
+                : session.timeline
+
             return {
               streamingMessages: remainingStreamingMessages,
               sessions: {
@@ -439,6 +459,7 @@ export const useChatStore = create<ChatState>()(
                     additionalMessages.length > 0
                       ? [...session.messages, ...additionalMessages]
                       : session.messages,
+                  timeline,
                   isStreaming: false,
                 },
               },
@@ -456,7 +477,16 @@ export const useChatStore = create<ChatState>()(
               role: 'assistant',
               content: '',
               isComplete: false,
+              startedAt: new Date().toISOString(),
               toolCalls: [],
+            }
+            // Idempotent under re-delivery: REASONING_START is deliberately not dedup-gated
+            // (see AGUIEventHandler's class doc — a reconnect must re-open the block so
+            // subsequent REASONING_MESSAGE_* events have somewhere to attach), so the same
+            // blockId can arrive more than once. Without this check each redelivery would
+            // push a second, empty block entry alongside the real one.
+            if ((message.reasoning ?? []).some((b) => b.blockId === blockId)) {
+              return state
             }
             return {
               streamingMessages: {
@@ -523,6 +553,12 @@ export const useChatStore = create<ChatState>()(
           set((state) => {
             const session = state.sessions[sessionId]
             if (!session) return state
+            // The handler already gates a replayed TOOL_CALL_START via its own per-session
+            // seenToolCall Set, but that's external, caller-side protection — this guards
+            // the store's own invariant directly, so a completed call's result/status/
+            // endTime can't be silently wiped back to 'pending' by any other caller
+            // (present or future) that skips that gate.
+            if (session.toolCalls[toolCall.toolCallId]?.status === 'completed') return state
             return {
               sessions: {
                 ...state.sessions,
@@ -608,10 +644,16 @@ export const useChatStore = create<ChatState>()(
             const session = state.sessions[sessionId]
             if (!session) return state
             const { [correctionId]: _removed, ...remaining } = session.corrections
+            // Also drop this correction's timeline slot — otherwise it's a permanent
+            // dead entry the renderer null-guards (correction no longer exists) but never
+            // actually removes, so it keeps costing a virtualized row forever.
+            const timeline = (session.timeline ?? []).filter(
+              (t) => !(t.type === 'correction' && t.id === correctionId)
+            )
             return {
               sessions: {
                 ...state.sessions,
-                [sessionId]: { ...session, corrections: remaining },
+                [sessionId]: { ...session, corrections: remaining, timeline },
               },
             }
           })
@@ -688,14 +730,6 @@ export const useChatStore = create<ChatState>()(
             return {
               sessions: { ...state.sessions, [sessionId]: { ...session, timeline: [...timeline, item] } },
             }
-          })
-        },
-
-        clearTimeline: (sessionId) => {
-          set((state) => {
-            const session = state.sessions[sessionId]
-            if (!session) return state
-            return { sessions: { ...state.sessions, [sessionId]: { ...session, timeline: [] } } }
           })
         },
 
@@ -846,11 +880,16 @@ const EMPTY_CORRECTIONS: Record<string, CorrectionEvent> = {}
  */
 export function useActiveSession() {
   const activeSessionId = useChatStore(state => state.activeSessionId)
-  const sessions = useChatStore(state => state.sessions)
+  // Select the one session object directly, not the whole `sessions` dictionary: every
+  // mutation rebuilds `sessions` as a new object (chat.ts's actions all spread-copy it), so
+  // subscribing to the dictionary re-rendered every consumer of this hook — including the
+  // whole chat page, which drives a virtualized list — on every SSE event for *any* session,
+  // not just the one actually being viewed.
+  const activeSession = useChatStore(state =>
+    activeSessionId ? state.sessions[activeSessionId] ?? null : null
+  )
   const setActiveSession = useChatStore(state => state.setActiveSession)
-  
-  const activeSession = activeSessionId ? sessions[activeSessionId] : null
-  
+
   return {
     activeSession,
     activeSessionId,

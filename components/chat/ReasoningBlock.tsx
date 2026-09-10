@@ -40,10 +40,15 @@ const ReasoningBlockComponent = function ReasoningBlock({ block }: ReasoningBloc
 
       <AnimatePresence initial={false}>
         {isExpanded && text && (
+          // Opacity-only: this renders inside VirtualTimelineList's rows, and reasoning
+          // blocks default to expanded while incomplete — a replay burst can mount several
+          // of these at once. Animating height fights the virtualizer's own measurement of
+          // this row's final size (the same bug already fixed in ToolExecutionCard's Result
+          // block); an opacity fade has no layout impact so there's nothing to race.
           <motion.div
-            initial={{ opacity: 0, height: 0 }}
-            animate={{ opacity: 1, height: 'auto' }}
-            exit={{ opacity: 0, height: 0 }}
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
             transition={springPresets.gentle}
             className="overflow-hidden"
           >

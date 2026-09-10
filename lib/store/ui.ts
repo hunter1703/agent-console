@@ -5,6 +5,7 @@
  * loading states, and other transient UI elements.
  */
 
+import { useMemo } from 'react'
 import { create } from 'zustand'
 import { devtools } from 'zustand/middleware'
 import { DEV_CONFIG } from '@/lib/config/env'
@@ -241,26 +242,32 @@ export function useToasts() {
   const addToast = useUIStore(state => state.addToast)
   const removeToast = useUIStore(state => state.removeToast)
   const clearToasts = useUIStore(state => state.clearToasts)
-  
-  return {
-    toasts,
+
+  // addToast/removeToast/clearToasts are stable Zustand action references, but the
+  // convenience wrappers below were previously recreated as new closures on every render.
+  // Consumers that put `error`/etc. in a useEffect dependency array would then re-run that
+  // effect on every render — and if the effect (or a sibling) triggers a re-render via
+  // addToast, that's an infinite loop. Memoized separately from `toasts` (which legitimately
+  // changes on every add/remove) so the action identities stay stable across toast updates.
+  const actions = useMemo(() => ({
     addToast,
     removeToast,
     clearToasts,
-    
-    // Convenience methods
-    success: (title: string, message?: string) => 
+
+    success: (title: string, message?: string) =>
       addToast({ type: 'success', title, message }),
-    
-    error: (title: string, message?: string) => 
+
+    error: (title: string, message?: string) =>
       addToast({ type: 'error', title, message }),
-    
-    warning: (title: string, message?: string) => 
+
+    warning: (title: string, message?: string) =>
       addToast({ type: 'warning', title, message }),
-    
-    info: (title: string, message?: string) => 
+
+    info: (title: string, message?: string) =>
       addToast({ type: 'info', title, message }),
-  }
+  }), [addToast, removeToast, clearToasts])
+
+  return { toasts, ...actions }
 }
 
 /**

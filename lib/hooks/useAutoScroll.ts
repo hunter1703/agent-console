@@ -25,12 +25,23 @@ interface UseAutoScrollOptions {
    * Dependencies that trigger auto-scroll
    */
   dependencies?: any[]
+
+  /**
+   * Set to false when something else owns scroll-to-bottom for this container (e.g. a
+   * virtualizer with its own `followOnAppend`/`anchorTo: 'end'`) — this hook's own
+   * `scrollTo({ top: scrollHeight })` doesn't know about dynamically-measured item sizes
+   * and will fight a virtualizer for scroll position, stranding it wherever a flat
+   * `estimateSize` guess landed instead of the real bottom.
+   * @default true
+   */
+  enabled?: boolean
 }
 
 export function useAutoScroll({
   threshold = 100,
   behavior = 'smooth',
   dependencies = [],
+  enabled = true,
 }: UseAutoScrollOptions = {}) {
   const containerRef = useRef<HTMLDivElement>(null)
   const [isAtBottom, setIsAtBottom] = useState(true)
@@ -68,10 +79,10 @@ export function useAutoScroll({
 
   // Auto-scroll when dependencies change (new messages)
   useEffect(() => {
-    if (isAtBottom && !userHasScrolled) {
+    if (enabled && isAtBottom && !userHasScrolled) {
       scrollToBottom()
     }
-  }, [...dependencies, isAtBottom, userHasScrolled, scrollToBottom])
+  }, [...dependencies, enabled, isAtBottom, userHasScrolled, scrollToBottom])
 
   // Attach scroll listener
   useEffect(() => {

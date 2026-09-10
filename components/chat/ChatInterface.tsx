@@ -19,7 +19,7 @@ export interface ChatInterfaceProps {
   /** Dependencies that trigger auto-scroll to bottom (e.g. message count, streaming state) */
   scrollDependencies?: any[]
   /** Optional external ref to the scroll container */
-  scrollRef?: React.RefObject<HTMLDivElement>
+  scrollRef?: React.RefObject<HTMLDivElement | null>
 }
 
 export function ChatInterface({
@@ -32,7 +32,11 @@ export function ChatInterface({
   scrollDependencies = [],
   scrollRef,
 }: ChatInterfaceProps) {
-  const { containerRef } = useAutoScroll({ dependencies: scrollDependencies })
+  // When the caller supplies its own scrollRef (e.g. app/chat/page.tsx's virtualized
+  // timeline), it owns scroll-to-bottom via the virtualizer's own followOnAppend —
+  // this hook's naive scrollTo(scrollHeight) doesn't know about dynamically-measured
+  // item sizes and would fight the virtualizer for scroll position.
+  const { containerRef } = useAutoScroll({ dependencies: scrollDependencies, enabled: !scrollRef })
   
   // Merge refs so both useAutoScroll and external consumers can access the scroll container
   const setRefs = (node: HTMLDivElement) => {

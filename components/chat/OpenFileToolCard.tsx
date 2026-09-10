@@ -15,10 +15,10 @@
  * - Skeleton shimmer while loading
  */
 
-import React, { useState, useEffect } from 'react'
+import React, { useState, useEffect, useRef } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { FolderOpen, CheckCircle, Loader2, AlertCircle, Clock, FileIcon, ImageIcon } from 'lucide-react'
-import { cn } from '@/lib/utils'
+import { cn, safeStringify } from '@/lib/utils'
 import { springPresets } from '@/lib/constants/animations'
 import { formatDuration } from '@/lib/utils/formatDate'
 import { useReducedMotion } from '@/lib/hooks/useReducedMotion'
@@ -77,15 +77,30 @@ async function fetchObjectUrl(file: FileEntry): Promise<string> {
 function ImageTile({ file }: { file: FileEntry }) {
   const [url, setUrl] = useState<string | null>(null)
   const [err, setErr] = useState(false)
+  // Tracks the latest object URL for cleanup — `url` state is still null at the moment this
+  // effect is created (fetchObjectUrl is async), so a cleanup closing over `url` directly
+  // always revoked null instead of the real blob URL set later, leaking one blob per image
+  // result for the life of the tab.
+  const urlRef = useRef<string | null>(null)
 
   useEffect(() => {
     let alive = true
     fetchObjectUrl(file)
-      .then((u) => { if (alive) setUrl(u) })
+      .then((u) => {
+        if (!alive) {
+          URL.revokeObjectURL(u)
+          return
+        }
+        urlRef.current = u
+        setUrl(u)
+      })
       .catch(() => { if (alive) setErr(true) })
     return () => {
       alive = false
-      if (url) URL.revokeObjectURL(url)
+      if (urlRef.current) {
+        URL.revokeObjectURL(urlRef.current)
+        urlRef.current = null
+      }
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [file.source])
@@ -227,7 +242,7 @@ const OpenFileToolCardComponent = function OpenFileToolCard({
               key={status}
               initial={shouldAnimate ? { scale: 0, rotate: -180 } : false}
               animate={shouldAnimate ? { scale: 1, rotate: 0 } : { scale: 1 }}
-              exit={shouldAnimate ? { scale: 0, rotate: 180 } : false}
+              exit={shouldAnimate ? { scale: 0, rotate: 180 } : undefined}
               transition={shouldAnimate ? springPresets.bouncy : { duration: 0 }}
             >
               <motion.div
@@ -241,11 +256,15 @@ const OpenFileToolCardComponent = function OpenFileToolCard({
         </div>
       </div>
 
-      {/* File previews — shown once result arrives */}
+      {/* File previews — shown once result arrives. Opacity-only: this card renders inside
+          VirtualTimelineList's rows, and a replay burst can mount several of these with
+          results already present at once. Animating height (previously here) fights the
+          virtualizer's measurement of this row's final size — the same bug already fixed
+          in ToolExecutionCard's Result block. */}
       {files.length > 0 && (
         <motion.div
-          initial={shouldAnimate ? { opacity: 0, height: 0 } : false}
-          animate={shouldAnimate ? { opacity: 1, height: 'auto' } : { opacity: 1 }}
+          initial={shouldAnimate ? { opacity: 0 } : false}
+          animate={{ opacity: 1 }}
           transition={shouldAnimate ? springPresets.gentle : { duration: 0 }}
           className="mt-4 pt-3 border-t border-border-subtle"
         >
@@ -283,8 +302,11 @@ function areOpenFileToolCardPropsEqual(prev: OpenFileToolCardProps, next: OpenFi
     prev.duration === next.duration &&
     prev.agentName === next.agentName &&
     prev.className === next.className &&
-    JSON.stringify(prev.parameters) === JSON.stringify(next.parameters) &&
-    JSON.stringify(prev.result) === JSON.stringify(next.result) &&
+    // safeStringify, not raw JSON.stringify: this runs outside any render try/catch, so a
+    // circular reference or BigInt in a malformed result would otherwise throw here and
+    // break reconciliation for the whole list, not just this card.
+    safeStringify(prev.parameters) === safeStringify(next.parameters) &&
+    safeStringify(prev.result) === safeStringify(next.result) &&
     prev.timestamp.getTime() === next.timestamp.getTime()
   )
 }

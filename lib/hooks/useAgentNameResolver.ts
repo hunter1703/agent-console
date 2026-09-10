@@ -40,7 +40,7 @@ export function useAgentNameResolver(
   const agentNameById = useMemo(() => {
     const map = new Map<string, string>()
     for (const a of (agentsData?.items || [])) {
-      map.set(a.id, (a as any).displayName || a.name)
+      map.set(a.id, a.displayName || a.name)
     }
     return map
   }, [agentsData])
@@ -57,7 +57,7 @@ export function useAgentNameResolver(
       const map = new Map<string, string>()
       for (const r of results) {
         if (r.status === 'fulfilled' && r.value) {
-          map.set(r.value.id, (r.value as any).displayName || r.value.name)
+          map.set(r.value.id, r.value.displayName || r.value.name)
         }
       }
       return map

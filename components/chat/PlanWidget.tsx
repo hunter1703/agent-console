@@ -152,8 +152,13 @@ const PlanWidgetComponent = function PlanWidget({ plan, onTaskClick }: PlanWidge
         />
       </div>
 
-      {/* Main card with animated height */}
-      <motion.div 
+      {/* Main card with animated height. This looks like the height:0→'auto' mount-reveal
+          pattern already fixed elsewhere (it corrupted VirtualTimelineList's row measurement
+          when several such reveals mounted at once during a replay burst), but it isn't: on
+          first mount bounds.height is 0, so the ternary below evaluates to 'auto' with no
+          animation at all — this only animates BETWEEN two already-real, already-measured
+          heights on later navigation, which measureElement's ResizeObserver tracks fine. */}
+      <motion.div
         className="relative bg-slate-900 rounded-2xl border-2 border-slate-700 shadow-2xl overflow-hidden"
         animate={{ height: bounds.height > 0 ? bounds.height : 'auto' }}
         transition={{ 

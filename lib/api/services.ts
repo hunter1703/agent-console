@@ -15,6 +15,8 @@ import type { RequestOptions } from './client'
 export interface Agent {
   id: string
   name: string
+  displayName?: string
+  avatar?: string
   description?: string
   modelId?: string
   systemPrompt?: string
@@ -108,11 +110,11 @@ export async function listAgents(
 ): Promise<PaginatedResult<Agent>> {
   return apiClient.post<PaginatedResult<Agent>>(
     '/v1/catalog/list',
-    { 
+    {
       assetType: 'Agent',
       query: query || {}
     },
-    { ...options, sanitize: false }
+    options
   )
 }
 
@@ -269,249 +271,21 @@ export async function listSessions(
   return apiClient.post<PaginatedResult<Session>>(
     '/v1/catalog/list',
     { assetType: 'AgentSession', ...request },
-    { ...options, sanitize: false }
-  )
-}
-
-/**
- * Get session by ID with optional events
- */
-export async function getSession(
-  sessionId: string,
-  includeEvents = false,
-  options?: RequestOptions
-): Promise<Session> {
-  const params = includeEvents ? '?includeEvents=true' : ''
-  return apiClient.get<Session>(
-    `/v1/catalog/AgentSession/${sessionId}${params}`,
     options
   )
 }
 
 /**
- * Get session messages from session events
- * Converts session events to displayable messages
+ * Get session by ID
  */
-export async function getSessionMessages(
+export async function getSession(
   sessionId: string,
   options?: RequestOptions
-): Promise<Message[]> {
-  try {
-    // Get session with events
-    const session = await getSession(sessionId, true, options)
-    
-    // Check for aguiEvents (new format) or events (legacy format)
-    const events = (session as any).aguiEvents || session.events
-    if (!events || !Array.isArray(events)) {
-      return []
-    }
-    
-    const messages: Message[] = []
-    const messageMap = new Map<string, Partial<Message>>()
-    
-    // Process events to reconstruct messages
-    // Preserve the order from the backend - do NOT sort
-    // Track the order in which TEXT_MESSAGE_END events appear
-    const messageOrder: string[] = []
-    
-    for (const event of events) {
-      const eventData = event.rawEvent || event.data || event
-      const eventType = event.type || event.eventType
-      
-      switch (eventType) {
-        case 'TEXT_MESSAGE_START':
-          if (eventData.messageId) {
-            messageMap.set(eventData.messageId, {
-              id: eventData.messageId,
-              sessionId: sessionId,
-              role: eventData.role || 'assistant',
-              content: '',
-              status: 'streaming' as const,
-              timestamp: new Date(event.timestamp || eventData.timestamp || Date.now()).toISOString(),
-              // Store agentId in metadata for later resolution
-              metadata: {
-                agentId: eventData.agentId,
-              }
-            })
-          }
-          break
-          
-        case 'TEXT_MESSAGE_CHUNK':
-        case 'TEXT_MESSAGE_CONTENT':  // Handle both CHUNK and CONTENT events
-          if (eventData.messageId && messageMap.has(eventData.messageId)) {
-            const message = messageMap.get(eventData.messageId)!
-            message.content = (message.content || '') + (eventData.delta || '')
-          }
-          break
-          
-        case 'TEXT_MESSAGE_END':
-          if (eventData.messageId && messageMap.has(eventData.messageId)) {
-            const message = messageMap.get(eventData.messageId)!
-            if (eventData.content) {
-              message.content = eventData.content
-            }
-            message.status = 'complete'
-            message.timestamp = new Date(event.timestamp || eventData.timestamp || Date.now()).toISOString()
-            
-            // Track the order in which messages complete
-            messageOrder.push(eventData.messageId)
-          }
-          break
-      }
-    }
-    
-    // Build final messages array in the order TEXT_MESSAGE_END events appeared
-    for (const messageId of messageOrder) {
-      const message = messageMap.get(messageId)
-      if (message && message.id && message.role && message.content !== undefined) {
-        messages.push(message as Message)
-      }
-    }
-    
-    return messages
-  } catch (error) {
-    console.warn(`Failed to load session messages for ${sessionId}:`, error)
-    return []
-  }
-}
-
-/**
- * Tool call interface for reconstructed tool calls
- */
-export interface ReconstructedToolCall {
-  toolCallId: string
-  toolName: string
-  status: 'pending' | 'executing' | 'completed' | 'failed'
-  arguments?: Record<string, unknown>
-  result?: any
-  startTime: string
-  endTime?: string
-  parentMessageId?: string
-}
-
-/**
- * Get session tool calls from session events
- * Reconstructs tool call state from historical events
- */
-export async function getSessionToolCalls(
-  sessionId: string,
-  options?: RequestOptions
-): Promise<ReconstructedToolCall[]> {
-  try {
-    // Get session with events
-    const session = await getSession(sessionId, true, options)
-    
-    // Check for aguiEvents (new format) or events (legacy format)
-    const events = (session as any).aguiEvents || session.events
-    if (!events || !Array.isArray(events)) {
-      return []
-    }
-    
-    const toolCalls: ReconstructedToolCall[] = []
-    const toolCallMap = new Map<string, Partial<ReconstructedToolCall>>()
-    
-    // Process events to reconstruct tool calls
-    for (const event of events) {
-      const eventData = event.rawEvent || event.data || event
-      const eventType = event.type || event.eventType
-      
-      switch (eventType) {
-        case 'TOOL_CALL_START':
-        case 'ToolCallStart':
-          if (eventData.toolCallId) {
-            toolCallMap.set(eventData.toolCallId, {
-              toolCallId: eventData.toolCallId,
-              toolName: eventData.toolCallName || eventData.toolName || 'unknown',
-              status: 'pending',
-              arguments: {},
-              startTime: new Date(event.timestamp || eventData.timestamp || Date.now()).toISOString(),
-              parentMessageId: eventData.parentMessageId,
-            })
-          }
-          break
-          
-        case 'TOOL_CALL_ARGS':
-        case 'ToolCallArgs':
-          if (eventData.toolCallId && toolCallMap.has(eventData.toolCallId)) {
-            const toolCall = toolCallMap.get(eventData.toolCallId)!
-            const currentArgsString = (toolCall.arguments as any)?.raw || ''
-            const newArgsString = currentArgsString + (eventData.delta || '')
-            
-            try {
-              // Try to parse accumulated arguments as JSON
-              const parsedArgs = JSON.parse(newArgsString)
-              toolCall.arguments = parsedArgs
-              toolCall.status = 'executing'
-            } catch {
-              // If not valid JSON yet, keep accumulating
-              toolCall.arguments = {
-                ...(toolCall.arguments || {}),
-                raw: newArgsString,
-              }
-              toolCall.status = 'executing'
-            }
-          }
-          break
-          
-        case 'TOOL_CALL_END':
-        case 'ToolCallEnd':
-          if (eventData.toolCallId && toolCallMap.has(eventData.toolCallId)) {
-            const toolCall = toolCallMap.get(eventData.toolCallId)!
-            if (eventData.arguments) {
-              try {
-                const finalArgs = JSON.parse(eventData.arguments)
-                toolCall.arguments = finalArgs
-              } catch (error) {
-                console.warn('Failed to parse final tool arguments:', error)
-              }
-            }
-            toolCall.status = 'executing'
-          }
-          break
-          
-        case 'TOOL_CALL_RESULT':
-        case 'ToolCallResult':
-          if (eventData.toolCallId && toolCallMap.has(eventData.toolCallId)) {
-            const toolCall = toolCallMap.get(eventData.toolCallId)!
-            
-            // Parse result content
-            let resultContent = eventData.content
-            if (typeof resultContent === 'string') {
-              try {
-                resultContent = JSON.parse(resultContent)
-              } catch {
-                // Keep as string if not JSON
-              }
-            }
-            
-            // Store the parsed result directly (not wrapped)
-            // If there's an error, include it in the result
-            if (eventData.error) {
-              toolCall.result = { error: eventData.error }
-            } else {
-              toolCall.result = resultContent
-            }
-            
-            toolCall.status = eventData.success === false ? 'failed' : 'completed'
-            toolCall.endTime = new Date(event.timestamp || eventData.timestamp || Date.now()).toISOString()
-            
-            // Add completed tool call to results
-            if (toolCall.toolCallId && toolCall.toolName && toolCall.startTime) {
-              toolCalls.push(toolCall as ReconstructedToolCall)
-            }
-          }
-          break
-      }
-    }
-    
-    // Sort tool calls by start time
-    return toolCalls.sort((a, b) => 
-      new Date(a.startTime).getTime() - new Date(b.startTime).getTime()
-    )
-  } catch (error) {
-    console.warn(`Failed to load session tool calls for ${sessionId}:`, error)
-    return []
-  }
+): Promise<Session> {
+  return apiClient.get<Session>(
+    `/v1/catalog/AgentSession/${sessionId}`,
+    options
+  )
 }
 
 /**
@@ -604,7 +378,8 @@ export interface InvokeStreamCallbacks {
 export async function invokeAgentStream(
   agentId: string,
   request: InvokeRequest,
-  callbacks: InvokeStreamCallbacks
+  callbacks: InvokeStreamCallbacks,
+  signal?: AbortSignal
 ): Promise<void> {
   const { createAGUIStream } = await import('@/lib/sse/streaming')
   const baseUrl = process.env.NEXT_PUBLIC_API_BASE_URL || 'http://localhost:8080'
@@ -632,94 +407,50 @@ export async function invokeAgentStream(
   }
   if (request.threadId) body.threadId = request.threadId
 
-  const response = await fetch(`${baseUrl}/v1/agent/${agentId}/invoke`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(body),
-  })
+  try {
+    const response = await fetch(`${baseUrl}/v1/agent/${agentId}/invoke`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body),
+      signal,
+    })
 
-  if (!response.ok || !response.body) {
-    const text = await response.text().catch(() => '')
-    throw new Error(`Invoke failed: HTTP ${response.status}${text ? ` — ${text}` : ''}`)
-  }
-
-  const stream = await createAGUIStream(response.body)
-  let resolvedSessionId: string | null = null
-
-  for await (const update of stream) {
-    if (update.done) break
-    if (update.error) {
-      callbacks.onError?.(new Error(update.error))
-      break
+    if (!response.ok || !response.body) {
+      const text = await response.text().catch(() => '')
+      throw new Error(`Invoke failed: HTTP ${response.status}${text ? ` — ${text}` : ''}`)
     }
 
-    const event = update.event
-    if (!event) continue
+    const stream = await createAGUIStream(response.body)
+    let resolvedSessionId: string | null = null
 
-    // Extract session ID from the first RUN_STARTED event before forwarding it.
-    if (event.type === 'RUN_STARTED' && event.threadId && !resolvedSessionId) {
-      resolvedSessionId = event.threadId as string
-      callbacks.onSessionId(resolvedSessionId)
+    for await (const update of stream) {
+      if (update.done) break
+      if (update.error) {
+        callbacks.onError?.(new Error(update.error))
+        break
+      }
+
+      const event = update.event
+      if (!event) continue
+
+      // Extract session ID from the first RUN_STARTED event before forwarding it.
+      if (event.type === 'RUN_STARTED' && event.threadId && !resolvedSessionId) {
+        resolvedSessionId = event.threadId as string
+        callbacks.onSessionId(resolvedSessionId)
+      }
+
+      const sid = resolvedSessionId ?? (request.threadId ?? '')
+      callbacks.onEvent(JSON.stringify(event), sid)
     }
-
-    const sid = resolvedSessionId ?? (request.threadId ?? '')
-    callbacks.onEvent(JSON.stringify(event), sid)
+  } catch (err) {
+    // A deliberate cancellation (caller aborted `signal`, e.g. navigating away or starting a
+    // new chat mid-send) surfaces here as an AbortError from either `fetch` itself or the
+    // stream reader it feeds. That's an intentional stop, not a failure — swallow it instead
+    // of routing it through onError, which would otherwise add a spurious "❌ Error" message
+    // to a session the caller has already abandoned.
+    if (signal?.aborted) return
+    throw err
   }
-}
-
-/**
- * Open a GET SSE stream for a session using native EventSource.
- * liveOnly=false (default): replays committed history + current turn events + live.
- * liveOnly=true: live events only (no history replay).
- */
-export function openSessionStream(
-  sessionId: string,
-  onEvent: (event: MessageEvent) => void,
-  onError?: (error: Event) => void,
-  liveOnly = false,
-  onOpen?: () => void
-): EventSource {
-  const baseUrl = process.env.NEXT_PUBLIC_API_BASE_URL || 'http://localhost:8080'
-  const url = `${baseUrl}/v1/session/${sessionId}/stream${liveOnly ? '?liveOnly=true' : ''}`
-
-  console.log('Opening EventSource to:', url)
-
-  const eventSource = new EventSource(url, {
-    withCredentials: false, // Don't send credentials for CORS
-  })
-
-  let eventCount = 0
-
-  eventSource.onmessage = (event) => {
-    eventCount++
-    if (eventCount <= 5) {
-      console.log(`SSE event #${eventCount}:`, event.data.substring(0, 100))
-    }
-    onEvent(event)
-  }
-
-  eventSource.onerror = (error) => {
-    // EventSource fires onerror both for genuine drops and for the server ending the
-    // response normally — the API gives no way to tell those apart. We always close
-    // here (to stop the browser's own auto-reconnect) and let the caller decide
-    // whether to reconnect; see lib/sse/managedStream.ts.
-    console.log('EventSource closed')
-    console.log('EventSource readyState:', eventSource.readyState)
-    console.log(`Received ${eventCount} events total`)
-
-    eventSource.close()
-
-    if (onError) {
-      onError(error)
-    }
-  }
-
-  eventSource.onopen = () => {
-    console.log('EventSource connection opened successfully')
-    onOpen?.()
-  }
-
-  return eventSource
 }
 
 // ============================================================================

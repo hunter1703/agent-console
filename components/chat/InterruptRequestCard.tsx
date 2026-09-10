@@ -142,13 +142,17 @@ function InterruptRequestCardComponent({
         {/* Header — amber when pending, subtle when resolved */}
         <AnimatePresence initial={false} mode="wait">
           {isPending ? (
+            // Opacity-only: this card renders inside VirtualTimelineList's rows, and a
+            // replay burst can mount several pending interrupts at once. Animating height
+            // (previously here) fights the virtualizer's measurement of this row's final
+            // size — the same bug already fixed in ToolExecutionCard's Result block.
             <motion.div
               key="header-pending"
-              initial={{ opacity: 0, height: 0, marginBottom: 0 }}
-              animate={{ opacity: 1, height: 'auto', marginBottom: 8 }}
-              exit={{ opacity: 0, height: 0, marginBottom: 0 }}
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
               transition={{ duration: 0.35, ease: [0.16, 1, 0.3, 1] }}
-              className="overflow-hidden"
+              className="mb-2"
             >
               <div className="flex items-center gap-2">
                 <motion.div
@@ -194,13 +198,14 @@ function InterruptRequestCardComponent({
         {/* Linked Tool Call badge */}
         <AnimatePresence initial={false}>
           {linkedToolName && isPending && (
+            // Opacity-only — see the header block above for why.
             <motion.div
               key="linked-tool"
-              initial={{ opacity: 0, height: 0, marginBottom: 0 }}
-              animate={{ opacity: 1, height: 'auto', marginBottom: 8 }}
-              exit={{ opacity: 0, height: 0, marginBottom: 0 }}
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
               transition={{ duration: 0.3, ease: [0.16, 1, 0.3, 1] }}
-              className="overflow-hidden"
+              className="mb-2"
             >
               <LinkedToolCall toolName={linkedToolName} toolColor={linkedToolColor} />
             </motion.div>
@@ -305,6 +310,14 @@ export const InterruptRequestCard = memo(
     prev.interrupt.id === next.interrupt.id &&
     prev.interrupt.status === next.interrupt.status &&
     prev.interrupt.answer === next.interrupt.answer &&
+    // prompt/options/createdAt can't actually change today (addInterrupt is a one-shot
+    // idempotent add and updateInterrupt only ever touches status/answer), but comparing
+    // them defensively means this doesn't silently start showing stale content the moment
+    // either of those gains the ability to correct an already-created interrupt.
+    prev.interrupt.prompt === next.interrupt.prompt &&
+    prev.interrupt.createdAt === next.interrupt.createdAt &&
+    (prev.interrupt.options ?? []).map((o) => o.value).join(',') ===
+      (next.interrupt.options ?? []).map((o) => o.value).join(',') &&
     prev.linkedToolName === next.linkedToolName &&
     prev.linkedToolColor === next.linkedToolColor &&
     prev.sessionId === next.sessionId &&

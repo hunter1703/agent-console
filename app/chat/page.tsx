@@ -14,7 +14,6 @@ import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { Plus } from 'lucide-react'
 
 import { ChatInterface } from '@/components/chat/ChatInterface'
-import { ChatTabs } from '@/components/chat/ChatTabs'
 import { MessageInput } from '@/components/chat/MessageInput'
 import { TypingIndicator } from '@/components/chat/TypingIndicator'
 import { EmptyState } from '@/components/chat/EmptyState'
@@ -85,7 +84,7 @@ async function reconnectToSession(sessionId: string): Promise<void> {
   const store = useChatStore.getState()
 
   const stream = openManagedSessionStream(sessionId, {
-    onEvent: (event) => eventHandler.handleSSEMessage(event, sessionId),
+    onEvent: (rawData) => eventHandler.handleEvent(rawData, sessionId),
     onStatusChange: (status) => {
       useChatStore.getState().updateSession(sessionId, { connectionStatus: status })
       // Only commit partial text once reconnection is truly exhausted — see the matching
@@ -121,19 +120,25 @@ function ChatPageContent() {
   
   // Chat state
   const { activeSession, setActiveSession } = useActiveSession()
-  const sessionTabs = useChatStore(state => state.sessionTabs)
   const addSession = useChatStore(state => state.addSession)
-  const { messages, addMessage } = useSessionMessages(sessionId || activeSession?.sessionId)
+  const { messages } = useSessionMessages(sessionId || activeSession?.sessionId)
   const { streamingMessages, isStreaming } = useStreamingState()
   const currentSessionId = sessionId || activeSession?.sessionId
   const { activeToolCalls } = useToolCalls(currentSessionId)
+  // interruptStore isn't partitioned by session — every open tab's interrupts live in one
+  // global Map — so everything derived from it here must filter by currentSessionId itself,
+  // or a pending interrupt in a background session bleeds into whichever session is visible
+  // (disabling this session's input, showing a banner for someone else's pending question,
+  // and — previously — getting wiped by this session's dismiss button).
   const interruptsMap = useInterruptStore((state) => state.interrupts)
-  const pendingCount = useInterruptStore((state) => state.pendingCount)
   const pendingInterrupts = useMemo(
-    () => Array.from(interruptsMap.values()).filter((c) => c.status === 'pending'),
-    [interruptsMap]
+    () =>
+      Array.from(interruptsMap.values()).filter(
+        (c) => c.status === 'pending' && c.sessionId === currentSessionId
+      ),
+    [interruptsMap, currentSessionId]
   )
-  const hasActiveInterrupts = pendingCount > 0
+  const hasActiveInterrupts = pendingInterrupts.length > 0
   const { correctionEvents, removeCorrectionEvent } = useCorrectionEvents(currentSessionId)
   const timeline = useTimeline(currentSessionId)
   const isInputDisabled = useChatStore(state => state.isInputDisabled)
@@ -143,6 +148,23 @@ function ChatPageContent() {
   const [inputValue, setInputValue] = useState('')
   const [isSending, setIsSending] = useState(false)
   const sendingRef = useRef(false)
+  // Bumped on every send and every "New Chat" click. A send's async callbacks (onSessionId,
+  // the catch-block reconnect) capture the generation they started with and check it's still
+  // current before applying navigation side effects — otherwise a late callback from a send
+  // the user has already navigated away from could snap the UI back into the old session.
+  const sendGenerationRef = useRef(0)
+  // The in-flight send's AbortController, if any. Without this, abandoning a send (New Chat,
+  // navigating away, unmount) left invokeAgentStream's fetch stream reading and dispatching
+  // events indefinitely in the background — wasted network/CPU work for a run nobody is
+  // looking at anymore (the run itself keeps going server-side regardless; only the client's
+  // subscription to it is being torn down).
+  const sendAbortControllerRef = useRef<AbortController | null>(null)
+
+  useEffect(() => {
+    return () => {
+      sendAbortControllerRef.current?.abort()
+    }
+  }, [])
 
   // Sidebar state
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false)
@@ -186,7 +208,7 @@ function ChatPageContent() {
     error: sessionError,
   } = useQuery({
     queryKey: queryKeys.sessions.detail(sessionId!),
-    queryFn: () => getSession(sessionId!, false), // includeEvents=false - events come from SSE
+    queryFn: () => getSession(sessionId!), // events come from SSE, not fetched with the session
     enabled: !!sessionId,
   })
   
@@ -245,25 +267,31 @@ function ChatPageContent() {
     }
   }, [hasActiveInterrupts])
 
-  // Handle errors (removed to prevent infinite loops)
-  // useEffect(() => {
-  //   if (agentError) {
-  //     error('Failed to load agent', agentError.message)
-  //   }
-  // }, [agentError, error])
+  // Surface load failures as toasts. Previously commented out because `error` (from
+  // useToasts()) was a new closure every render, which — combined with the toast list
+  // re-rendering this component — created an infinite loop; fixed at the source in
+  // lib/store/ui.ts by memoizing the toast convenience methods.
+  useEffect(() => {
+    if (agentError) {
+      error('Failed to load agent', agentError.message)
+    }
+  }, [agentError, error])
 
-  // useEffect(() => {
-  //   if (sessionError) {
-  //     error('Failed to load session', sessionError.message)
-  //   }
-  // }, [sessionError, error])
+  useEffect(() => {
+    if (sessionError) {
+      error('Failed to load session', sessionError.message)
+    }
+  }, [sessionError, error])
 
   // Handle message sending with streaming support
   const handleSendMessage = async (message: string, attachments?: Array<{ type: 'file'; fileDetails: import('@/lib/api/services').FileDetails }>) => {
     if ((!message.trim() && (!attachments || attachments.length === 0)) || isSending || sendingRef.current) return
 
     sendingRef.current = true
-    
+    const myGeneration = ++sendGenerationRef.current
+    const abortController = new AbortController()
+    sendAbortControllerRef.current = abortController
+
     try {
       setIsSending(true)
       
@@ -294,15 +322,21 @@ function ChatPageContent() {
             messageCount: 0,
             createdTime: new Date().toISOString(),
             updatedTime: new Date().toISOString(),
-            // Session-scoped widget state
+            // Session-scoped widget state (interrupts are owned by useInterruptStore, not here)
             toolCalls: {},
-            interrupts: {},
             corrections: {},
             activePlan: null,
             timeline: [],
           }
           
           addSession(newSession)
+          // Must precede setActiveSession: the URL has no sessionId yet (it's only
+          // set once the real backend ID comes back, further down), and without this
+          // flag useSessionStream's "no sessionId in URL" effect sees activeSession
+          // freshly set with no matching URL param and immediately clears it back out
+          // — wiping this session (and the user message about to be added to it)
+          // before the run ever gets a chance to render.
+          markNavigatingToSession()
           setActiveSession(newSessionId)
           currentSessionId = newSessionId
         }
@@ -372,7 +406,9 @@ function ChatPageContent() {
               onSessionId: (backendSessionId) => {
                 if (backendSessionId === currentSessionId) return
 
-                // Migrate temp session → real backend session ID
+                // Migrate temp session → real backend session ID. This part always runs,
+                // even for an abandoned send — the store must still learn the real id so the
+                // run's messages land under it instead of a temp id nothing will ever look up.
                 const freshStore = useChatStore.getState()
                 const prevId = currentSessionId!
                 const tempSession = freshStore.sessions[prevId]
@@ -385,12 +421,22 @@ function ChatPageContent() {
                     messages: tempSession.messages.map((m: any) => ({ ...m, sessionId: backendSessionId })),
                   })
                   freshStore.removeSession(prevId)
+                  // prevId (a timestamp-based temp id) is never reused, so its dedup Sets
+                  // in the handler would otherwise sit there for the rest of the tab's
+                  // lifetime doing nothing.
+                  eventHandler.resetSessionIndex(prevId)
                 }
 
                 currentSessionId = backendSessionId
-                markNavigatingToSession()
-                setActiveSession(backendSessionId)
-                router.replace(`/chat?session=${backendSessionId}`, { scroll: false })
+
+                // Only steer the UI into this session if the user hasn't since started a
+                // new chat or another send — otherwise this late callback would snap them
+                // back into a session they already navigated away from.
+                if (sendGenerationRef.current === myGeneration) {
+                  markNavigatingToSession()
+                  setActiveSession(backendSessionId)
+                  router.replace(`/chat?session=${backendSessionId}`, { scroll: false })
+                }
               },
               onEvent: (rawData, sid) => {
                 eventHandler.handleEvent(rawData, sid)
@@ -405,7 +451,8 @@ function ChatPageContent() {
                   createdTime: now, updatedTime: now,
                 })
               },
-            }
+            },
+            abortController.signal
           )
         } catch (apiError: any) {
           const now = new Date().toISOString()
@@ -416,19 +463,26 @@ function ChatPageContent() {
           // into it was lost. Fall back to the GET stream instead of leaving the user
           // stranded with no further updates.
           const isRealSession = !sid.startsWith('session-')
+          // reconnectToSession replaces the single global sseConnection slot, closing
+          // whatever is currently open there. If the user has since started a new chat or
+          // another send, that slot now holds the new session's live stream — reconnecting
+          // this abandoned session would silently kill it. Only reconnect if this send is
+          // still the current one; the abandoned session will get its own stream opened
+          // normally whenever the user navigates back to it.
+          const canReconnect = isRealSession && sendGenerationRef.current === myGeneration
 
           chatStore.addMessage(sid, {
             id, messageId: id, sessionId: sid,
             role: 'assistant',
             content: apiError.message?.includes('timeout')
               ? 'Request timed out. Please try again.'
-              : isRealSession
+              : canReconnect
                 ? 'Lost connection while the agent was responding. Reconnecting…'
                 : 'An error occurred while processing your message. Please try again.',
             createdTime: now, updatedTime: now,
           })
 
-          if (isRealSession) {
+          if (canReconnect) {
             await reconnectToSession(sid)
           }
         }
@@ -443,7 +497,10 @@ function ChatPageContent() {
       const resetState = () => {
         setIsSending(false)
         sendingRef.current = false
-        
+        if (sendAbortControllerRef.current === abortController) {
+          sendAbortControllerRef.current = null
+        }
+
         // Update chat store to ensure input is enabled
         const chatStore = useChatStore.getState()
         chatStore.setInputDisabled(false)
@@ -462,7 +519,7 @@ function ChatPageContent() {
   // Shared by the header "New Chat" button and the session list's empty-state affordance.
   // Both need an agent to start a chat against; if none is resolvable from the current
   // URL/session context, send the user to pick one instead of failing silently.
-  const handleNewChat = () => {
+  const handleNewChat = async () => {
     const targetAgentId = agentId || session?.agentId || sessionAgentId || displayAgent?.id
 
     if (!targetAgentId) {
@@ -471,10 +528,30 @@ function ChatPageContent() {
       return
     }
 
+    // Invalidate any in-flight send from the session being left — its onSessionId/reconnect
+    // callbacks check this before touching the active session or the global SSE connection —
+    // and stop its underlying fetch stream outright rather than letting it run to completion
+    // in the background for a session nobody's viewing anymore.
+    sendGenerationRef.current++
+    sendAbortControllerRef.current?.abort()
+    sendAbortControllerRef.current = null
+
     const chatStore = useChatStore.getState()
     if (chatStore.sseConnection) {
       chatStore.sseConnection.close()
       chatStore.setSSEConnection(null)
+    }
+
+    // A session whose id still starts with "session-" never got a real backend id — the
+    // only way that happens is the initial send failed before RUN_STARTED resolved one (see
+    // the catch block in handleSendMessage). It has no URL that points to it and never
+    // appears in the backend-driven "Recent Chats" list, so once we navigate away from it
+    // here it becomes permanently unreachable but still sits in the store forever unless
+    // removed now.
+    if (currentSessionId?.startsWith('session-')) {
+      chatStore.removeSession(currentSessionId)
+      const { getAGUIEventHandler } = await import('@/lib/sse/handler')
+      getAGUIEventHandler().resetSessionIndex(currentSessionId)
     }
 
     chatStore.setActiveSession(null)
@@ -490,6 +567,71 @@ function ChatPageContent() {
 
   // Check if we're loading session data (not just the initial query state)
   const isLoadingSessionData = isLoadingSession && sessionId
+
+  // These must run before the error early-return below — React requires every hook to run
+  // in the same order on every render, and this component previously called them after a
+  // conditional `return`, which crashes ("Rendered fewer hooks than expected") the moment
+  // agentError/sessionError toggles between renders.
+  const allMessages = messages || []
+  const activePlan = useChatStore((state) =>
+    currentSessionId ? state.sessions[currentSessionId]?.activePlan ?? null : null
+  )
+  const messageById = useMemo(() => {
+    const map = new Map<string, typeof allMessages[0]>()
+    for (const msg of allMessages) map.set(msg.messageId || msg.id, msg)
+    return map
+  }, [allMessages])
+
+  // Domain-informed size estimate for the virtualizer, keyed ONLY by item type — a
+  // flat guess is off by 3-4x for a tool card with a long JSON dump vs. a one-line
+  // message, and that gap is what actually matters: @tanstack/react-virtual's
+  // scrollToEnd() self-corrects toward the real bottom frame-by-frame as items get
+  // measured, but its reconcile loop reads the DOM's scrollHeight (only updated once
+  // React re-renders the container to the newly measured getTotalSize()) and stops as
+  // soon as the target offset looks unchanged for one frame — a large initial error
+  // can outrun that render and get accepted as "stable" long before it's actually
+  // correct. A closer estimate keeps the error small enough for that reconciliation to
+  // land correctly instead of stalling short of the true end.
+  //
+  // Deliberately NOT keyed by content (streamed text length, whether a tool call's
+  // result has arrived yet, etc.): estimateSize is called fresh, uncached, every time
+  // an item's size is needed until it's actually measured — so if the estimate for the
+  // same still-unmeasured, currently off-screen index changes between calls (e.g. a
+  // tool call's result streams in while it isn't the one being rendered),
+  // getTotalSize() jumps for reasons the reconcile loop never asked for or measured,
+  // which was observed to strand live-streaming runs on a blank viewport. A flat
+  // per-type estimate stays constant for an item's whole unmeasured lifetime; the real
+  // size still lands correctly the moment it actually renders and measureElement runs.
+  // Memoized (unlike renderTimelineItem below): unlike a render function, this is one of
+  // @tanstack/react-virtual's own options, and the library's internal getMeasurementOptions
+  // memo keys off getItemKey/estimateSize by reference — a fresh function identity every
+  // render was resetting its own tracked "earliest index needing recomputation" on every
+  // single render, independently of whether anything virtualization-relevant had changed.
+  // Declared here (above the error early-return below) rather than next to
+  // renderTimelineItem — every hook must run unconditionally on every render, and that
+  // early return would otherwise skip these on an error render.
+  const estimateTimelineItemSize = useCallback((idx: number): number => {
+    const item = timeline[idx]
+    if (!item) return 150
+    switch (item.type) {
+      case 'message':
+        return 110
+      case 'tool_call':
+        return 260
+      case 'plan':
+        return 220
+      case 'interrupt':
+        return 260
+      case 'correction':
+        return 150
+      case 'reasoning':
+        return 150
+      default:
+        return 150
+    }
+  }, [timeline])
+
+  const getTimelineItemKey = useCallback((idx: number) => timeline[idx].id, [timeline])
 
   // Error state
   if (agentError || sessionError) {
@@ -525,38 +667,20 @@ function ChatPageContent() {
     )
   }
 
-  // Prepare messages and components for display
-  const allMessages = messages || []
-  console.log('💬 Messages Debug:', {
-    sessionId,
-    activeSessionId: activeSession?.sessionId,
-    messagesCount: allMessages.length,
-    hasValidContext: !!(sessionId || agentId),
-    streamingCount: Object.keys(streamingMessages).length
-  })
   // Only show messages if we have a valid session or agent in the URL
   // Don't check activeSession from store to avoid showing stale data during transitions
   const hasValidContext = !!(sessionId || agentId)
   const hasMessages = hasValidContext && (allMessages.length > 0 || Object.keys(streamingMessages).length > 0)
-  const activePlan = useChatStore((state) =>
-    currentSessionId ? state.sessions[currentSessionId]?.activePlan ?? null : null
-  )
-  
+
   // Show loading state when we have a session but no messages yet (waiting for SSE)
   const isWaitingForMessages = hasValidContext && !hasMessages && isLoadingSessionData
-
-  const messageById = useMemo(() => {
-    const map = new Map<string, typeof allMessages[0]>()
-    for (const msg of allMessages) map.set(msg.messageId || msg.id, msg)
-    return map
-  }, [allMessages])
 
   const toMessageProps = (msg: typeof allMessages[0]) => ({
     id: msg.messageId || msg.id,
     content: msg.content,
     sender: (msg.role === 'user' ? 'user' : 'agent') as 'user' | 'agent',
     senderName: msg.role === 'user' ? 'You' : resolveAgentName(msg.metadata?.agentId as string | undefined),
-    senderAvatar: msg.role === 'user' ? undefined : (displayAgent as any)?.avatar,
+    senderAvatar: msg.role === 'user' ? undefined : displayAgent?.avatar,
     timestamp: new Date(msg.createdTime || msg.updatedTime || Date.now()),
     attachments: msg.attachments,
   })
@@ -581,7 +705,7 @@ function ChatPageContent() {
                             >
                               <div className="flex-shrink-0">
                                 <Avatar
-                                  src={isUserMsg ? undefined : (displayAgent as any)?.avatar}
+                                  src={isUserMsg ? undefined : displayAgent?.avatar}
                                   name={displayName}
                                   size="sm"
                                   variant={isUserMsg ? 'user' : 'agent'}
@@ -593,7 +717,7 @@ function ChatPageContent() {
                                     {displayName}
                                   </span>
                                   <span className="text-xs text-text-tertiary">
-                                    {new Date().toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' })}
+                                    {new Date(streaming.startedAt).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' })}
                                   </span>
                                 </div>
                                 <div className="text-[15px] text-text-primary whitespace-pre-wrap break-words leading-[1.75] font-normal tracking-[-0.01em] select-text cursor-text">
@@ -810,7 +934,7 @@ function ChatPageContent() {
                 id: a.id,
                 name: a.name,
                 description: a.description,
-                avatarUrl: (a as any).avatar,
+                avatarUrl: a.avatar,
               }))}
               activeAgentId={agentId || sessionAgentId}
               isLoading={isLoadingAgents}
@@ -875,7 +999,10 @@ function ChatPageContent() {
               <PendingInterruptBanner
                 count={pendingInterrupts.length}
                 onScrollToFirst={handleScrollToFirstInterrupt}
-                onDismiss={() => useInterruptStore.getState().clearInterrupts()}
+                onDismiss={() =>
+                  currentSessionId &&
+                  useInterruptStore.getState().clearInterruptsForSession(currentSessionId)
+                }
                 isVisible={true}
               />
             </div>
@@ -885,7 +1012,7 @@ function ChatPageContent() {
           <div className="flex-1 min-h-0">
             <ChatInterface
               tabs={undefined}
-              scrollDependencies={[messages.length, Object.keys(streamingMessages).length]}
+              scrollRef={scrollContainerRef}
               messages={
                 isWaitingForMessages ? (
                   // Show loading skeletons while waiting for SSE events
@@ -914,10 +1041,12 @@ function ChatPageContent() {
                   </div>
                 ) : hasMessages ? (
                   <div className="space-y-0" data-testid="message-list">
-                    <VirtualTimelineList 
-                      itemCount={timeline.length} 
-                      renderItem={renderTimelineItem} 
-                      scrollContainerRef={scrollContainerRef} 
+                    <VirtualTimelineList
+                      itemCount={timeline.length}
+                      renderItem={renderTimelineItem}
+                      getItemKey={getTimelineItemKey}
+                      estimateSize={estimateTimelineItemSize}
+                      scrollContainerRef={scrollContainerRef}
                     />
 
                     {/* Typing Indicator — shown when streaming but no text delta has arrived yet */}

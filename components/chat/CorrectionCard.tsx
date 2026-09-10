@@ -50,6 +50,7 @@ const CorrectionCardComponent = function CorrectionCard({ correction, onDismiss 
               variant="ghost"
               size="sm"
               onClick={onDismiss}
+              aria-label="Dismiss correction"
               className="h-6 w-6 p-0 text-text-tertiary hover:text-text-primary"
             >
               <X className="h-4 w-4" />

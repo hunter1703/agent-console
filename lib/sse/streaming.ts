@@ -6,12 +6,16 @@
  */
 
 import { EventSourceParserStream } from 'eventsource-parser/stream';
-import type { ParsedEvent } from 'eventsource-parser';
+import type { EventSourceMessage } from 'eventsource-parser';
 
 export type AGUIStreamUpdate = {
   done: boolean;
   event: any;
   error?: any;
+  /** The raw SSE data payload `event` was parsed from — lets a caller re-run it through its
+   *  own parser (e.g. AGUIEventHandler.handleEvent) instead of trusting this module's bare
+   *  JSON.parse, so every stream transport shares one parsing/normalization code path. */
+  rawData?: string;
 };
 
 /**
@@ -22,7 +26,11 @@ export async function createAGUIStream(
   responseBody: ReadableStream<Uint8Array>
 ): Promise<AsyncGenerator<AGUIStreamUpdate>> {
   const eventStream = responseBody
-    .pipeThrough(new TextDecoderStream())
+    // TS's lib.dom "esnext" typings make TextDecoderStream's pipeThrough expect
+    // Uint8Array<ArrayBufferLike> specifically, which a plain ReadableStream<Uint8Array>
+    // (e.g. fetch's response.body) doesn't structurally satisfy — a typings mismatch only,
+    // not a runtime one, since TextDecoderStream accepts any Uint8Array chunk.
+    .pipeThrough(new TextDecoderStream() as ReadableWritablePair<string, Uint8Array>)
     .pipeThrough(new EventSourceParserStream())
     .getReader();
   
@@ -30,7 +38,7 @@ export async function createAGUIStream(
 }
 
 async function* aguiStreamToIterator(
-  reader: ReadableStreamDefaultReader<ParsedEvent>
+  reader: ReadableStreamDefaultReader<EventSourceMessage>
 ): AsyncGenerator<AGUIStreamUpdate> {
   while (true) {
     const { value, done } = await reader.read();
@@ -59,7 +67,7 @@ async function* aguiStreamToIterator(
         break;
       }
       
-      yield { done: false, event: parsedEvent };
+      yield { done: false, event: parsedEvent, rawData: data };
     } catch (e) {
       console.error('Error parsing AG-UI event:', e, 'Raw data:', data);
       // Continue processing other events

@@ -18,6 +18,10 @@ interface InterruptState {
   getPendingInterrupts: () => InterruptRequest[]
   getAllInterrupts: () => InterruptRequest[]
   clearInterrupts: () => void
+  /** Clears only the interrupts belonging to one session — see clearInterrupts's caveat:
+   * this store isn't session-partitioned, so the unscoped clear discards every open tab's
+   * pending interrupts, not just the one the user is looking at. */
+  clearInterruptsForSession: (sessionId: string) => void
 }
 
 export const useInterruptStore = create<InterruptState>((set, get) => ({
@@ -76,6 +80,22 @@ export const useInterruptStore = create<InterruptState>((set, get) => ({
     set({
       interrupts: new Map(),
       pendingCount: 0,
+    })
+  },
+
+  clearInterruptsForSession: (sessionId) => {
+    const state = get()
+    let removedPending = 0
+    const remaining = new Map(state.interrupts)
+    for (const [id, interrupt] of state.interrupts) {
+      if (interrupt.sessionId !== sessionId) continue
+      if (interrupt.status === 'pending') removedPending++
+      remaining.delete(id)
+    }
+    if (removedPending === 0 && remaining.size === state.interrupts.size) return
+    set({
+      interrupts: remaining,
+      pendingCount: Math.max(0, state.pendingCount - removedPending),
     })
   },
 }))

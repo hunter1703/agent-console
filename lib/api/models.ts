@@ -36,11 +36,11 @@ export async function listModels(
 ): Promise<PaginatedResult<Model>> {
   return apiClient.post<PaginatedResult<Model>>(
     '/v1/catalog/list',
-    { 
+    {
       assetType: 'Model',
       query: query || {}
     },
-    { ...options, sanitize: false }
+    options
   )
 }
 

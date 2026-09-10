@@ -9,7 +9,7 @@
  * A copy button copies the FileDetails JSON to the clipboard.
  */
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { FileIcon, ImageIcon, Loader2, Copy, Check } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import type { MessageAttachment } from '@/lib/api/types'
@@ -85,6 +85,11 @@ export function AttachmentPreview({ attachment, className }: AttachmentPreviewPr
   const [objectUrl, setObjectUrl] = useState<string | null>(null)
   const [error, setError] = useState(false)
   const [loading, setLoading] = useState(false)
+  // Tracks the latest object URL for cleanup — `objectUrl` state is still null at the
+  // moment this effect is created (the fetch that resolves it is async), so a cleanup that
+  // closed over `objectUrl` directly always revoked null instead of the real blob URL that
+  // gets set later, leaking one blob per image attachment for the life of the tab.
+  const objectUrlRef = useRef<string | null>(null)
 
   const isImage = isImageMime(attachment.mimeType)
 
@@ -94,12 +99,22 @@ export function AttachmentPreview({ attachment, className }: AttachmentPreviewPr
     setLoading(true)
     setError(false)
     downloadAttachment(attachment)
-      .then((url) => { if (!revoked) setObjectUrl(url) })
+      .then((url) => {
+        if (revoked) {
+          URL.revokeObjectURL(url)
+          return
+        }
+        objectUrlRef.current = url
+        setObjectUrl(url)
+      })
       .catch(() => { if (!revoked) setError(true) })
       .finally(() => { if (!revoked) setLoading(false) })
     return () => {
       revoked = true
-      if (objectUrl) URL.revokeObjectURL(objectUrl)
+      if (objectUrlRef.current) {
+        URL.revokeObjectURL(objectUrlRef.current)
+        objectUrlRef.current = null
+      }
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [attachment.source])

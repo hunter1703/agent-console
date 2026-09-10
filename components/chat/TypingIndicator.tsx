@@ -31,7 +31,7 @@ export function TypingIndicator({ className }: TypingIndicatorProps) {
       transition: {
         duration: 1.5,
         repeat: Infinity,
-        ease: 'easeInOut',
+        ease: 'easeInOut' as const,
       },
     },
   }
@@ -43,7 +43,7 @@ export function TypingIndicator({ className }: TypingIndicatorProps) {
       transition: {
         duration: 0.6,
         repeat: Infinity,
-        ease: 'easeInOut',
+        ease: 'easeInOut' as const,
         delay,
       },
     }),
@@ -51,6 +51,9 @@ export function TypingIndicator({ className }: TypingIndicatorProps) {
 
   return (
     <motion.div
+      role="status"
+      aria-live="polite"
+      aria-label="Agent is typing"
       variants={shouldAnimate ? containerVariants : undefined}
       animate={shouldAnimate ? 'animate' : undefined}
       className={cn(

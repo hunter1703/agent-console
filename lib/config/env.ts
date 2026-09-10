@@ -10,7 +10,7 @@
 // ============================================================================
 
 export const API_CONFIG = {
-  url: process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8080',
+  url: process.env.NEXT_PUBLIC_API_BASE_URL || 'http://localhost:8080',
   timeout: parseInt(process.env.NEXT_PUBLIC_API_TIMEOUT || '30000', 10),
 } as const
 
@@ -107,7 +107,7 @@ export const IS_TEST = process.env.NODE_ENV === 'test'
 export function validateEnv(): void {
   const required: string[] = [
     // Add required env vars here
-    // 'NEXT_PUBLIC_API_URL',
+    // 'NEXT_PUBLIC_API_BASE_URL',
   ]
 
   const missing = required.filter((key) => !process.env[key])

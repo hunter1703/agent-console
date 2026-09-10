@@ -108,9 +108,10 @@ export class AGUIEventHandler {
   }
 
   /**
-   * Entry point for fetch-based invoke SSE streams. Runs through the same dedup gates as
-   * {@link handleSSEMessage} — harmless on an already-unique live stream, and load-bearing
-   * when a dropped invoke stream falls back to a GET stream reconnect mid-conversation.
+   * Entry point for every SSE transport (fetch-based invoke stream, fetch-based GET session
+   * stream — see lib/sse/managedStream.ts). Runs through the same dedup gates regardless of
+   * source: harmless on an already-unique live stream, and load-bearing when a dropped invoke
+   * stream falls back to a GET stream reconnect mid-conversation.
    */
   handleEvent(rawData: string, sessionId: string): void {
     const aguiEvent = parseAGUIEvent(rawData)
@@ -120,11 +121,6 @@ export class AGUIEventHandler {
     } catch (error) {
       console.error('Error processing AGUI event:', error, aguiEvent)
     }
-  }
-
-  /** Entry point for EventSource-based GET session streams. */
-  handleSSEMessage(event: MessageEvent, sessionId: string): void {
-    this.handleEvent(event.data, sessionId)
   }
 
   private processEvent(event: AGUIEvent, sessionId: string): void {
@@ -159,8 +155,12 @@ export class AGUIEventHandler {
     } else if (isToolCallResultEvent(event)) {
       this.handleToolCallResult(event, sessionId)
     } else if (isReasoningStartEvent(event)) {
-      const blockId = canonicalStreamId(event.messageId)
-      if (blockId && this.seenMessage(sessionId, blockId)) return
+      // Not gated by seenMessage, same reasoning as TEXT_MESSAGE_START above: this is what
+      // (re-)arms openReasoningBlockId, which every downstream REASONING_MESSAGE_* event
+      // needs to find its parent block. Gating this on "already seen" meant a reconnect
+      // mid-block would skip re-arming it, silently freezing that block (and any later
+      // reasoning in the same session) for good — addReasoningBlock is idempotent so
+      // re-delivery here is safe.
       this.handleReasoningStart(event, sessionId)
     } else if (isReasoningMessageStartEvent(event)) {
       this.handleReasoningMessageStart(event, sessionId)

@@ -20,7 +20,7 @@ import { AlertCircle, CheckCircle, Clock, Loader2, Copy, Check } from 'lucide-re
 import React, { useState, useEffect, memo } from 'react'
 import { Prism as SyntaxHighlighter } from 'react-syntax-highlighter'
 import { vscDarkPlus } from 'react-syntax-highlighter/dist/esm/styles/prism'
-import { cn } from '@/lib/utils'
+import { cn, safeStringify } from '@/lib/utils'
 import { springPresets } from '@/lib/constants/animations'
 import { getToolConfig } from '@/lib/constants/toolConfigs'
 import { formatDuration } from '@/lib/utils/formatDate'
@@ -144,6 +144,7 @@ const ToolExecutionCardComponent = function ToolExecutionCard({
       icon: Clock,
       label: 'Pending',
       color: '#6B7280', // Gray
+      animate: false,
     },
     running: {
       icon: Loader2,
@@ -155,16 +156,19 @@ const ToolExecutionCardComponent = function ToolExecutionCard({
       icon: CheckCircle,
       label: 'Completed',
       color: '#10B981', // Green
+      animate: false,
     },
     failed: {
       icon: AlertCircle,
       label: 'Failed',
       color: '#EF4444', // Red
+      animate: false,
     },
     awaiting_interrupt: {
       icon: AlertCircle,
       label: 'Awaiting Interrupt',
       color: '#F59E0B', // Amber
+      animate: false,
     },
   }
 
@@ -174,13 +178,14 @@ const ToolExecutionCardComponent = function ToolExecutionCard({
     if (statusConfig[statusKey]) {
       return statusConfig[statusKey]
     }
-    
+
     // Fallback for unknown status values
     console.warn('Unknown tool execution status:', status, 'for tool:', toolName)
     return {
       icon: Clock,
       label: status || 'Unknown',
       color: '#6B7280', // Gray
+      animate: false,
     }
   }
 
@@ -262,7 +267,7 @@ const ToolExecutionCardComponent = function ToolExecutionCard({
               key={status}
               initial={shouldAnimate ? { scale: 0, rotate: -180 } : false}
               animate={shouldAnimate ? { scale: 1, rotate: 0 } : { scale: 1, rotate: 0 }}
-              exit={shouldAnimate ? { scale: 0, rotate: 180 } : false}
+              exit={shouldAnimate ? { scale: 0, rotate: 180 } : undefined}
               transition={shouldAnimate ? springPresets.bouncy : { duration: 0 }}
             >
               <motion.div
@@ -319,7 +324,7 @@ const ToolExecutionCardComponent = function ToolExecutionCard({
                 },
               }}
             >
-              {JSON.stringify(parameters, null, 2)}
+              {safeStringify(parameters, 2)}
             </SyntaxHighlighter>
           </div>
         </div>
@@ -328,8 +333,8 @@ const ToolExecutionCardComponent = function ToolExecutionCard({
       {/* Result */}
       {result && (
         <motion.div
-          initial={shouldAnimate ? { opacity: 0, height: 0 } : false}
-          animate={shouldAnimate ? { opacity: 1, height: 'auto' } : { opacity: 1, height: 'auto' }}
+          initial={shouldAnimate ? { opacity: 0 } : false}
+          animate={{ opacity: 1 }}
           transition={shouldAnimate ? springPresets.gentle : { duration: 0 }}
           className="mt-3 pt-3 border-t border-border-subtle"
         >
@@ -375,7 +380,7 @@ const ToolExecutionCardComponent = function ToolExecutionCard({
                     return raw
                   }
                 }
-                return JSON.stringify(result, null, 2)
+                return safeStringify(result, 2)
               })()}
             </SyntaxHighlighter>
           </div>
@@ -393,9 +398,12 @@ function areToolExecutionPropsEqual(prev: ToolExecutionProps, next: ToolExecutio
     prev.duration === next.duration &&
     prev.agentName === next.agentName &&
     prev.className === next.className &&
-    // Stringify to catch updates to these objects even if new `{}` is passed
-    JSON.stringify(prev.parameters) === JSON.stringify(next.parameters) &&
-    JSON.stringify(prev.result) === JSON.stringify(next.result) &&
+    // Stringify to catch updates to these objects even if new `{}` is passed. safeStringify
+    // (not raw JSON.stringify) because this runs outside any render try/catch — a circular
+    // reference or BigInt in a malformed tool result would otherwise throw here and break
+    // reconciliation for the whole list, not just this card.
+    safeStringify(prev.parameters) === safeStringify(next.parameters) &&
+    safeStringify(prev.result) === safeStringify(next.result) &&
     prev.timestamp.getTime() === next.timestamp.getTime()
   )
 }
