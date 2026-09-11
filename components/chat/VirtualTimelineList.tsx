@@ -221,6 +221,21 @@ function VirtualizedItems({
     }
   }, [itemCount, didInitialScroll, virtualizer])
 
+  useLayoutEffect(() => {
+    const scrollEl = scrollContainerRef.current
+    if (!scrollEl) return
+    // A MutationObserver guarantees that even if a row grows dynamically without
+    // triggering a React render or an itemCount change (e.g. SmoothText typing out characters),
+    // we will still keep the scroll pinned to the bottom if the user hasn't scrolled away.
+    const mo = new MutationObserver(() => {
+      if (stickToBottomRef.current) {
+        virtualizer.scrollToEnd()
+      }
+    })
+    mo.observe(scrollEl, { childList: true, characterData: true, subtree: true })
+    return () => mo.disconnect()
+  }, [scrollContainerRef, virtualizer])
+
   // Tracks which cached elements have already had their bounded post-mount settle-check
   // scheduled, so each row gets it exactly once for its whole lifetime — see the class-doc
   // comment above for why this exists (catches batched replay growth the ResizeObserver

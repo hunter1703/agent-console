@@ -48,6 +48,7 @@ import {
   ChatSession
 } from '@/lib/store/chat'
 import { Message } from '@/components/chat/Message'
+import { SmoothText } from '@/components/chat/SmoothText'
 import { VirtualTimelineList } from '@/components/chat/VirtualTimelineList'
 import { OpenFileToolCard } from '@/components/chat/OpenFileToolCard'
 import { useInterruptStore } from '@/lib/stores/interruptStore'
@@ -721,7 +722,7 @@ function ChatPageContent() {
                                   </span>
                                 </div>
                                 <div className="text-[15px] text-text-primary whitespace-pre-wrap break-words leading-[1.75] font-normal tracking-[-0.01em] select-text cursor-text">
-                                  {streaming.content}
+                                  <SmoothText content={streaming.content} />
                                   {!streaming.isComplete && (
                                     <span className="inline-block ml-1 w-2 h-4 bg-text-primary animate-pulse" />
                                   )}

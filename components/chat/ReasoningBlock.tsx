@@ -6,6 +6,7 @@ import { motion, AnimatePresence } from 'framer-motion'
 import { cn } from '@/lib/utils'
 import { springPresets } from '@/lib/constants/animations'
 import type { StreamingMessage } from '@/lib/store/chat'
+import { SmoothText } from '@/components/chat/SmoothText'
 
 interface ReasoningBlockProps {
   block: NonNullable<StreamingMessage['reasoning']>[number]
@@ -53,7 +54,7 @@ const ReasoningBlockComponent = function ReasoningBlock({ block }: ReasoningBloc
             className="overflow-hidden"
           >
             <div className="px-4 pb-3 text-[13px] leading-relaxed text-text-tertiary whitespace-pre-wrap break-words border-t border-border-subtle pt-3">
-              {text}
+              <SmoothText content={text} />
             </div>
           </motion.div>
         )}
