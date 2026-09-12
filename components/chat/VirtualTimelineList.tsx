@@ -1,6 +1,6 @@
 'use client'
 
-import React, { useLayoutEffect, useRef, useState } from 'react'
+import React, { useLayoutEffect, useReducer, useRef, useState } from 'react'
 import { useVirtualizer } from '@tanstack/react-virtual'
 
 export interface VirtualTimelineListProps {
@@ -102,6 +102,106 @@ export interface VirtualTimelineListProps {
  * "earliest index needing recomputation" on every render — discarding an in-flight resize's
  * correction before it reached a later item's position. Fixed at the source in app/chat/page.tsx
  * (`useCallback`, matching this library's own reference example's discipline).
+ *
+ * A fourth, more fundamental issue surfaced after all of the above: on some loads, scrolling
+ * the container — including all the way to its true `scrollHeight` — kept rendering the exact
+ * same handful of rows from near the start, no matter where the real scrollbar was. Traced this
+ * to virtual-core's own `this.scrollElement` binding (the DOM node its internal scroll-offset
+ * tracking listens to) ending up `null` — confirmed live by reaching into the virtualizer
+ * instance directly: its public `scrollOffset` field read `0` while the real `scrollTop` was in
+ * the thousands, and the computed `range` stayed frozen at `{startIndex: 0, endIndex: 2}` no
+ * matter how far the container was actually scrolled. `this.scrollElement` is (re)bound inside
+ * `_willUpdate()`, which the library's React wrapper calls from a layout effect with no
+ * dependency array — so it runs, and can self-heal, on every render. The failure mode is a
+ * render-timing race: if `_willUpdate()` happens to run at a moment `getScrollElement()`
+ * transiently returns something falsy (plausible given `scrollContainerRef` is attached by an
+ * *ancestor* — see the container-wait comment below), it locks in a `null` binding, and nothing
+ * un-sticks it until the *next* render — which may not come for a long time once a session's
+ * replay finishes and the store stops changing. Manually re-invoking the library's own private
+ * `_willUpdate()` confirmed the rebind logic itself is correct (it fixes the binding
+ * immediately) — the fix is to make sure a render actually happens again, not to call private
+ * internals ourselves: both the scroll listener and the MutationObserver below directly compare
+ * the library's own public `scrollElement` field against the real container, and force a
+ * re-render on a mismatch — giving `_willUpdate()` another chance to rebind through its normal,
+ * already-correct lifecycle. Two triggers because either alone leaves a gap: the scroll listener
+ * only fires once the user scrolls (no help for a session that loads already stuck), and the
+ * MutationObserver needs at least one DOM mutation after the binding breaks (no help for a
+ * session that finishes loading with no further mutations) — between the two, either a scroll or
+ * the page's own initial render activity is enough to catch and repair it.
+ *
+ * This health check compared `scrollOffset` against `scrollTop` at first, on the theory that a
+ * broken binding would leave the tracked offset stale. Confirmed live on a user's own running
+ * session that this has a blind spot: `scrollElement` read `null` while `scrollOffset` still
+ * exactly matched the real `scrollTop` — a correct value left over from before the binding broke,
+ * not proof the binding was still healthy. Comparing `scrollElement` itself directly against the
+ * real container has no such gap: it's binary, not a heuristic about whether some derived value
+ * looks plausible.
+ *
+ * A fifth issue was this fourth fix's own likely side effect: forcing extra renders to give
+ * `_willUpdate()` more chances to rebind also gives the library's *own* internal `followOnAppend`
+ * auto-scroll more chances to fire — and that logic lives inside `_willUpdate()` too, deciding
+ * whether to scroll to end from its own `isAtEnd` snapshot taken whenever `count` last changed in
+ * `setOptions()`, with no knowledge of anything that happened after, including a user scroll our
+ * own tracking already knows about. `followOnAppend` is now `false` on the virtualizer options
+ * below: our own stickToBottomRef-gated `scrollToEnd()` calls (on itemCount change,
+ * settle-check-detected growth, and MutationObserver-detected growth) are a complete replacement
+ * for it, so only one system decides when to auto-scroll.
+ *
+ * That alone did not fix the reported symptom (confirmed by the same user, same session,
+ * immediately after): scroll up mid-generation, and within about a millisecond of the next event
+ * the view still snapped back to the bottom. The sixth issue, and the actual cause: the scroll
+ * listener below was computing "am I at the bottom" via `virtualizer.isAtEnd()`, which reads the
+ * library's own internally-tracked `scrollOffset` — populated by a *separate* scroll listener the
+ * library attaches to the same element via `observeElementOffset`. Two independent listeners on
+ * one event have no specified firing order from the outside; if the library's own listener
+ * happens to run after ours for a given event, `isAtEnd()` still reflects the *previous* scroll
+ * position when we ask, one event behind. `stickToBottomRef` would then still read `true` from
+ * before the user scrolled up, right when the next `scrollToEnd()` trigger fires — reproducing
+ * exactly the "scrolls back down within a millisecond" symptom, with `followOnAppend` no longer
+ * even in the picture. Fixed by computing distance-from-bottom directly from
+ * `scrollHeight`/`clientHeight`/`scrollTop` on the element itself inside the handler — real DOM
+ * state for this exact event, with no dependency on which listener the browser happens to run
+ * first.
+ *
+ * Still not enough — confirmed by the same user, same reproduction, immediately after: scroll up
+ * mid-generation, and the view still snapped back down almost immediately on the next event. Next
+ * attempt (seventh issue): compute distance-from-bottom synchronously *during render*, before the
+ * new item's DOM changes are committed, instead of trusting the scroll-event-driven
+ * `stickToBottomRef` — reasoned as immune to any event-ordering race, since it reads real DOM
+ * state mid-render with no dependency on any listener having fired yet. Also insufficient,
+ * reported again immediately after — which is what exposed the actual, eighth and deepest issue:
+ * this was never fundamentally a one-time ordering race to win by reading the right value at the
+ * right instant. It's a *frequency* problem. During active generation, new timeline items can
+ * arrive faster than a distance-based check can ever observe the user as "away from bottom" — if
+ * our own `scrollToEnd()` fires again before the user's own scroll gesture has moved scrollTop
+ * past whatever threshold counts as "left," the next check just sees them still close to the
+ * bottom and forces them back, over and over, regardless of which API or which instant is used to
+ * read the distance. No threshold-based read, however precisely timed, can win a race that's
+ * really about which side acts more often.
+ *
+ * The fix: don't disengage based on where scrollTop ends up at all — disengage on the user's raw
+ * input *intent*. A `wheel` or `touchmove` event fires as the browser receives the gesture,
+ * before the resulting scroll even happens, let alone before any of our own `scrollToEnd()` calls
+ * could react to it — so it cannot lose the frequency race: even if our own code wins the very
+ * next check and scrolls back down anyway, the event already recorded that the user tried to
+ * leave, and `stickToBottomRef` is already `false` by the time that next check runs. `keydown` for
+ * the standard scroll-up keys covers keyboard navigation, which fires neither of those events.
+ * Re-engagement keeps the simple distance-based scroll check — that direction has no race to lose,
+ * since nothing requires the user to reach the bottom within any particular window.
+ *
+ * A ninth issue, reported immediately after the eighth fix landed: disengagement worked, but felt
+ * "sticky" — a small scroll up barely moved before something pulled back, and only a large,
+ * decisive scroll up actually got away. `app/globals.css` sets `scroll-behavior: smooth` on
+ * `html` (not inherited to this component's own scrollable div, but every one of our
+ * `scrollToEnd()` calls was passing no explicit `behavior`, defaulting to `'auto'` — which means
+ * "follow whatever CSS says," not "jump instantly"). A `scrollToEnd()` call fired a moment before
+ * the user started scrolling up can still be mid-animation when their gesture begins, actively
+ * moving scrollTop back down for the rest of its duration regardless of new input — a small scroll
+ * gets partly absorbed by it, a large one is needed to visibly overcome it. All `scrollToEnd()`
+ * calls in this component now pass `{ behavior: 'instant' }` explicitly, which overrides any CSS
+ * `scroll-behavior` entirely — every jump-to-bottom here is a discrete, one-frame snap by design
+ * anyway (this pins to the bottom on every new token/tool-call during active generation; animating
+ * each one would look far worse than a snap).
  */
 export function VirtualTimelineList(props: VirtualTimelineListProps) {
   const { scrollContainerRef } = props
@@ -167,7 +267,13 @@ function VirtualizedItems({
     estimateSize,
     getItemKey,
     anchorTo: 'end',
-    followOnAppend: true,
+    // Deliberately false — see the class-doc comment's fifth issue. Our own
+    // stickToBottomRef-gated scrollToEnd() calls below are a complete replacement for this,
+    // and leaving both active meant two independent systems could decide to auto-scroll: the
+    // library's own internal one runs from inside `_willUpdate()` using its own `isAtEnd`
+    // snapshot from whenever `count` last changed, with no knowledge of a user scroll that
+    // happened after that — including one that just disengaged our tracking on purpose.
+    followOnAppend: false,
     scrollEndThreshold: 80,
     overscan: 6,
     directDomUpdates: true,
@@ -183,7 +289,7 @@ function VirtualizedItems({
 
   useLayoutEffect(() => {
     if (didInitialScroll) return
-    virtualizer.scrollToEnd()
+    virtualizer.scrollToEnd({ behavior: 'instant' })
     setDidInitialScroll(true)
   }, [didInitialScroll, virtualizer])
 
@@ -204,20 +310,74 @@ function VirtualizedItems({
   // trusting a heuristic proven fragile under a large, still-streaming replay.
   const stickToBottomRef = useRef(true)
 
+  // Forces a re-render with no other effect, purely to give virtual-core's own `_willUpdate()`
+  // (called from a layout effect with no dependency array, so it runs on every render) another
+  // chance to rebind `scrollElement` — see the class-doc comment's fourth issue for why that
+  // binding can otherwise stay stuck on a render-timing race, silently freezing the virtualizer's
+  // internal scroll-offset tracking while the real DOM keeps scrolling.
+  const [, forceRerender] = useReducer((n: number) => n + 1, 0)
+
+  // Direct health check: is virtual-core's own `scrollElement` field the SAME node as the real
+  // scroll container right now? This caught a case an offset-comparison proxy check missed —
+  // `scrollElement` was confirmed `null` (live, via a user's own console) while `scrollOffset`
+  // still happened to equal the real `scrollTop` (a stale-but-accurate leftover from before the
+  // binding broke), so the offset-based check saw no problem despite the binding genuinely being
+  // broken. Comparing the reference directly has no such blind spot.
+  const checkScrollBinding = (scrollEl: HTMLDivElement) => {
+    if (virtualizer.scrollElement !== scrollEl) {
+      forceRerender()
+    }
+  }
+
   useLayoutEffect(() => {
     const scrollEl = scrollContainerRef.current
     if (!scrollEl) return
-    const onScroll = () => {
-      stickToBottomRef.current = virtualizer.isAtEnd(200)
+
+    // Disengage the instant the user shows ANY intent to scroll — not once scrollTop has
+    // moved some distance, which is what the eighth issue (class-doc comment) is about: during
+    // active generation, new content can re-trigger auto-scroll more often than the user's own
+    // scroll gesture can move scrollTop far enough to read as "away from bottom" before the
+    // next check undoes it. A `wheel`/`touchmove` event fires as the browser receives the
+    // input — before the resulting scroll even happens, let alone before any of our own
+    // scrollToEnd() calls could react — so it can't lose that race: even if our own code wins
+    // the very next frame and scrolls back down, the event already told us the user tried to
+    // leave. `keydown` for the standard scroll-up keys covers keyboard navigation, which fires
+    // neither of those events.
+    const disengage = () => {
+      stickToBottomRef.current = false
     }
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'ArrowUp' || e.key === 'PageUp' || e.key === 'Home') disengage()
+    }
+
+    // Re-engagement is the opposite: only once the user has scrolled back within a tight
+    // distance of the true bottom themselves. This can safely stay a plain scroll-position
+    // check (no race to lose) since nothing forces re-engagement to happen within any
+    // particular window — the user either is back at the bottom or they aren't.
+    const onScroll = () => {
+      const distanceFromEnd = scrollEl.scrollHeight - scrollEl.clientHeight - scrollEl.scrollTop
+      if (distanceFromEnd <= 40) {
+        stickToBottomRef.current = true
+      }
+      checkScrollBinding(scrollEl)
+    }
+
+    scrollEl.addEventListener('wheel', disengage, { passive: true })
+    scrollEl.addEventListener('touchmove', disengage, { passive: true })
+    scrollEl.addEventListener('keydown', onKeyDown)
     scrollEl.addEventListener('scroll', onScroll, { passive: true })
-    return () => scrollEl.removeEventListener('scroll', onScroll)
+    return () => {
+      scrollEl.removeEventListener('wheel', disengage)
+      scrollEl.removeEventListener('touchmove', disengage)
+      scrollEl.removeEventListener('keydown', onKeyDown)
+      scrollEl.removeEventListener('scroll', onScroll)
+    }
   }, [scrollContainerRef, virtualizer])
 
   useLayoutEffect(() => {
     if (!didInitialScroll) return
     if (stickToBottomRef.current) {
-      virtualizer.scrollToEnd()
+      virtualizer.scrollToEnd({ behavior: 'instant' })
     }
   }, [itemCount, didInitialScroll, virtualizer])
 
@@ -229,8 +389,13 @@ function VirtualizedItems({
     // we will still keep the scroll pinned to the bottom if the user hasn't scrolled away.
     const mo = new MutationObserver(() => {
       if (stickToBottomRef.current) {
-        virtualizer.scrollToEnd()
+        virtualizer.scrollToEnd({ behavior: 'instant' })
       }
+      // Same scrollElement health check as the scroll listener above, run here too because
+      // this fires on essentially every content change regardless of whether the user has
+      // ever scrolled — the initial-load case the scroll listener alone can't catch (nothing
+      // to scroll yet the very first time the range comes out wrong).
+      checkScrollBinding(scrollEl)
     })
     mo.observe(scrollEl, { childList: true, characterData: true, subtree: true })
     return () => mo.disconnect()
@@ -273,7 +438,7 @@ function VirtualizedItems({
           // exactly the gap-below-the-visible-content case from the class-doc comment above,
           // caught here because this is where growth is actually detected, independent of
           // whether itemCount changed at the same time.
-          if (stickToBottomRef.current) virtualizer.scrollToEnd()
+          if (stickToBottomRef.current) virtualizer.scrollToEnd({ behavior: 'instant' })
         }
         if (stableChecks >= 2 || totalChecks >= 20) return
         setTimeout(tick, 150)
