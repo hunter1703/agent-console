@@ -30,6 +30,7 @@ export function LookupWidget({ field, value, onChange, error, disabled }: Lookup
 
   const assetType = field.lookup?.assetType || 'Agent'
   const isMultiple = field.lookup?.multiple || false
+  const baseUrl = process.env.NEXT_PUBLIC_API_BASE_URL || 'http://localhost:8080'
 
   // Load initial selected options
   useEffect(() => {
@@ -50,7 +51,7 @@ export function LookupWidget({ field, value, onChange, error, disabled }: Lookup
       try {
         const responses = await Promise.all(
           ids.map(id => 
-            fetch(`http://localhost:8080/v1/catalog/${assetType}/${id}`)
+            fetch(`${baseUrl}/v1/catalog/${assetType}/${id}`)
               .then(res => res.ok ? res.json() : null)
           )
         )
@@ -80,7 +81,7 @@ export function LookupWidget({ field, value, onChange, error, disabled }: Lookup
 
     try {
       const response = await fetch(
-        `http://localhost:8080/v1/catalog/list`,
+        `${baseUrl}/v1/catalog/list`,
         {
           method: 'POST',
           headers: {

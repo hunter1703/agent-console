@@ -21,12 +21,17 @@ export async function OPTIONS(request: NextRequest, { params }: { params: Promis
 
 async function proxyRequest(request: NextRequest, params: { path: string[] }) {
   try {
-    const backendUrl = process.env.BACKEND_URL || 'https://agents.com';
+    // The local.dev fallback only applies outside production — in production a missing
+    // BACKEND_URL should fail loudly rather than silently proxy to an unrelated domain.
+    const backendUrl =
+      process.env.BACKEND_URL ?? (process.env.NODE_ENV !== 'production' ? 'https://agents.com' : undefined);
+    if (!backendUrl) {
+      throw new Error('BACKEND_URL environment variable is not set');
+    }
     const path = params.path ? params.path.join('/') : '';
     const searchParams = request.nextUrl.searchParams.toString();
     const targetUrl = `${backendUrl}/${path}${searchParams ? '?' + searchParams : ''}`;
 
-    // Dynamically require undici to bypass TLS verification safely without polluting globals
     let fetchClient = globalThis.fetch;
     let fetchOptions: any = {
       method: request.method,
@@ -34,7 +39,11 @@ async function proxyRequest(request: NextRequest, params: { path: string[] }) {
       body: request.method !== 'GET' && request.method !== 'HEAD' ? await request.arrayBuffer() : undefined,
     };
 
-    if (typeof process !== 'undefined') {
+    // Local dev only: the local ingress presents a self-signed/mkcert certificate that Node's
+    // default TLS verification won't trust. Never applies in production — the real backend
+    // already has a properly CA-signed certificate, and disabling verification there would be
+    // a real MITM/DNS-spoofing exposure for zero benefit.
+    if (process.env.NODE_ENV !== 'production') {
       try {
         const { fetch: undiciFetch, Agent } = require('undici');
         fetchClient = undiciFetch;

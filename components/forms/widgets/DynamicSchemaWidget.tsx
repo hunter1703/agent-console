@@ -209,7 +209,7 @@ export function DynamicSchemaWidget({
         // Build URL (prepend backend URL if relative)
         let url = dynamicSchema.url
         if (url.startsWith('/')) {
-          url = `http://localhost:8080${url}`
+          url = `${process.env.NEXT_PUBLIC_API_BASE_URL || 'http://localhost:8080'}${url}`
         }
 
         console.log('[DynamicSchemaWidget] Fetching schema:', { url, method: dynamicSchema.method || 'POST', body })
