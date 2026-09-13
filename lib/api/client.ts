@@ -66,7 +66,12 @@ export async function fetchWithRetry<T>(
         );
       }
 
-      return await response.json();
+      if (response.status === 204) {
+        return {} as T;
+      }
+
+      const text = await response.text();
+      return text ? JSON.parse(text) : ({} as T);
     } catch (error) {
       lastError = error as Error;
 

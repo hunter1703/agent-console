@@ -110,7 +110,7 @@ export default function AgentsPage() {
     danger(
       'Delete Agent',
       `Are you sure you want to delete "${agent.name}"? This action cannot be undone.`,
-      () => deleteAgentMutation.mutate(agent.id)
+      () => deleteAgentMutation.mutateAsync(agent.id)
     )
   }
 
