@@ -12,15 +12,17 @@ import { useRouter } from 'next/navigation'
 import { ArrowLeft } from 'lucide-react'
 
 import { Button } from '@/components/common/Button'
-import { Card } from '@/components/common/Card'
 import { PageTransition } from '@/components/common/PageTransition'
 import { ScrollReveal } from '@/components/common/ScrollReveal'
+import { DynamicForm } from '@/components/forms/DynamicForm'
 
-import { useUIStore } from '@/lib/store/ui'
+import { createAgent } from '@/lib/api/services'
+import { useUIStore, useToasts } from '@/lib/store/ui'
 
 export default function NewAgentPage() {
   const router = useRouter()
   const setPageTitle = useUIStore(state => state.setPageTitle)
+  const { success, error } = useToasts()
 
   // Set page title
   useEffect(() => {
@@ -78,35 +80,21 @@ export default function NewAgentPage() {
           {/* Content */}
           <ScrollReveal>
             <div className="flex-1 min-h-0 overflow-y-auto pb-8">
-              <Card className="p-8">
-                <div className="text-center py-12">
-                  <h2 className="text-xl font-semibold text-text-primary mb-4">
-                    Agent Creation Coming Soon
-                  </h2>
-                  <p className="text-text-secondary mb-6 max-w-md mx-auto">
-                    Agent configuration is currently managed through JSON files in the configs directory. 
-                    A visual agent builder is coming in a future update.
-                  </p>
-                  <div className="space-y-4 max-w-md mx-auto text-left">
-                    <div className="p-4 bg-surface border border-border-subtle rounded-lg">
-                      <h3 className="font-medium text-text-primary mb-2">
-                        To create an agent manually:
-                      </h3>
-                      <ol className="text-sm text-text-secondary space-y-2 list-decimal list-inside">
-                        <li>Create a JSON file in <code className="px-1 py-0.5 bg-background rounded text-xs font-mono">configs/agents/</code></li>
-                        <li>Define agent properties (name, model, system prompt, tools)</li>
-                        <li>Restart the agent engine to load the new configuration</li>
-                        <li>The agent will appear in the agents list</li>
-                      </ol>
-                    </div>
-                  </div>
-                  <div className="mt-8">
-                    <Button onClick={handleBack}>
-                      Back to Agents
-                    </Button>
-                  </div>
-                </div>
-              </Card>
+              <DynamicForm
+                assetType="Agent"
+                mode="CREATE"
+                onSubmit={async (data) => {
+                  try {
+                    await createAgent(data)
+                    success('Agent created successfully')
+                    router.push('/agents')
+                  } catch (err: any) {
+                    error(err.message || 'Failed to create agent')
+                    throw err // Re-throw to prevent proceeding
+                  }
+                }}
+                onCancel={handleBack}
+              />
             </div>
           </ScrollReveal>
         </div>
