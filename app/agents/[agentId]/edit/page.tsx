@@ -133,7 +133,7 @@ export default function EditAgentPage() {
                   initialData={agent}
                   onSubmit={async (data) => {
                     try {
-                      await updateAgent(agentId, data)
+                      await updateAgent(agentId, data as any)
                       queryClient.invalidateQueries({ queryKey: queryKeys.agents.detail(agentId) })
                       queryClient.invalidateQueries({ queryKey: queryKeys.agents.all })
                       success('Agent updated successfully')

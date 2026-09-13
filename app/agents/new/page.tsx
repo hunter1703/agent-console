@@ -85,7 +85,7 @@ export default function NewAgentPage() {
                 mode="CREATE"
                 onSubmit={async (data) => {
                   try {
-                    await createAgent(data)
+                    await createAgent(data as any)
                     success('Agent created successfully')
                     router.push('/agents')
                   } catch (err: any) {
