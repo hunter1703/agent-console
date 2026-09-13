@@ -35,6 +35,11 @@ async function proxyRequest(request: NextRequest, params: { path: string[] }) {
     let fetchClient = globalThis.fetch;
     const reqHeaders = new Headers(request.headers);
     reqHeaders.delete('host');
+    reqHeaders.delete('origin');
+    reqHeaders.delete('referer');
+    reqHeaders.delete('sec-fetch-site');
+    reqHeaders.delete('sec-fetch-mode');
+    reqHeaders.delete('sec-fetch-dest');
     
     let fetchOptions: any = {
       method: request.method,
