@@ -58,7 +58,7 @@ export interface GlassProps extends Omit<HTMLMotionProps<'div'>, 'style'> {
   /**
    * HTML element type
    */
-  as?: keyof JSX.IntrinsicElements
+  as?: keyof React.JSX.IntrinsicElements
 }
 
 // ============================================================================

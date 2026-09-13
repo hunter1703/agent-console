@@ -50,7 +50,7 @@ export interface PlanningState {
   lastUpdated: string
 }
 
-export interface TaskWithChildren extends LegacyTask {
+export interface TaskWithChildren extends Task {
   children: TaskWithChildren[]
   depth: number
 }

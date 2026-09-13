@@ -149,7 +149,6 @@ export function ConnectionError({
             onClick={handleRetry}
             variant="primary"
             size="md"
-            disabled={status === 'connecting'}
           >
             <RefreshCw size={16} />
             Try Again

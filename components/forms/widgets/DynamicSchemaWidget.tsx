@@ -238,8 +238,8 @@ export function DynamicSchemaWidget({
           schema: data,
           layout: {
             fields: {},
-            presets: null,
-            steps: null
+            presets: undefined,
+            steps: undefined
           }
         }
         
@@ -345,7 +345,7 @@ export function DynamicSchemaWidget({
                   <div className="space-y-4">
                     {Object.entries(nestedSchema.schema.properties).map(([propName, propSchema]: [string, any]) => {
                       const fieldValue = value?.[propName]
-                      const isRequired = nestedSchema.schema.required?.includes(propName)
+                      const isRequired = nestedSchema.schema.required?.includes(propName) ?? false
                       
                       return (
                         <div key={propName}>

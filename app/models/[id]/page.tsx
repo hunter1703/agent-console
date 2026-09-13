@@ -80,7 +80,7 @@ export default function ModelPage() {
   // Loading state
   if (isLoading) {
     return (
-      <PageTransition>
+      <PageTransition pageKey={modelId}>
         <div className="h-full flex flex-col bg-background">
           <div className="flex-1 flex items-center justify-center">
             <div className="text-center space-y-4">
@@ -96,7 +96,7 @@ export default function ModelPage() {
   // Error state
   if (loadError) {
     return (
-      <PageTransition>
+      <PageTransition pageKey={modelId}>
         <div className="h-full flex flex-col bg-background">
           <div className="flex-1 flex flex-col max-w-4xl mx-auto w-full px-6">
             <div className="mb-12" />
@@ -123,7 +123,7 @@ export default function ModelPage() {
   // No model found
   if (!model) {
     return (
-      <PageTransition>
+      <PageTransition pageKey={modelId}>
         <div className="h-full flex flex-col bg-background">
           <div className="flex-1 flex flex-col max-w-4xl mx-auto w-full px-6">
             <div className="mb-12" />
@@ -146,7 +146,7 @@ export default function ModelPage() {
   }
 
   return (
-    <PageTransition>
+    <PageTransition pageKey={modelId}>
       <div className="h-full flex flex-col bg-background">
         <div className="flex-1 flex flex-col max-w-4xl mx-auto w-full px-6">
           {/* Spacer for consistent layout */}

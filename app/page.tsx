@@ -21,7 +21,7 @@ export default function HomePage() {
 
   // Show loading state while redirecting
   return (
-    <PageTransition>
+    <PageTransition pageKey="home">
       <div className="min-h-screen bg-background flex items-center justify-center">
         <div className="text-center space-y-4">
           <Skeleton className="h-8 w-48 mx-auto" />

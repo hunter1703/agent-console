@@ -109,6 +109,7 @@ export const Toggle = forwardRef<HTMLButtonElement, ToggleProps>(
         role="switch"
         aria-checked={checked}
         config={trackConfig}
+        // @ts-expect-error - GlassProps extends HTMLMotionProps<'div'> which doesn't perfectly match button props
         onClick={handleClick}
         disabled={disabled}
         className={cn(

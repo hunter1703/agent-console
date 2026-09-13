@@ -120,7 +120,6 @@ export function PullToRefresh({
 
       // Animate to threshold position
       animate(pullDistance, threshold, {
-        type: 'spring',
         ...springPresets.snappy,
       })
 
@@ -140,14 +139,12 @@ export function PullToRefresh({
         
         // Animate back to 0
         animate(pullDistance, 0, {
-          type: 'spring',
           ...springPresets.snappy,
         })
       }
     } else {
       // Snap back if threshold not met
       animate(pullDistance, 0, {
-        type: 'spring',
         ...springPresets.snappy,
       })
     }

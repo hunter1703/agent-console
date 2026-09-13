@@ -54,7 +54,7 @@ export default function ModelsPage() {
 
   // Delete model mutation
   const deleteModelMutation = useMutation({
-    mutationFn: deleteModel,
+    mutationFn: (id: string) => deleteModel(id),
     onSuccess: () => {
       success('Model deleted successfully')
       queryClient.invalidateQueries({ queryKey: ['models'] })

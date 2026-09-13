@@ -83,7 +83,7 @@ export const Tooltip: React.FC<TooltipProps> = ({
   const [position, setPosition] = useState({ top: 0, left: 0 })
   const triggerRef = useRef<HTMLElement>(null)
   const tooltipRef = useRef<HTMLDivElement>(null)
-  const timeoutRef = useRef<NodeJS.Timeout>()
+  const timeoutRef = useRef<NodeJS.Timeout | undefined>(undefined)
   
   // Build configuration
   const config = React.useMemo(() => {
@@ -175,23 +175,23 @@ export const Tooltip: React.FC<TooltipProps> = ({
   }, [isVisible])
   
   // Clone child with event handlers
-  const trigger = React.cloneElement(children, {
+  const trigger = React.cloneElement(children as any, {
     ref: triggerRef,
     onMouseEnter: (e: React.MouseEvent) => {
       show()
-      children.props.onMouseEnter?.(e)
+      ;(children as any).props.onMouseEnter?.(e)
     },
     onMouseLeave: (e: React.MouseEvent) => {
       hide()
-      children.props.onMouseLeave?.(e)
+      ;(children as any).props.onMouseLeave?.(e)
     },
     onFocus: (e: React.FocusEvent) => {
       show()
-      children.props.onFocus?.(e)
+      ;(children as any).props.onFocus?.(e)
     },
     onBlur: (e: React.FocusEvent) => {
       hide()
-      children.props.onBlur?.(e)
+      ;(children as any).props.onBlur?.(e)
     },
   })
   

@@ -14,7 +14,7 @@ export function useFormDraft({
   debounceMs = 1000 
 }: UseFormDraftOptions) {
   const isInitialMount = useRef(true)
-  const timeoutRef = useRef<NodeJS.Timeout>()
+  const timeoutRef = useRef<NodeJS.Timeout | undefined>(undefined)
 
   // Save draft to localStorage
   const saveDraft = useCallback((draftData: Record<string, any>) => {

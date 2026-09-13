@@ -18,8 +18,8 @@ export function useCountUp(
 ): number {
   const [count, setCount] = useState(0)
   const [prefersReducedMotion, setPrefersReducedMotion] = useState(false)
-  const frameRef = useRef<number>()
-  const startTimeRef = useRef<number>()
+  const frameRef = useRef<number | undefined>(undefined)
+  const startTimeRef = useRef<number | undefined>(undefined)
   const startValueRef = useRef(0)
 
   // Check for reduced motion preference

@@ -5,7 +5,7 @@
  * agent-engine/util/common/src/main/java/com/agentengine/util/common/builder/
  */
 
-import type { JSONSchema7 } from '@types/json-schema'
+import type { JSONSchema7 } from 'json-schema'
 
 /**
  * Response from GET /schemas/{assetType}?mode={mode}
@@ -32,6 +32,7 @@ export interface LayoutPreset {
   label: string
   description?: string
   values: Record<string, any>
+  isDefault?: boolean
 }
 
 /**

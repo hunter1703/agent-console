@@ -1,7 +1,8 @@
 'use client'
 
 import { useEffect, useRef } from 'react'
-import { useRefraction } from '@/components/liquid-glass/RefractionProvider'
+// Dummy refraction hook since RefractionProvider doesn't exist
+const useRefraction = () => null as any
 import type { GlassType, GlassIntensity } from '@/lib/liquid-glass/types'
 
 export interface GlassLayerOptions {

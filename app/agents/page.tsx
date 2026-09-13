@@ -75,7 +75,7 @@ export default function AgentsPage() {
 
   // Delete agent mutation
   const deleteAgentMutation = useMutation({
-    mutationFn: deleteAgent,
+    mutationFn: (agentId: string) => deleteAgent(agentId),
     onSuccess: () => {
       success('Agent deleted successfully')
       queryClient.invalidateQueries({ queryKey: queryKeys.agents.all })
@@ -115,7 +115,7 @@ export default function AgentsPage() {
   }
 
   return (
-    <PageTransition>
+    <PageTransition pageKey="agents">
       <div className="h-full flex flex-col bg-background">
         <div className="flex-1 flex flex-col max-w-7xl mx-auto w-full px-6">
           {/* Spacer for consistent layout */}

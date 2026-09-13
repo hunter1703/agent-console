@@ -100,10 +100,14 @@ async function reconnectToSession(sessionId: string): Promise<void> {
   store.setSSEConnection(stream)
 }
 
+import { Suspense } from 'react'
+
 export default function ChatPage() {
   return (
     <ErrorBoundary>
-      <ChatPageContent />
+      <Suspense fallback={<div>Loading chat...</div>}>
+        <ChatPageContent />
+      </Suspense>
     </ErrorBoundary>
   )
 }

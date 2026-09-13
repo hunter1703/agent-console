@@ -29,7 +29,7 @@ export function LookupWidget({ field, value, onChange, error, disabled }: Lookup
   const justSelectedRef = useRef(false) // Track if we just made a selection
 
   const assetType = field.lookup?.assetType || 'Agent'
-  const isMultiple = field.lookup?.multiple || false
+  const isMultiple = field.lookup?.multiSelect || false
   const baseUrl = process.env.NEXT_PUBLIC_API_BASE_URL || 'http://localhost:8080'
 
   // Load initial selected options

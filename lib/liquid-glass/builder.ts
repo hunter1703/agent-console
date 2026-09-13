@@ -438,7 +438,7 @@ export function createVariants<T extends string>(
   const result = {} as Record<T, GlassConfig>
   
   for (const [key, overrides] of Object.entries(variants)) {
-    result[key as T] = mergeGlassConfig(base, overrides)
+    result[key as T] = mergeGlassConfig(base, overrides as Partial<GlassConfig>)
   }
   
   return result

@@ -119,6 +119,7 @@ export const FAB = forwardRef<HTMLButtonElement, FABProps>(
     }
     
     return (
+      // @ts-expect-error - GlassProps extends HTMLMotionProps<'div'> which doesn't perfectly match button props
       <Glass
         ref={ref as any}
         as="button"

@@ -163,6 +163,7 @@ export const Button = forwardRef<HTMLButtonElement, ButtonProps>(
         initial="initial"
         whileHover={!disabled && !loading ? 'whileHover' : undefined}
         whileTap={!disabled && !loading ? 'whileTap' : undefined}
+        // @ts-expect-error - GlassProps extends HTMLMotionProps<'div'> which doesn't include disabled
         disabled={disabled || loading}
         {...props}
       >
@@ -174,7 +175,7 @@ export const Button = forwardRef<HTMLButtonElement, ButtonProps>(
           <span className="inline-flex">{iconLeft}</span>
         )}
         
-        {children}
+        {children as React.ReactNode}
         
         {!loading && iconRight && (
           <span className="inline-flex">{iconRight}</span>

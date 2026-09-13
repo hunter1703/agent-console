@@ -273,7 +273,7 @@ export function logCacheContents(): void {
       queries: cache.getAll().map(query => ({
         queryKey: query.queryKey,
         state: query.state,
-        dataUpdatedAt: query.dataUpdatedAt,
+        dataUpdatedAt: query.state.dataUpdatedAt,
       }))
     })
   }
@@ -289,7 +289,7 @@ export function logCacheContents(): void {
 export function setupErrorHandling(): void {
   // Query error handler
   queryClient.getQueryCache().subscribe((event) => {
-    if (event.type === 'error') {
+    if (event.type === 'updated' && event.query.state.status === 'error') {
       const error = event.query.state.error
       if (DEV_CONFIG.debug) {
         console.error('Query error:', {
@@ -304,7 +304,7 @@ export function setupErrorHandling(): void {
   
   // Mutation error handler
   queryClient.getMutationCache().subscribe((event) => {
-    if (event.type === 'error') {
+    if (event.type === 'updated' && event.mutation.state.status === 'error') {
       const error = event.mutation.state.error
       if (DEV_CONFIG.debug) {
         console.error('Mutation error:', {

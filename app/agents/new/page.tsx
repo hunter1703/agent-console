@@ -48,7 +48,7 @@ export default function NewAgentPage() {
   }
 
   return (
-    <PageTransition>
+    <PageTransition pageKey="new-agent">
       <div className="h-full flex flex-col bg-background">
         <div className="flex-1 flex flex-col max-w-4xl mx-auto w-full px-6">
           {/* Spacer for consistent layout */}

@@ -39,7 +39,7 @@ export function SearchInput({
   const [internalValue, setInternalValue] = useState(controlledValue || '')
   const [isFocused, setIsFocused] = useState(false)
   const { shouldAnimate } = useReducedMotion()
-  const debounceTimerRef = useRef<NodeJS.Timeout>()
+  const debounceTimerRef = useRef<NodeJS.Timeout | undefined>(undefined)
   const inputRef = useRef<HTMLInputElement>(null)
 
   const value = controlledValue !== undefined ? controlledValue : internalValue
@@ -136,9 +136,9 @@ export function SearchInput({
           {isLoading ? (
             <motion.div
               key="loading"
-              initial={shouldAnimate ? { opacity: 0, scale: 0.8 } : false}
+              initial={shouldAnimate ? { opacity: 0, scale: 0.8 } : undefined}
               animate={{ opacity: 1, scale: 1 }}
-              exit={shouldAnimate ? { opacity: 0, scale: 0.8 } : false}
+              exit={shouldAnimate ? { opacity: 0, scale: 0.8 } : undefined}
               transition={{ duration: 0.15 }}
             >
               <div className="w-4 h-4 border-2 border-primary/30 border-t-primary rounded-full animate-spin" />
@@ -146,9 +146,9 @@ export function SearchInput({
           ) : value ? (
             <motion.button
               key="clear"
-              initial={shouldAnimate ? { opacity: 0, scale: 0.8 } : false}
+              initial={shouldAnimate ? { opacity: 0, scale: 0.8 } : undefined}
               animate={{ opacity: 1, scale: 1 }}
-              exit={shouldAnimate ? { opacity: 0, scale: 0.8 } : false}
+              exit={shouldAnimate ? { opacity: 0, scale: 0.8 } : undefined}
               transition={{ duration: 0.15 }}
               onClick={handleClear}
               className="p-1 rounded-md text-text-tertiary hover:text-text-primary hover:bg-surface-hover transition-colors cursor-pointer"

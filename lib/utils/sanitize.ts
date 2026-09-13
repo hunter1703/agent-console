@@ -47,7 +47,7 @@ export function sanitizeHtml(
     config.ALLOWED_TAGS = allowedTags.filter(tag => tag !== 'a')
   }
 
-  return DOMPurify.sanitize(dirty, config)
+  return DOMPurify.sanitize(dirty, config as any) as unknown as string
 }
 
 /**

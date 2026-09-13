@@ -73,7 +73,7 @@ export default function DashboardPage() {
   }
 
   return (
-    <PageTransition>
+    <PageTransition pageKey="dashboard">
       <div className="h-full flex flex-col bg-background">
         <div className="flex-1 flex flex-col max-w-7xl mx-auto w-full px-6">
           {/* Hero Section */}

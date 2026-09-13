@@ -32,7 +32,6 @@ export function QueryProvider({ children }: { children: React.ReactNode }) {
       {DEV_CONFIG.debug && (
         <ReactQueryDevtools
           initialIsOpen={false}
-          position="bottom-right"
         />
       )}
     </QueryClientProvider>

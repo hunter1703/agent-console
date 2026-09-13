@@ -2,7 +2,7 @@
 
 import React, { forwardRef } from 'react'
 import { motion } from 'framer-motion'
-import { Glass } from '@/components/liquid-glass/Glass'
+import { Glass, type GlassProps } from '@/components/liquid-glass/Glass'
 import { glassBuilder } from '@/lib/liquid-glass/builder'
 import { cn } from '@/lib/utils/cn'
 
@@ -10,7 +10,7 @@ import { cn } from '@/lib/utils/cn'
 // LINEAR PROGRESS
 // ============================================================================
 
-export interface LinearProgressProps extends React.HTMLAttributes<HTMLDivElement> {
+export interface LinearProgressProps extends GlassProps {
   /**
    * Progress value (0-100)
    */

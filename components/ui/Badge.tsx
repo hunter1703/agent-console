@@ -1,8 +1,8 @@
 'use client'
 
 import React, { forwardRef } from 'react'
-import { motion } from 'framer-motion'
-import { Glass } from '@/components/liquid-glass/Glass'
+import { motion, type HTMLMotionProps } from 'framer-motion'
+import { Glass, type GlassProps } from '@/components/liquid-glass/Glass'
 import { glassBuilder } from '@/lib/liquid-glass/builder'
 import { cn } from '@/lib/utils/cn'
 
@@ -10,7 +10,7 @@ import { cn } from '@/lib/utils/cn'
 // TYPES
 // ============================================================================
 
-export interface BadgeProps extends React.HTMLAttributes<HTMLDivElement> {
+export interface BadgeProps extends Omit<GlassProps, 'content'> {
   /**
    * Badge variant
    */

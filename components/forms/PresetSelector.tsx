@@ -4,10 +4,10 @@ import { useState } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { Check, Sparkles } from 'lucide-react'
 import { springPresets, fadeIn, scaleIn } from '@/lib/constants/animations'
-import type { Preset } from '@/lib/types/schema'
+import type { LayoutPreset } from '@/lib/types/schema'
 
 interface PresetSelectorProps {
-  presets: Preset[]
+  presets: LayoutPreset[]
   onSelect: (presetId: string | null) => void
   onSkip: () => void
 }

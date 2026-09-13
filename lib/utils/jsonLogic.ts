@@ -25,7 +25,7 @@ import type { JsonLogicExpression } from '@/lib/types/schema'
  */
 export function evaluateRule(rule: JsonLogicExpression, data: any): boolean {
   try {
-    const result = jsonLogic.apply(rule, data)
+    const result = jsonLogic.apply(rule as any, data)
     return Boolean(result)
   } catch (error) {
     console.error('Error evaluating JSON Logic rule:', error, { rule, data })

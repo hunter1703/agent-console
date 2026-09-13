@@ -103,7 +103,7 @@ export default function SessionsPage() {
 
   // Delete session mutation
   const deleteSessionMutation = useMutation({
-    mutationFn: deleteSession,
+    mutationFn: (sessionId: string) => deleteSession(sessionId),
     onSuccess: () => {
       success('Session deleted successfully')
       queryClient.invalidateQueries({ queryKey: queryKeys.sessions.all })
@@ -239,7 +239,7 @@ export default function SessionsPage() {
   }
 
   return (
-    <PageTransition>
+    <PageTransition pageKey="sessions">
       <div className="h-full flex flex-col bg-background">
         <div className="flex-1 flex flex-col max-w-4xl mx-auto w-full px-6">
           {/* Consistent top spacing */}

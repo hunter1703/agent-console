@@ -12,7 +12,7 @@ export function SmoothText({ content }: SmoothTextProps) {
   const [displayedText, setDisplayedText] = useState(content)
   const contentRef = useRef(content)
   const indexRef = useRef(content.length)
-  const frameRef = useRef<number>()
+  const frameRef = useRef<number>(0)
 
   useEffect(() => {
     contentRef.current = content

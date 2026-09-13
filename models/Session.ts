@@ -1,4 +1,4 @@
-import { Message } from "@/components/ChatWindow";
+import type { Message } from "@/types/message";
 
 export interface ChatSession {
     id: string;

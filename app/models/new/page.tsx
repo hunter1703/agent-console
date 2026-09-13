@@ -15,7 +15,7 @@ import { Button } from '@/components/common/Button'
 import { Card } from '@/components/common/Card'
 import { PageTransition } from '@/components/common/PageTransition'
 import { DynamicForm } from '@/components/forms/DynamicForm'
-import { createModel } from '@/lib/api/models'
+import { createModel, type Model } from '@/lib/api/models'
 import { useUIStore, useToasts } from '@/lib/store/ui'
 
 export default function NewModelPage() {
@@ -33,7 +33,7 @@ export default function NewModelPage() {
   // Create model mutation
   const createModelMutation = useMutation({
     mutationFn: async (data: Record<string, any>) => {
-      return createModel(data)
+      return createModel(data as Omit<Model, 'id' | 'createdTime' | 'updatedTime'>)
     },
     onSuccess: () => {
       success('Model created successfully')
