@@ -33,9 +33,12 @@ async function proxyRequest(request: NextRequest, params: { path: string[] }) {
     const targetUrl = `${backendUrl}/${path}${searchParams ? '?' + searchParams : ''}`;
 
     let fetchClient = globalThis.fetch;
+    const reqHeaders = new Headers(request.headers);
+    reqHeaders.delete('host');
+    
     let fetchOptions: any = {
       method: request.method,
-      headers: request.headers,
+      headers: reqHeaders,
       body: request.method !== 'GET' && request.method !== 'HEAD' ? await request.arrayBuffer() : undefined,
     };
 
