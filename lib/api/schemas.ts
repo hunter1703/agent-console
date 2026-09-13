@@ -50,7 +50,7 @@ export async function fetchSchema(
   }
   
   // Fetch from API
-  const url = `${API_BASE_URL}/schemas/${assetType}?mode=${mode}`
+  const url = `${API_BASE_URL}/v1/schemas/${assetType}?mode=${mode}`
   
   try {
     const response = await fetch(url, {
