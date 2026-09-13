@@ -24,10 +24,12 @@ interface DynamicFormProps {
   onCancel?: () => void
 }
 
+const DEFAULT_INITIAL_DATA = {}
+
 export function DynamicForm({ 
   assetType, 
   mode, 
-  initialData = {}, 
+  initialData = DEFAULT_INITIAL_DATA, 
   onSubmit, 
   onCancel 
 }: DynamicFormProps) {
@@ -73,7 +75,12 @@ export function DynamicForm({
 
   // Update form data when initialData changes
   useEffect(() => {
-    setFormData(initialData)
+    setFormData((prev) => {
+      if (JSON.stringify(prev) !== JSON.stringify(initialData)) {
+        return initialData
+      }
+      return prev
+    })
   }, [initialData])
 
   // Track unsaved changes
