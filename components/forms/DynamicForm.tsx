@@ -161,12 +161,7 @@ export function DynamicForm({
 
   // Compute field states based on conditional rules
   const fieldStates = useMemo(() => {
-    if (!layout || !schema) {
-      console.log('[DynamicForm] Missing layout or schema:', { layout: !!layout, schema: !!schema })
-      return {}
-    }
-
-    console.log('[DynamicForm] Computing field states with schema:', schema)
+    if (!layout || !schema) return {}
 
     const states: Record<string, FieldState> = {}
 
@@ -180,20 +175,22 @@ export function DynamicForm({
       // For top-level fields, check the root schema's required array
       if (parts.length === 1) {
         const schemaRequired = (schema as any).required || []
-        const isReq = schemaRequired.includes(parts[0])
-        if (isReq) console.log(`[DynamicForm] Top-level field ${pointer} is in schema.required`)
-        return isReq
+        return schemaRequired.includes(parts[0])
       }
       
       // For nested fields, navigate through the schema to find the parent object
       let currentSchema: any = schema
       for (let i = 0; i < parts.length - 1; i++) {
         const part = parts[i]
-        const properties = currentSchema.properties || {}
-        currentSchema = properties[part]
+        
+        if (part === '*' && currentSchema.type === 'array' && currentSchema.items) {
+          currentSchema = currentSchema.items
+        } else {
+          const properties = currentSchema.properties || {}
+          currentSchema = properties[part]
+        }
         
         if (!currentSchema) {
-          console.log(`[DynamicForm] Could not find schema for ${pointer} at part ${part}`)
           return false
         }
       }
@@ -201,9 +198,7 @@ export function DynamicForm({
       // Check if the final field is in the required array of its parent schema
       const fieldName = parts[parts.length - 1]
       const required = currentSchema.required || []
-      const isReq = required.includes(fieldName)
-      if (isReq) console.log(`[DynamicForm] Nested field ${pointer} is in parent schema.required`)
-      return isReq
+      return required.includes(fieldName)
     }
 
     Object.entries(layout.fields).forEach(([pointer, field]) => {
@@ -213,10 +208,6 @@ export function DynamicForm({
       const fromAccess = field.currentAccess === 'REQUIRED'
       const fromSchema = isFieldRequired(pointer)
       const isBaseRequired = fromAccess || fromSchema
-      
-      if (isBaseRequired) {
-        console.log(`[DynamicForm] Field ${pointer} is REQUIRED - fromAccess=${fromAccess}, fromSchema=${fromSchema}`)
-      }
       
       const state: FieldState = {
         visible: true,
@@ -242,7 +233,6 @@ export function DynamicForm({
       states[pointer] = state
     })
 
-    console.log('[DynamicForm] Field states:', states)
     return states
   }, [layout, schema, formData])
 
