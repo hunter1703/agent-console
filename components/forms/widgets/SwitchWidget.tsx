@@ -17,7 +17,6 @@ export function SwitchWidget({ field, value, onChange, error, disabled }: Switch
       <Toggle
         checked={value || false}
         onChange={onChange}
-        label={field.label}
         disabled={disabled}
       />
       {error && (
