@@ -9,6 +9,7 @@ import { Header } from '@/components/layout/Header'
 import { FloatingThemeToggle } from '@/components/layout/FloatingThemeToggle'
 import { FloatingDashboardButton } from '@/components/layout/FloatingDashboardButton'
 import { SpeedInsights } from '@vercel/speed-insights/next'
+import { Analytics } from '@vercel/analytics/next'
 
 export const metadata: Metadata = {
   title: 'Agent Console',
@@ -41,6 +42,7 @@ export default function RootLayout({
           </QueryProvider>
         </ThemeProvider>
         <SpeedInsights />
+        <Analytics />
       </body>
     </html>
   )
