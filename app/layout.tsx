@@ -8,6 +8,7 @@ import { SkipLinks } from '@/components/common/SkipLinks'
 import { Header } from '@/components/layout/Header'
 import { FloatingThemeToggle } from '@/components/layout/FloatingThemeToggle'
 import { FloatingDashboardButton } from '@/components/layout/FloatingDashboardButton'
+import { SpeedInsights } from '@vercel/speed-insights/next'
 
 export const metadata: Metadata = {
   title: 'Agent Console',
@@ -39,6 +40,7 @@ export default function RootLayout({
             </ErrorBoundary>
           </QueryProvider>
         </ThemeProvider>
+        <SpeedInsights />
       </body>
     </html>
   )
