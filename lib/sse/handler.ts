@@ -318,7 +318,7 @@ export class AGUIEventHandler {
       chatStore.appendToStreamingMessage(messageId, event.delta)
     }
 
-    const role = event.role || event.rawEvent?.author || chatStore.streamingMessages[messageId]?.role || 'assistant'
+    const role = chatStore.streamingMessages[messageId]?.role || 'assistant'
     const updates: any = { connectionStatus: 'connected' }
     if (role !== 'user') updates.isStreaming = true
     chatStore.updateSession(sessionId, updates)
