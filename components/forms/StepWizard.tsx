@@ -145,22 +145,6 @@ export function StepWizard({
                   whileTap={isClickable ? { scale: 0.95 } : {}}
                   transition={springPresets.snappy}
                 >
-                  {/* Glow effect on active - positioned outside the circle */}
-                  {isActive && (
-                    <motion.div
-                      className="absolute inset-0 rounded-full bg-primary"
-                      style={{ zIndex: -1 }}
-                      initial={{ scale: 1, opacity: 0.5 }}
-                      animate={{ scale: 1.5, opacity: 0 }}
-                      transition={{
-                        duration: 1.5,
-                        repeat: Infinity,
-                        repeatType: "loop",
-                        ease: 'easeOut',
-                      }}
-                    />
-                  )}
-                  
                   {/* Icon/Number */}
                   <AnimatePresence mode="wait">
                     {isComplete && !isActive ? (
@@ -178,7 +162,11 @@ export function StepWizard({
                       <motion.span
                         key="number"
                         className={`text-sm font-semibold ${
-                          isActive || isComplete ? 'text-white' : 'text-text-tertiary'
+                          isActive 
+                            ? 'text-text-inverse' 
+                            : isComplete 
+                              ? 'text-white' 
+                              : 'text-text-tertiary'
                         }`}
                         initial={{ scale: 0 }}
                         animate={{ scale: 1 }}
