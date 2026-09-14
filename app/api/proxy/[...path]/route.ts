@@ -64,11 +64,14 @@ async function proxyRequest(request: NextRequest, params: { path: string[] }) {
       }
     }
 
+    const startTime = Date.now();
     const response = await fetchClient(targetUrl, fetchOptions);
+    const proxyProcessingTimeMs = Date.now() - startTime;
 
     const headers = new Headers(response.headers as HeadersInit);
     headers.delete('content-encoding');
     headers.delete('transfer-encoding');
+    headers.set('X-Proxy-Processing-Time-Ms', proxyProcessingTimeMs.toString());
 
     return new NextResponse(response.body as any, {
       status: response.status,
