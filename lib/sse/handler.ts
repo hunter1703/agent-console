@@ -197,7 +197,7 @@ export class AGUIEventHandler {
         sessionId,
         agentId: runAgentId,
         messages: [],
-        isStreaming: true,
+        isStreaming: runAgentId !== 'user',
         connectionStatus: 'connected',
         lastActivity: new Date().toISOString(),
         toolCalls: {},
@@ -207,10 +207,9 @@ export class AGUIEventHandler {
         timeline: [],
       } as any)
     } else {
-      chatStore.updateSession(sessionId, {
-        isStreaming: true,
-        connectionStatus: 'connected',
-      })
+      const updates: any = { connectionStatus: 'connected' }
+      if (runAgentId !== 'user') updates.isStreaming = true
+      chatStore.updateSession(sessionId, updates)
     }
 
     // Set as active if it's the first session or if no active session
@@ -290,6 +289,10 @@ export class AGUIEventHandler {
     // remainder, so appending onto old partial content would duplicate/garble it.
     chatStore.startStreamingMessage(messageId, role)
 
+    const updates: any = { connectionStatus: 'connected' }
+    if (role !== 'user') updates.isStreaming = true
+    chatStore.updateSession(sessionId, updates)
+
     // Assistant/system text streams live, token by token, and needs a timeline slot right
     // away so the reader watches it appear. A user message, by contrast, is always an echo
     // of something the sender already said — the sender has their own optimistic local echo
@@ -314,6 +317,11 @@ export class AGUIEventHandler {
     if (chatStore.streamingMessages[messageId]) {
       chatStore.appendToStreamingMessage(messageId, event.delta)
     }
+
+    const role = event.role || event.rawEvent?.author || chatStore.streamingMessages[messageId]?.role || 'assistant'
+    const updates: any = { connectionStatus: 'connected' }
+    if (role !== 'user') updates.isStreaming = true
+    chatStore.updateSession(sessionId, updates)
   }
 
   private handleTextMessageEnd(event: any, sessionId: string): void {
