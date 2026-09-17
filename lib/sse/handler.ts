@@ -314,13 +314,22 @@ export class AGUIEventHandler {
 
     const chatStore = this.getChatStore()
     const messageId = canonicalStreamId(event.messageId)
-    if (chatStore.streamingMessages[messageId]) {
+    const isActiveStream = Boolean(chatStore.streamingMessages[messageId])
+    if (isActiveStream) {
       chatStore.appendToStreamingMessage(messageId, event.delta)
     }
 
     const role = (event as any).role || (event as any).rawEvent?.author || chatStore.streamingMessages[messageId]?.role || 'assistant'
     const updates: any = { connectionStatus: 'connected' }
-    if (role !== 'user') updates.isStreaming = true
+    // Only a genuinely live chunk (one with an open streaming buffer) means the run is
+    // still in progress. A session-stream replay resends every historical message's chunks
+    // too, but handleTextMessageStart no-ops on those (alreadyCommitted) instead of opening
+    // a buffer for them — so without this guard, replaying a finished session's history
+    // would flip isStreaming back to true on every reconnect with nothing to ever set it
+    // false again, since no RUN_FINISHED necessarily follows a replayed chunk. That kept
+    // shouldReconnect() (lib/hooks/useSessionStream.ts) returning true forever, producing an
+    // infinite reconnect loop against an already-finished session.
+    if (role !== 'user' && isActiveStream) updates.isStreaming = true
     chatStore.updateSession(sessionId, updates)
   }
 
