@@ -329,9 +329,13 @@ export interface FileDetails {
 /**
  * Uploads a file as a raw byte stream to cloud storage.
  * Returns the stored FileDetails (name, source, type, mimeType, size).
+ *
+ * Calls the backend directly rather than through /api/proxy: the proxy route buffers the
+ * whole request body inside a Next.js serverless function, which hits Vercel's request-body
+ * size limit for anything but small files.
  */
 export async function uploadToStorage(file: File): Promise<FileDetails> {
-  const baseUrl = process.env.NEXT_PUBLIC_API_BASE_URL || 'http://localhost:8080'
+  const baseUrl = process.env.NEXT_PUBLIC_BACKEND_URL || 'http://localhost:8080'
 
   const response = await fetch(
     `${baseUrl}/v1/storage/upload?name=${encodeURIComponent(file.name)}`,
