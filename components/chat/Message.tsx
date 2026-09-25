@@ -22,7 +22,7 @@
 import { motion, useInView } from 'framer-motion'
 import { Copy, Check } from 'lucide-react'
 import { useState, useRef, memo } from 'react'
-import { cn } from '@/lib/utils'
+import { cn, cleanMessageContent } from '@/lib/utils'
 import { springPresets } from '@/lib/constants/animations'
 import { Avatar } from '@/components/common/Avatar'
 import { useReducedMotion } from '@/lib/hooks/useReducedMotion'
@@ -166,10 +166,12 @@ const MessageComponent = function Message({
     minute: '2-digit',
   })
 
+  const displayContent = cleanMessageContent(content)
+
   // Handle copy with success feedback
   const handleCopy = async () => {
     try {
-      await navigator.clipboard.writeText(content)
+      await navigator.clipboard.writeText(displayContent)
       onCopy?.()
       setIsCopied(true)
       setTimeout(() => setIsCopied(false), 2000)
@@ -258,13 +260,13 @@ const MessageComponent = function Message({
                 'border border-border-subtle/50'
               )}
             >
-              {content && (
+              {displayContent && (
                 <div className="text-[15px] text-text-primary whitespace-pre-wrap break-words leading-[1.65] font-normal tracking-[-0.01em] select-text cursor-text">
-                  {content}
+                  {displayContent}
                 </div>
               )}
               {attachments && attachments.length > 0 && (
-                <div className={cn("flex flex-col gap-1", content && "mt-2")}>
+                <div className={cn("flex flex-col gap-1", displayContent && "mt-2")}>
                   {attachments.map((att) => (
                     <AttachmentPreview key={att.source} attachment={att} />
                   ))}
@@ -273,7 +275,7 @@ const MessageComponent = function Message({
             </div>
             {/* Only show the message-level copy button when there's text content and no attachments
                 (attachments have their own copy button) */}
-            {content && (!attachments || attachments.length === 0) && (
+            {displayContent && (!attachments || attachments.length === 0) && (
               <div className={cn("transition-opacity duration-200 flex-shrink-0 mt-1", isHovered ? "opacity-100" : "opacity-0 pointer-events-none")}>
                 <CopyButton isCopied={isCopied} onClick={handleCopy} />
               </div>
@@ -284,7 +286,7 @@ const MessageComponent = function Message({
         {/* AGENT MESSAGE - Markdown rendered */}
         {!isUser && (
           <div className="relative">
-            <MarkdownRenderer content={content} showCopyButton={false} />
+            <MarkdownRenderer content={displayContent} showCopyButton={false} />
             {attachments && attachments.length > 0 && (
               <div className="flex flex-col gap-1 mt-2">
                 {attachments.map((att) => (

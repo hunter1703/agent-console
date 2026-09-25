@@ -49,6 +49,7 @@ import {
 import { useChatStore } from '../store/chat'
 import { useInterruptStore } from '../stores/interruptStore'
 import { canonicalStreamId } from './id'
+import { cleanMessageContent } from '../utils'
 
 export class AGUIEventHandler {
   // Per-session sets of already-processed entity IDs (runId / messageId / toolCallId).
@@ -343,7 +344,8 @@ export class AGUIEventHandler {
     if (streamingMessage) {
       chatStore.completeStreamingMessage(messageId)
 
-      const finalContent = event.content || streamingMessage.content
+      const rawContent = event.content || streamingMessage.content
+      const finalContent = cleanMessageContent(rawContent)
       const eventTime = event.timestamp
         ? new Date(event.timestamp).toISOString()
         : new Date().toISOString()

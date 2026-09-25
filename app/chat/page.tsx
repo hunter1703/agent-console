@@ -55,6 +55,7 @@ import { WebSearchToolCard, isWebSearchTool } from '@/components/chat/WebSearchT
 import { KnowledgeToolCard, isKnowledgeTool } from '@/components/chat/KnowledgeToolCard'
 import { useInterruptStore } from '@/lib/stores/interruptStore'
 import { isPlanningToolCall } from '@/lib/sse/events'
+import { cleanMessageContent } from '@/lib/utils'
 
 
 import { ErrorBoundary } from '@/components/common/ErrorBoundary'
@@ -728,7 +729,7 @@ function ChatPageContent() {
                                   </span>
                                 </div>
                                 <div className="text-[15px] text-text-primary whitespace-pre-wrap break-words leading-[1.75] font-normal tracking-[-0.01em] select-text cursor-text">
-                                  <SmoothText content={streaming.content} />
+                                  <SmoothText content={cleanMessageContent(streaming.content)} />
                                   {!streaming.isComplete && (
                                     <span className="inline-block ml-1 w-2 h-4 bg-text-primary animate-pulse" />
                                   )}

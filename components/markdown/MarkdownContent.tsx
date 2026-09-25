@@ -34,7 +34,7 @@ export const MarkdownContent = memo(function MarkdownContent({ content, classNam
           h4: ({ children }) => <h4 className="text-[17px] font-medium text-text-primary mt-3 mb-2">{children}</h4>,
           h5: ({ children }) => <h5 className="text-[17px] font-medium text-text-primary mt-3 mb-2">{children}</h5>,
           h6: ({ children }) => <h6 className="text-[17px] font-medium text-text-primary mt-3 mb-2">{children}</h6>,
-          p: ({ children }) => <p className="text-[15px] leading-relaxed text-text-primary mb-3">{children}</p>,
+          p: ({ children }) => <p className="text-[15px] leading-relaxed text-text-primary mb-3 whitespace-pre-wrap">{children}</p>,
           pre: ({ children }) => <div className="my-4">{children}</div>,
           ul: ({ children }) => <ul className="list-disc pl-6 mb-3 space-y-2">{children}</ul>,
           ol: ({ children }) => <ol className="list-decimal pl-6 mb-3 space-y-2">{children}</ol>,

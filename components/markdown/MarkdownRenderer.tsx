@@ -5,6 +5,8 @@ import dynamic from 'next/dynamic'
 import { Copy, Check, ChevronDown, ChevronUp } from 'lucide-react'
 import { motion, AnimatePresence } from 'framer-motion'
 
+import { cleanMessageContent } from '@/lib/utils'
+
 // Characters above which we truncate and show a "Show more" button
 const TRUNCATE_THRESHOLD = 8000
 
@@ -35,12 +37,13 @@ export function MarkdownRenderer({ content, className = '', showCopyButton = tru
   const [copied, setCopied] = useState(false)
   const [expanded, setExpanded] = useState(false)
 
-  const isLong = content.length > TRUNCATE_THRESHOLD
-  const displayContent = isLong && !expanded ? content.slice(0, TRUNCATE_THRESHOLD) : content
+  const cleanedContent = cleanMessageContent(content)
+  const isLong = cleanedContent.length > TRUNCATE_THRESHOLD
+  const displayContent = isLong && !expanded ? cleanedContent.slice(0, TRUNCATE_THRESHOLD) : cleanedContent
 
   const handleCopy = async () => {
     try {
-      await navigator.clipboard.writeText(content)
+      await navigator.clipboard.writeText(cleanedContent)
       setCopied(true)
       setTimeout(() => setCopied(false), 2000)
     } catch (error) {
