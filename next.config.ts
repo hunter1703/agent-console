@@ -6,16 +6,13 @@ const withBundleAnalyzer = bundleAnalyzer({
   enabled: process.env.ANALYZE === 'true',
 })
 
-// Backend hosts are env-driven (NEXT_PUBLIC_API_BASE_URL for proxied calls,
-// NEXT_PUBLIC_BACKEND_URL for calls the browser makes directly), so the CSP allowing fetches
-// to them has to be too — otherwise pointing the app at any non-localhost backend (e.g. a
-// local ingress host) silently gets blocked by this policy instead of by anything the backend
-// does.
+// Backend host is env-driven (NEXT_PUBLIC_API_BASE_URL), so the CSP allowing fetches to it
+// has to be too — otherwise pointing the app at any non-localhost backend (e.g. a local
+// ingress host) silently gets blocked by this policy instead of by anything the backend does.
+const apiBaseUrl = process.env.NEXT_PUBLIC_API_BASE_URL;
 const connectSrc = ["'self'", "http://localhost:*", "ws://localhost:*"];
-for (const backendUrl of [process.env.NEXT_PUBLIC_API_BASE_URL, process.env.NEXT_PUBLIC_BACKEND_URL]) {
-  if (backendUrl) {
-    connectSrc.push(backendUrl);
-  }
+if (apiBaseUrl) {
+  connectSrc.push(apiBaseUrl);
 }
 
 const nextConfig: NextConfig = {
