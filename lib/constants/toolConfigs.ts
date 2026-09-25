@@ -17,6 +17,15 @@ import {
   Clock, 
   Search,
   Globe,
+  BookOpen,
+  FolderOpen,
+  Terminal,
+  Database,
+  FileText,
+  Bot,
+  MessageSquare,
+  Cpu,
+  Layers,
   LucideIcon,
 } from 'lucide-react'
 
@@ -57,6 +66,78 @@ export const TOOL_CONFIGS: Record<string, ToolConfig> = {
     background: 'rgba(245, 158, 11, 0.05)',
     borderColor: 'rgba(245, 158, 11, 0.2)',
     category: 'agent',
+  },
+  read_knowledge_source: {
+    displayName: 'Read Knowledge Source',
+    description: 'Reading knowledge base document',
+    icon: BookOpen,
+    color: '#6366F1', // Indigo
+    background: 'rgba(99, 102, 241, 0.06)',
+    borderColor: 'rgba(99, 102, 241, 0.25)',
+    category: 'research',
+  },
+  query_knowledge_source: {
+    displayName: 'Query Knowledge',
+    description: 'Querying knowledge engine repository',
+    icon: Database,
+    color: '#06B6D4', // Cyan
+    background: 'rgba(6, 182, 212, 0.06)',
+    borderColor: 'rgba(6, 182, 212, 0.25)',
+    category: 'research',
+  },
+  search_knowledge: {
+    displayName: 'Search Knowledge',
+    description: 'Searching stored knowledge articles',
+    icon: Database,
+    color: '#6366F1',
+    background: 'rgba(99, 102, 241, 0.06)',
+    borderColor: 'rgba(99, 102, 241, 0.25)',
+    category: 'research',
+  },
+  knowledge_search: {
+    displayName: 'Knowledge Search',
+    description: 'Searching knowledge documents',
+    icon: BookOpen,
+    color: '#6366F1',
+    background: 'rgba(99, 102, 241, 0.06)',
+    borderColor: 'rgba(99, 102, 241, 0.25)',
+    category: 'research',
+  },
+  open_file: {
+    displayName: 'Open File',
+    description: 'Opening file and media asset',
+    icon: FolderOpen,
+    color: '#3B82F6',
+    background: 'rgba(59, 130, 246, 0.06)',
+    borderColor: 'rgba(59, 130, 246, 0.25)',
+    category: 'other',
+  },
+  execute_code: {
+    displayName: 'Execute Code',
+    description: 'Running code script',
+    icon: Terminal,
+    color: '#10B981',
+    background: 'rgba(16, 185, 129, 0.06)',
+    borderColor: 'rgba(16, 185, 129, 0.25)',
+    category: 'other',
+  },
+  bash: {
+    displayName: 'Bash Command',
+    description: 'Executing terminal command',
+    icon: Terminal,
+    color: '#10B981',
+    background: 'rgba(16, 185, 129, 0.06)',
+    borderColor: 'rgba(16, 185, 129, 0.25)',
+    category: 'other',
+  },
+  shell: {
+    displayName: 'Shell Execution',
+    description: 'Executing shell script',
+    icon: Terminal,
+    color: '#10B981',
+    background: 'rgba(16, 185, 129, 0.06)',
+    borderColor: 'rgba(16, 185, 129, 0.25)',
+    category: 'other',
   },
   web_research: {
     displayName: 'Web Research',
@@ -136,18 +217,117 @@ const FALLBACK_CONFIG: ToolConfig = {
 
 /**
  * Get tool configuration by tool name
- * Returns fallback config for unknown tools with the actual tool name
+ * Returns smart fallback config for unknown tools based on tool name patterns
  */
 export function getToolConfig(toolName: string): ToolConfig {
   if (TOOL_CONFIGS[toolName]) {
     return TOOL_CONFIGS[toolName]
   }
+
+  const normalized = (toolName || '').toLowerCase()
   
-  // Return fallback with actual tool name formatted nicely
+  // Format display name nicely
   const displayName = toolName
     .split('_')
     .map(word => word.charAt(0).toUpperCase() + word.slice(1))
     .join(' ')
+
+  // Smart keyword inference
+  if (normalized.includes('knowledge') || normalized.includes('doc') || normalized.includes('read_source')) {
+    return {
+      displayName,
+      description: `Reading knowledge source`,
+      icon: BookOpen,
+      color: '#6366F1',
+      background: 'rgba(99, 102, 241, 0.06)',
+      borderColor: 'rgba(99, 102, 241, 0.25)',
+      category: 'research',
+    }
+  }
+
+  if (normalized.includes('agent') || normalized.includes('spawn')) {
+    return {
+      displayName,
+      description: `Managing agent workflow`,
+      icon: GitBranch,
+      color: '#8B5CF6',
+      background: 'rgba(139, 92, 246, 0.06)',
+      borderColor: 'rgba(139, 92, 246, 0.25)',
+      category: 'agent',
+    }
+  }
+
+  if (normalized.includes('search') || normalized.includes('find') || normalized.includes('web') || normalized.includes('browse')) {
+    return {
+      displayName,
+      description: `Searching information`,
+      icon: Globe,
+      color: '#0EA5E9',
+      background: 'rgba(14, 165, 233, 0.06)',
+      borderColor: 'rgba(14, 165, 233, 0.25)',
+      category: 'research',
+    }
+  }
+
+  if (normalized.includes('message') || normalized.includes('send') || normalized.includes('chat')) {
+    return {
+      displayName,
+      description: `Messaging communication`,
+      icon: Send,
+      color: '#3B82F6',
+      background: 'rgba(59, 130, 246, 0.06)',
+      borderColor: 'rgba(59, 130, 246, 0.25)',
+      category: 'agent',
+    }
+  }
+
+  if (normalized.includes('code') || normalized.includes('exec') || normalized.includes('shell') || normalized.includes('bash') || normalized.includes('run')) {
+    return {
+      displayName,
+      description: `Executing script or command`,
+      icon: Terminal,
+      color: '#10B981',
+      background: 'rgba(16, 185, 129, 0.06)',
+      borderColor: 'rgba(16, 185, 129, 0.25)',
+      category: 'other',
+    }
+  }
+
+  if (normalized.includes('db') || normalized.includes('sql') || normalized.includes('data') || normalized.includes('query')) {
+    return {
+      displayName,
+      description: `Querying database`,
+      icon: Database,
+      color: '#EC4899',
+      background: 'rgba(236, 72, 153, 0.06)',
+      borderColor: 'rgba(236, 72, 153, 0.25)',
+      category: 'research',
+    }
+  }
+
+  if (normalized.includes('file') || normalized.includes('folder') || normalized.includes('asset')) {
+    return {
+      displayName,
+      description: `Accessing file asset`,
+      icon: FolderOpen,
+      color: '#F59E0B',
+      background: 'rgba(245, 158, 11, 0.06)',
+      borderColor: 'rgba(245, 158, 11, 0.25)',
+      category: 'other',
+    }
+  }
+
+  if (normalized.includes('wait') || normalized.includes('await') || normalized.includes('sleep') || normalized.includes('time')) {
+    return {
+      displayName,
+      description: `Waiting for process`,
+      icon: Clock,
+      color: '#F59E0B',
+      background: 'rgba(245, 158, 11, 0.06)',
+      borderColor: 'rgba(245, 158, 11, 0.25)',
+      category: 'agent',
+    }
+  }
   
   return {
     ...FALLBACK_CONFIG,
