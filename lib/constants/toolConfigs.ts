@@ -16,6 +16,7 @@ import {
   Send, 
   Clock, 
   Search,
+  Globe,
   LucideIcon,
 } from 'lucide-react'
 
@@ -64,6 +65,60 @@ export const TOOL_CONFIGS: Record<string, ToolConfig> = {
     color: '#10B981', // Green
     background: 'rgba(16, 185, 129, 0.05)',
     borderColor: 'rgba(16, 185, 129, 0.2)',
+    category: 'research',
+  },
+  brave_web_search: {
+    displayName: 'Brave Web Search',
+    description: 'Searching the web with Brave Search',
+    icon: Search,
+    color: '#FB542B', // Brave Orange
+    background: 'rgba(251, 84, 43, 0.06)',
+    borderColor: 'rgba(251, 84, 43, 0.25)',
+    category: 'research',
+  },
+  brave_search: {
+    displayName: 'Brave Search',
+    description: 'Searching the web with Brave Search',
+    icon: Search,
+    color: '#FB542B',
+    background: 'rgba(251, 84, 43, 0.06)',
+    borderColor: 'rgba(251, 84, 43, 0.25)',
+    category: 'research',
+  },
+  web_search: {
+    displayName: 'Web Search',
+    description: 'Searching the web for live information',
+    icon: Globe,
+    color: '#0EA5E9', // Sky Blue
+    background: 'rgba(14, 165, 233, 0.06)',
+    borderColor: 'rgba(14, 165, 233, 0.25)',
+    category: 'research',
+  },
+  google_search: {
+    displayName: 'Google Search',
+    description: 'Searching the web with Google Search',
+    icon: Globe,
+    color: '#4285F4', // Google Blue
+    background: 'rgba(66, 133, 244, 0.06)',
+    borderColor: 'rgba(66, 133, 244, 0.25)',
+    category: 'research',
+  },
+  duckduckgo_search: {
+    displayName: 'DuckDuckGo Search',
+    description: 'Searching privately with DuckDuckGo',
+    icon: Search,
+    color: '#DE5833',
+    background: 'rgba(222, 88, 51, 0.06)',
+    borderColor: 'rgba(222, 88, 51, 0.25)',
+    category: 'research',
+  },
+  tavily_search: {
+    displayName: 'Tavily Search',
+    description: 'AI-tailored web search with Tavily',
+    icon: Search,
+    color: '#6366F1',
+    background: 'rgba(99, 102, 241, 0.06)',
+    borderColor: 'rgba(99, 102, 241, 0.25)',
     category: 'research',
   },
 }

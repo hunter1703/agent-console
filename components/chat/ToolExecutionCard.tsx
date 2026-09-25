@@ -25,6 +25,7 @@ import { springPresets } from '@/lib/constants/animations'
 import { getToolConfig } from '@/lib/constants/toolConfigs'
 import { formatDuration } from '@/lib/utils/formatDate'
 import { useReducedMotion } from '@/lib/hooks/useReducedMotion'
+import { WebSearchToolCard, isWebSearchTool } from './WebSearchToolCard'
 
 export interface ToolExecutionProps {
   toolCallId: string
@@ -95,6 +96,23 @@ const ToolExecutionCardComponent = function ToolExecutionCard({
   agentName,
   className,
 }: ToolExecutionProps) {
+  // If this tool call is a web search / grounding operation, render the specialized WebSearchToolCard
+  if (isWebSearchTool(toolName, parameters, result)) {
+    return (
+      <WebSearchToolCard
+        toolCallId={toolCallId}
+        toolName={toolName}
+        parameters={parameters}
+        result={result}
+        status={status}
+        timestamp={timestamp}
+        duration={duration}
+        agentName={agentName}
+        className={className}
+      />
+    )
+  }
+
   const [isParamsCopied, setIsParamsCopied] = useState(false)
   const [isResultCopied, setIsResultCopied] = useState(false)
   const [elapsedTime, setElapsedTime] = useState(0)

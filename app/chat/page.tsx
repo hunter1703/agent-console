@@ -51,6 +51,7 @@ import { Message } from '@/components/chat/Message'
 import { SmoothText } from '@/components/chat/SmoothText'
 import { VirtualTimelineList } from '@/components/chat/VirtualTimelineList'
 import { OpenFileToolCard } from '@/components/chat/OpenFileToolCard'
+import { WebSearchToolCard, isWebSearchTool } from '@/components/chat/WebSearchToolCard'
 import { useInterruptStore } from '@/lib/stores/interruptStore'
 import { isPlanningToolCall } from '@/lib/sse/events'
 
@@ -779,6 +780,25 @@ function ChatPageContent() {
                             <div key={item.id} className="mt-6">
                               <OpenFileToolCard
                                 toolCallId={toolCall.toolCallId}
+                                parameters={toolCall.arguments || {}}
+                                result={toolCall.result}
+                                status={toolCall.status}
+                                timestamp={new Date(toolCall.startTime)}
+                                duration={toolCall.endTime
+                                  ? (new Date(toolCall.endTime).getTime() - new Date(toolCall.startTime).getTime()) / 1000
+                                  : undefined}
+                                agentName={toolCall.agentId ? resolveAgentName(toolCall.agentId) : undefined}
+                              />
+                            </div>
+                          )
+                        }
+
+                        if (isWebSearchTool(toolCall.toolName, toolCall.arguments, toolCall.result)) {
+                          return (
+                            <div key={item.id} className="mt-6">
+                              <WebSearchToolCard
+                                toolCallId={toolCall.toolCallId}
+                                toolName={toolCall.toolName}
                                 parameters={toolCall.arguments || {}}
                                 result={toolCall.result}
                                 status={toolCall.status}
