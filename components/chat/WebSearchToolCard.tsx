@@ -39,6 +39,7 @@ import { springPresets } from '@/lib/constants/animations'
 import { getToolConfig } from '@/lib/constants/toolConfigs'
 import { formatDuration } from '@/lib/utils/formatDate'
 import { useReducedMotion } from '@/lib/hooks/useReducedMotion'
+import { isKnowledgeTool } from './KnowledgeToolCard'
 
 export interface WebSearchToolProps {
   toolCallId: string
@@ -67,6 +68,12 @@ export interface ParsedSearchItem {
  */
 export function isWebSearchTool(toolName?: string, parameters?: any, result?: any): boolean {
   const name = (toolName || '').toLowerCase()
+
+  // Knowledge base and document operations are handled by KnowledgeToolCard, not web search
+  if (name.includes('knowledge') || isKnowledgeTool(toolName, parameters, result)) {
+    return false
+  }
+
   if (
     name.includes('search') ||
     name.includes('brave') ||

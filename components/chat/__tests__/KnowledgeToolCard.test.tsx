@@ -119,4 +119,27 @@ describe('KnowledgeToolCard component', () => {
 
     expect(screen.getByText('Document Content')).toBeInTheDocument()
   })
+
+  it('renders search query and handles empty search results with informative message', () => {
+    const searchKnowledgeProps = {
+      toolCallId: 'call-knowledge-002',
+      toolName: 'search_knowledge',
+      agentName: 'Social Media Manager Agent',
+      parameters: {
+        query: 'transcript content summary legal arguments psychological analysis',
+      },
+      result: {},
+      status: 'completed' as const,
+      timestamp: new Date('2026-09-26T10:00:00Z'),
+      duration: 0.003,
+    }
+
+    render(<KnowledgeToolCard {...searchKnowledgeProps} />)
+
+    expect(screen.getByText('Search Knowledge')).toBeInTheDocument()
+    expect(screen.getByText(/transcript content summary legal arguments/)).toBeInTheDocument()
+    expect(
+      screen.getByText('Knowledge search completed. No matching documents or articles were found.')
+    ).toBeInTheDocument()
+  })
 })

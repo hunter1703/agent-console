@@ -34,6 +34,7 @@ import {
   Layers,
   Sparkles,
   ExternalLink,
+  Search,
 } from 'lucide-react'
 import { Prism as SyntaxHighlighter } from 'react-syntax-highlighter'
 import { vscDarkPlus } from 'react-syntax-highlighter/dist/esm/styles/prism'
@@ -106,7 +107,11 @@ function extractDocMeta(parameters: Record<string, any>, result?: Record<string,
   mimeType?: string
   encoding?: string
   status?: string
+  hasSource: boolean
 } {
+  const hasExplicitSource = Boolean(
+    parameters?.source || parameters?.source_id || parameters?.id || parameters?.name
+  )
   const source = parameters?.source || parameters?.source_id || parameters?.id || parameters?.name || 'Knowledge Source'
   const sourceId = typeof source === 'string' ? source : String(source)
 
@@ -148,6 +153,7 @@ function extractDocMeta(parameters: Record<string, any>, result?: Record<string,
     mimeType,
     encoding,
     status,
+    hasSource: hasExplicitSource || Boolean(fileName),
   }
 }
 
@@ -166,6 +172,7 @@ export function KnowledgeToolCard({
   const [isExpanded, setIsExpanded] = useState(false)
   const [isContentCopied, setIsContentCopied] = useState(false)
   const [isSourceCopied, setIsSourceCopied] = useState(false)
+  const [isQueryCopied, setIsQueryCopied] = useState(false)
   const [isRawParamsCopied, setIsRawParamsCopied] = useState(false)
   const [isRawResultCopied, setIsRawResultCopied] = useState(false)
   const [elapsedTime, setElapsedTime] = useState(0)
@@ -173,6 +180,21 @@ export function KnowledgeToolCard({
   const { shouldAnimate } = useReducedMotion()
   const config = getToolConfig(toolName || 'read_knowledge_source')
   const Icon = config.icon || BookOpen
+
+  // Extract query if this is a knowledge search/query tool
+  const query = useMemo(() => {
+    if (!parameters) return ''
+    const q =
+      parameters.query ||
+      parameters.search_query ||
+      parameters.q ||
+      parameters.search ||
+      parameters.keywords ||
+      parameters.keyword ||
+      parameters.term ||
+      parameters.topic
+    return typeof q === 'string' && q.trim().length > 0 ? q.trim() : ''
+  }, [parameters])
 
   // Live timer for running tools
   useEffect(() => {
@@ -192,13 +214,41 @@ export function KnowledgeToolCard({
     if (!result) return ''
     if (typeof result.content === 'string') {
       // Clean up Windows CRLF carriage returns to standard line breaks
-      return result.content.replace(/\r\n/g, '\n').replace(/\r/g, '\n')
+      return result.content.replace(/\r\n/g, '\n').replace(/\r/g, '\n').trim()
     }
     if (result.text && typeof result.text === 'string') {
-      return result.text.replace(/\r\n/g, '\n').replace(/\r/g, '\n')
+      return result.text.replace(/\r\n/g, '\n').replace(/\r/g, '\n').trim()
     }
     if (result.data) {
-      return typeof result.data === 'string' ? result.data : safeStringify(result.data, 2)
+      if (typeof result.data === 'string') {
+        return result.data.replace(/\r\n/g, '\n').replace(/\r/g, '\n').trim()
+      }
+      if (Array.isArray(result.data)) {
+        if (result.data.length === 0) return ''
+        return result.data
+          .map((item: any) => (typeof item === 'string' ? item : item.content || item.text || safeStringify(item, 2)))
+          .join('\n\n---\n\n')
+      }
+      return safeStringify(result.data, 2)
+    }
+    // Handle array of results or documents or articles or snippets
+    const items = result.results || result.documents || result.articles || result.snippets || result.matches
+    if (Array.isArray(items)) {
+      if (items.length === 0) return ''
+      return items
+        .map((item: any) => {
+          if (typeof item === 'string') return item
+          const itemTitle = item.title || item.name || item.id ? `### ${item.title || item.name || item.id}\n` : ''
+          const body = item.content || item.snippet || item.text || item.description || safeStringify(item, 2)
+          return `${itemTitle}${body}`
+        })
+        .join('\n\n---\n\n')
+    }
+    // Avoid stringifying empty object or object with only status/metadata
+    if (typeof result === 'object') {
+      const keys = Object.keys(result)
+      if (keys.length === 0) return ''
+      if (keys.every(k => ['status', 'success', 'mime_type', 'encoding', 'mimeType'].includes(k))) return ''
     }
     return safeStringify(result, 2)
   }, [result])
@@ -339,63 +389,103 @@ export function KnowledgeToolCard({
       <div className="p-4 space-y-3.5">
         {viewMode === 'visual' ? (
           <>
-            {/* Document Source Card */}
-            <div className="rounded-lg bg-surface/70 border border-border-subtle p-3 transition-all duration-200 hover:border-indigo-500/30">
-              <div className="flex items-start justify-between gap-3">
-                <div className="flex items-start gap-2.5 min-w-0">
-                  <div className="p-1.5 rounded bg-indigo-500/10 text-indigo-500 mt-0.5">
-                    <FileText size={16} strokeWidth={2} />
+            {/* Search Query Bar (if query provided) */}
+            {query && (
+              <div className="rounded-lg bg-surface/70 border border-border-subtle p-3 flex items-center justify-between gap-3">
+                <div className="flex items-center gap-2.5 min-w-0">
+                  <div className="p-1.5 rounded bg-indigo-500/10 text-indigo-500 flex-shrink-0">
+                    <Search size={15} strokeWidth={2} />
                   </div>
                   <div className="min-w-0">
-                    <h5 className="text-[13px] font-medium text-text-primary truncate">
-                      {meta.title}
-                    </h5>
-                    <div className="flex items-center gap-1.5 mt-1">
-                      <span className="text-[11px] font-mono text-text-tertiary truncate max-w-[280px] sm:max-w-md">
-                        {meta.sourceId}
-                      </span>
-                      <button
-                        onClick={() => copyText(meta.sourceId, setIsSourceCopied)}
-                        className="p-1 rounded text-text-tertiary hover:text-text-primary hover:bg-surface-hover transition-colors"
-                        title={isSourceCopied ? 'Copied URI' : 'Copy source identifier'}
-                      >
-                        {isSourceCopied ? (
-                          <Check size={11} className="text-success" />
-                        ) : (
-                          <Copy size={11} />
-                        )}
-                      </button>
-                    </div>
+                    <span className="text-[10px] font-semibold text-text-tertiary uppercase tracking-wider block">
+                      Search Query
+                    </span>
+                    <p className="text-[13px] font-medium text-text-primary truncate">
+                      &ldquo;{query}&rdquo;
+                    </p>
                   </div>
                 </div>
+                <button
+                  onClick={() => copyText(String(query), setIsQueryCopied)}
+                  className="flex items-center gap-1 px-2 py-1 rounded text-[11px] font-medium transition-all duration-150 border bg-surface text-text-secondary border-border-subtle hover:bg-surface-hover hover:text-text-primary flex-shrink-0 cursor-pointer"
+                  title={isQueryCopied ? 'Copied query' : 'Copy query'}
+                >
+                  {isQueryCopied ? (
+                    <>
+                      <Check size={11} className="text-success" strokeWidth={2.5} />
+                      <span>Copied</span>
+                    </>
+                  ) : (
+                    <>
+                      <Copy size={11} strokeWidth={2} />
+                      <span>Copy</span>
+                    </>
+                  )}
+                </button>
+              </div>
+            )}
 
-                {/* Metadata Pills */}
-                <div className="flex flex-wrap items-center gap-1.5 justify-end flex-shrink-0">
-                  {meta.mimeType && (
-                    <span className="text-[10px] font-mono font-medium px-2 py-0.5 rounded-full bg-surface border border-border-subtle text-text-secondary">
-                      {meta.mimeType}
-                    </span>
-                  )}
-                  {meta.encoding && (
-                    <span className="text-[10px] font-mono font-medium px-2 py-0.5 rounded-full bg-surface border border-border-subtle text-text-tertiary">
-                      {meta.encoding}
-                    </span>
-                  )}
-                  {meta.status && (
-                    <span className="inline-flex items-center gap-1 text-[10px] font-medium px-2 py-0.5 rounded-full bg-success/10 text-success border border-success/20">
-                      <span className="w-1.5 h-1.5 rounded-full bg-success" />
-                      {meta.status}
-                    </span>
-                  )}
+            {/* Document Source Card (shown when source exists or when not a pure query) */}
+            {(meta.hasSource || !query) && (
+              <div className="rounded-lg bg-surface/70 border border-border-subtle p-3 transition-all duration-200 hover:border-indigo-500/30">
+                <div className="flex items-start justify-between gap-3">
+                  <div className="flex items-start gap-2.5 min-w-0">
+                    <div className="p-1.5 rounded bg-indigo-500/10 text-indigo-500 mt-0.5">
+                      <FileText size={16} strokeWidth={2} />
+                    </div>
+                    <div className="min-w-0">
+                      <h5 className="text-[13px] font-medium text-text-primary truncate">
+                        {meta.title}
+                      </h5>
+                      <div className="flex items-center gap-1.5 mt-1">
+                        <span className="text-[11px] font-mono text-text-tertiary truncate max-w-[280px] sm:max-w-md">
+                          {meta.sourceId}
+                        </span>
+                        <button
+                          onClick={() => copyText(meta.sourceId, setIsSourceCopied)}
+                          className="p-1 rounded text-text-tertiary hover:text-text-primary hover:bg-surface-hover transition-colors"
+                          title={isSourceCopied ? 'Copied URI' : 'Copy source identifier'}
+                        >
+                          {isSourceCopied ? (
+                            <Check size={11} className="text-success" />
+                          ) : (
+                            <Copy size={11} />
+                          )}
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Metadata Pills */}
+                  <div className="flex flex-wrap items-center gap-1.5 justify-end flex-shrink-0">
+                    {meta.mimeType && (
+                      <span className="text-[10px] font-mono font-medium px-2 py-0.5 rounded-full bg-surface border border-border-subtle text-text-secondary">
+                        {meta.mimeType}
+                      </span>
+                    )}
+                    {meta.encoding && (
+                      <span className="text-[10px] font-mono font-medium px-2 py-0.5 rounded-full bg-surface border border-border-subtle text-text-tertiary">
+                        {meta.encoding}
+                      </span>
+                    )}
+                    {meta.status && (
+                      <span className="inline-flex items-center gap-1 text-[10px] font-medium px-2 py-0.5 rounded-full bg-success/10 text-success border border-success/20">
+                        <span className="w-1.5 h-1.5 rounded-full bg-success" />
+                        {meta.status}
+                      </span>
+                    )}
+                  </div>
                 </div>
               </div>
-            </div>
+            )}
 
             {/* Document Content View */}
             {status === 'running' || status === 'pending' ? (
               <div className="flex items-center justify-center gap-2 py-8 rounded-lg bg-surface/40 border border-border-subtle text-text-tertiary">
                 <Loader2 size={16} className="animate-spin text-indigo-500" />
-                <span className="text-[13px]">Reading document source...</span>
+                <span className="text-[13px]">
+                  {query ? 'Searching knowledge repository...' : 'Reading document source...'}
+                </span>
               </div>
             ) : content ? (
               <div className="rounded-lg bg-surface border border-border-subtle overflow-hidden">
@@ -403,7 +493,7 @@ export function KnowledgeToolCard({
                 <div className="flex items-center justify-between px-3.5 py-2 border-b border-border-subtle bg-surface-hover/30">
                   <div className="flex items-center gap-2">
                     <span className="text-[12px] font-medium text-text-secondary">
-                      Document Content
+                      {query ? 'Knowledge Results' : 'Document Content'}
                     </span>
                     <span className="text-[11px] text-text-tertiary font-mono">
                       {contentLines.length} {contentLines.length === 1 ? 'line' : 'lines'} • {wordCount} words
@@ -460,16 +550,22 @@ export function KnowledgeToolCard({
                       ) : (
                         <>
                           <ChevronDown size={14} />
-                          <span>Show Full Document ({contentLines.length - 10} more lines)</span>
+                          <span>Show Full Content ({contentLines.length - 10} more lines)</span>
                         </>
                       )}
                     </button>
                   </div>
                 )}
               </div>
+            ) : status === 'completed' ? (
+              <div className="p-4 rounded-xl bg-surface/60 border border-border-subtle text-center text-xs text-text-secondary">
+                {query
+                  ? 'Knowledge search completed. No matching documents or articles were found.'
+                  : 'Knowledge reading completed. No content was returned.'}
+              </div>
             ) : status === 'failed' ? (
               <div className="p-4 rounded-lg bg-danger/5 border border-danger/20 text-danger text-[13px]">
-                Failed to read knowledge source document.
+                {query ? 'Knowledge search failed or was interrupted.' : 'Failed to read knowledge source document.'}
               </div>
             ) : null}
           </>

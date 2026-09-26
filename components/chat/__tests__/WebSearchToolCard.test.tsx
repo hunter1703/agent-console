@@ -29,6 +29,13 @@ describe('isWebSearchTool', () => {
     expect(isWebSearchTool('open_file', { path: '/foo' })).toBe(false)
     expect(isWebSearchTool('spawn_agent')).toBe(false)
   })
+
+  it('returns false for knowledge tools even if their name contains search', () => {
+    expect(isWebSearchTool('search_knowledge')).toBe(false)
+    expect(isWebSearchTool('knowledge_search')).toBe(false)
+    expect(isWebSearchTool('query_knowledge_source')).toBe(false)
+    expect(isWebSearchTool('read_knowledge_source')).toBe(false)
+  })
 })
 
 describe('WebSearchToolCard component', () => {

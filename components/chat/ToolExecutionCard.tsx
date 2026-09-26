@@ -112,10 +112,10 @@ const ToolExecutionCardComponent = function ToolExecutionCard({
   agentName,
   className,
 }: ToolExecutionProps) {
-  // If this tool call is a web search / grounding operation, render the specialized WebSearchToolCard
-  if (isWebSearchTool(toolName, parameters, result)) {
+  // If this tool call is a knowledge source reading or document query, render KnowledgeToolCard
+  if (isKnowledgeTool(toolName, parameters, result)) {
     return (
-      <WebSearchToolCard
+      <KnowledgeToolCard
         toolCallId={toolCallId}
         toolName={toolName}
         parameters={parameters}
@@ -129,10 +129,10 @@ const ToolExecutionCardComponent = function ToolExecutionCard({
     )
   }
 
-  // If this tool call is a knowledge source reading or document query, render KnowledgeToolCard
-  if (isKnowledgeTool(toolName, parameters, result)) {
+  // If this tool call is a web search / grounding operation, render the specialized WebSearchToolCard
+  if (isWebSearchTool(toolName, parameters, result)) {
     return (
-      <KnowledgeToolCard
+      <WebSearchToolCard
         toolCallId={toolCallId}
         toolName={toolName}
         parameters={parameters}

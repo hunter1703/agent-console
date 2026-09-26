@@ -795,10 +795,10 @@ function ChatPageContent() {
                           )
                         }
 
-                        if (isWebSearchTool(toolCall.toolName, toolCall.arguments, toolCall.result)) {
+                        if (isKnowledgeTool(toolCall.toolName, toolCall.arguments, toolCall.result)) {
                           return (
                             <div key={item.id} className="mt-6">
-                              <WebSearchToolCard
+                              <KnowledgeToolCard
                                 toolCallId={toolCall.toolCallId}
                                 toolName={toolCall.toolName}
                                 parameters={toolCall.arguments || {}}
@@ -814,10 +814,10 @@ function ChatPageContent() {
                           )
                         }
 
-                        if (isKnowledgeTool(toolCall.toolName, toolCall.arguments, toolCall.result)) {
+                        if (isWebSearchTool(toolCall.toolName, toolCall.arguments, toolCall.result)) {
                           return (
                             <div key={item.id} className="mt-6">
-                              <KnowledgeToolCard
+                              <WebSearchToolCard
                                 toolCallId={toolCall.toolCallId}
                                 toolName={toolCall.toolName}
                                 parameters={toolCall.arguments || {}}
