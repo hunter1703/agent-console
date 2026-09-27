@@ -26,6 +26,30 @@ export function cleanMessageContent(raw: string): string {
     try {
       const parsed = JSON.parse(trimmed)
       if (typeof parsed === 'object' && parsed !== null) {
+        // Check for knowledge / file upload chunks array (e.g. {"chunks": [{"text": "..."}]})
+        const items =
+          parsed.chunks ||
+          parsed.results ||
+          parsed.documents ||
+          parsed.articles ||
+          parsed.snippets ||
+          parsed.matches
+        if (Array.isArray(items) && items.length > 0) {
+          const sorted = Array.isArray(parsed.chunks)
+            ? items.slice().sort((a: any, b: any) => (a.chunkIndex ?? 0) - (b.chunkIndex ?? 0))
+            : items
+          const texts = sorted
+            .map((item: any) => {
+              if (typeof item === 'string') return item
+              const text = item.text ?? item.content ?? item.snippet ?? item.description ?? ''
+              return typeof text === 'string' ? text.trim() : ''
+            })
+            .filter(Boolean)
+          if (texts.length > 0) {
+            return normalizeTextFormatting(texts.join('\n\n'))
+          }
+        }
+
         // Extract the actual textual content if wrapped in standard fields
         const candidate =
           parsed.content ??
@@ -36,7 +60,7 @@ export function cleanMessageContent(raw: string): string {
           parsed.data
 
         if (typeof candidate === 'string') {
-          return normalizeTextFormatting(candidate)
+          return cleanMessageContent(candidate)
         }
       }
     } catch {

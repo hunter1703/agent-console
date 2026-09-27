@@ -142,4 +142,62 @@ describe('KnowledgeToolCard component', () => {
       screen.getByText('Knowledge search completed. No matching documents or articles were found.')
     ).toBeInTheDocument()
   })
+
+  it('renders uploaded file chunks cleanly as formatted excerpt cards instead of raw JSON', () => {
+    const rawChunksJson = JSON.stringify({
+      chunks: [
+        {
+          agentId: 'social_media_manager_agent',
+          chunkEnd: 105150,
+          chunkIndex: 99,
+          chunkStart: 103950,
+          createdTime: 0,
+          grants: ['AgentSession/social_media_manager_agent:READ'],
+          id: 'chunk-99',
+          knowledgeId: '6ab637dfe8cc652e86c6eb58',
+          text: '> 01:38:03,316\nYes. They occurred 20 hours apart\nand have common themes.\n\n1507\n01:38:03,486 --> 01:38:05,356\nHe criticizes her infidelity.',
+        },
+        {
+          agentId: 'social_media_manager_agent',
+          chunkEnd: 63150,
+          chunkIndex: 59,
+          chunkStart: 61950,
+          createdTime: 0,
+          grants: ['AgentSession/social_media_manager_agent:READ'],
+          id: 'chunk-59',
+          knowledgeId: '6ab637dfe8cc652e86c6eb58',
+          text: 'Scene introduction\nInterview with Sandra Voyter about her books.',
+        },
+      ],
+    })
+
+    const uploadedFileProps = {
+      toolCallId: 'call-knowledge-003',
+      toolName: 'search_knowledge',
+      agentName: 'Social Media Manager Agent',
+      parameters: {
+        query: 'transcript content summary legal arguments psychological analysis',
+      },
+      result: {
+        content: rawChunksJson,
+      },
+      status: 'completed' as const,
+      timestamp: new Date('2026-09-26T10:00:00Z'),
+      duration: 0.002,
+    }
+
+    render(<KnowledgeToolCard {...uploadedFileProps} />)
+
+    // Verify excerpt cards are displayed
+    expect(screen.getByText(/Excerpt #1 • Chunk 59/)).toBeInTheDocument()
+    expect(screen.getByText(/Excerpt #2 • Chunk 99/)).toBeInTheDocument()
+
+    // Verify clean text content is rendered
+    expect(screen.getByText(/Interview with Sandra Voyter about her books/)).toBeInTheDocument()
+    expect(screen.getByText(/He criticizes her infidelity/)).toBeInTheDocument()
+
+    // Verify raw JSON internal fields are NOT rendered in the visual view
+    expect(screen.queryByText(/6ab637dfe8cc652e86c6eb58/)).not.toBeInTheDocument()
+    expect(screen.queryByText(/AgentSession\/social_media_manager_agent/)).not.toBeInTheDocument()
+  })
 })

@@ -47,6 +47,34 @@ describe('cleanMessageContent', () => {
     expect(cleanMessageContent(crlfText)).toBe('Line 1\nLine 2\nLine 3')
   })
 
+  it('unwraps JSON chunks arrays from file uploads and knowledge searches', () => {
+    const rawChunks = JSON.stringify({
+      chunks: [
+        {
+          agentId: 'social_media_manager_agent',
+          chunkIndex: 99,
+          text: '> 01:38:03,316\nYes. They occurred 20 hours apart\nand have common themes.',
+        },
+        {
+          agentId: 'social_media_manager_agent',
+          chunkIndex: 59,
+          text: 'Earlier scene text\nInterview with Sandra',
+        },
+      ],
+    })
+
+    const cleaned = cleanMessageContent(rawChunks)
+
+    // Internal metadata is stripped
+    expect(cleaned).not.toContain('social_media_manager_agent')
+    expect(cleaned).not.toContain('chunkIndex')
+    expect(cleaned).not.toContain('{"chunks"')
+
+    // Sorted chronologically (index 59 before index 99)
+    expect(cleaned.indexOf('Earlier scene text')).toBeLessThan(cleaned.indexOf('> 01:38:03,316'))
+    expect(cleaned).toContain('> 01:38:03,316\nYes. They occurred 20 hours apart\nand have common themes.')
+  })
+
   it('handles empty or non-string inputs safely', () => {
     expect(cleanMessageContent('')).toBe('')
     expect(cleanMessageContent(null as any)).toBe(null)

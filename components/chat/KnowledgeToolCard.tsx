@@ -157,6 +157,166 @@ function extractDocMeta(parameters: Record<string, any>, result?: Record<string,
   }
 }
 
+export interface ParsedKnowledgeChunk {
+  id: string
+  title: string
+  text: string
+  chunkIndex?: number
+  chunkStart?: number
+  chunkEnd?: number
+  chunkRange?: string
+}
+
+/**
+ * Universal knowledge payload parser:
+ * Unwraps JSON strings, extracts chunks/documents/articles, sorts by index,
+ * and formats clean, human-readable text.
+ */
+export function parseKnowledgeContent(rawResult?: Record<string, any>): {
+  chunks: ParsedKnowledgeChunk[]
+  fullText: string
+} {
+  if (!rawResult) return { chunks: [], fullText: '' }
+
+  let data: any = rawResult
+
+  // 1. If result.content or result.data is a stringified JSON object, parse it
+  if (typeof rawResult.content === 'string') {
+    const trimmed = rawResult.content.trim()
+    if (trimmed.startsWith('{') || trimmed.startsWith('[')) {
+      try {
+        data = JSON.parse(trimmed)
+      } catch {
+        // keep as string
+      }
+    }
+  } else if (typeof rawResult.data === 'string') {
+    const trimmed = rawResult.data.trim()
+    if (trimmed.startsWith('{') || trimmed.startsWith('[')) {
+      try {
+        data = JSON.parse(trimmed)
+      } catch {
+        // keep
+      }
+    }
+  }
+
+  // Handle nested wraps like { result: { ... } } or { data: { ... } }
+  if (data?.result && typeof data.result === 'object') {
+    data = data.result
+  } else if (data?.data && typeof data.data === 'object' && !Array.isArray(data.data)) {
+    data = data.data
+  }
+
+  // Pattern A: Chunks array (from knowledge storage / file uploads)
+  const chunkList =
+    data?.chunks ||
+    data?.snippets ||
+    data?.results ||
+    data?.documents ||
+    data?.articles ||
+    data?.matches
+
+  if (Array.isArray(chunkList) && chunkList.length > 0) {
+    // If it has chunkIndex, sort chronologically / by document position
+    const sorted = Array.isArray(data.chunks)
+      ? chunkList.slice().sort((a: any, b: any) => (a.chunkIndex ?? 0) - (b.chunkIndex ?? 0))
+      : chunkList
+
+    const parsedChunks: ParsedKnowledgeChunk[] = []
+    sorted.forEach((item: any, idx: number) => {
+      if (typeof item === 'string') {
+        const text = item.replace(/\r\n/g, '\n').replace(/\r/g, '\n').trim()
+        if (text) {
+          parsedChunks.push({
+            id: `chunk-${idx}`,
+            title: `Excerpt #${idx + 1}`,
+            text,
+          })
+        }
+        return
+      }
+
+      // Extract text content from chunk object
+      const rawText = item.text ?? item.content ?? item.snippet ?? item.description ?? ''
+      const cleanText =
+        typeof rawText === 'string'
+          ? rawText.replace(/\r\n/g, '\n').replace(/\r/g, '\n').trim()
+          : ''
+      if (!cleanText) return
+
+      const chunkIndex = typeof item.chunkIndex === 'number' ? item.chunkIndex : undefined
+      const chunkRange =
+        item.chunkStart != null && item.chunkEnd != null
+          ? `${item.chunkStart}–${item.chunkEnd}`
+          : undefined
+      const title =
+        item.title ||
+        item.name ||
+        (chunkIndex != null ? `Excerpt #${idx + 1} • Chunk ${chunkIndex}` : `Excerpt #${idx + 1}`)
+
+      parsedChunks.push({
+        id: item.id || `chunk-${idx}`,
+        title,
+        text: cleanText,
+        chunkIndex,
+        chunkStart: item.chunkStart,
+        chunkEnd: item.chunkEnd,
+        chunkRange,
+      })
+    })
+
+    if (parsedChunks.length > 0) {
+      return {
+        chunks: parsedChunks,
+        fullText: parsedChunks.map((c) => c.text).join('\n\n---\n\n'),
+      }
+    }
+  }
+
+  // Pattern B: Plain text content or single document
+  const rawText =
+    typeof data.content === 'string'
+      ? data.content
+      : typeof data.text === 'string'
+      ? data.text
+      : typeof data.data === 'string'
+      ? data.data
+      : typeof rawResult.content === 'string'
+      ? rawResult.content
+      : typeof rawResult.text === 'string'
+      ? rawResult.text
+      : ''
+
+  if (rawText && typeof rawText === 'string' && rawText.trim().length > 0) {
+    const clean = rawText.replace(/\r\n/g, '\n').replace(/\r/g, '\n').trim()
+    return {
+      chunks: [{ id: 'doc-0', title: 'Document Excerpt', text: clean }],
+      fullText: clean,
+    }
+  }
+
+  // Check if object is empty or metadata only
+  if (typeof data === 'object' && data !== null) {
+    const keys = Object.keys(data)
+    if (
+      keys.length === 0 ||
+      keys.every((k) => ['status', 'success', 'mime_type', 'encoding', 'mimeType'].includes(k))
+    ) {
+      return { chunks: [], fullText: '' }
+    }
+    const stringified = safeStringify(data, 2)
+    if (stringified && stringified !== '{}') {
+      return {
+        chunks: [{ id: 'raw-0', title: 'Extracted Content', text: stringified }],
+        fullText: stringified,
+      }
+    }
+  }
+
+  return { chunks: [], fullText: '' }
+}
+
 export function KnowledgeToolCard({
   toolCallId,
   toolName,
@@ -173,6 +333,7 @@ export function KnowledgeToolCard({
   const [isContentCopied, setIsContentCopied] = useState(false)
   const [isSourceCopied, setIsSourceCopied] = useState(false)
   const [isQueryCopied, setIsQueryCopied] = useState(false)
+  const [copiedChunkId, setCopiedChunkId] = useState<string | null>(null)
   const [isRawParamsCopied, setIsRawParamsCopied] = useState(false)
   const [isRawResultCopied, setIsRawResultCopied] = useState(false)
   const [elapsedTime, setElapsedTime] = useState(0)
@@ -209,57 +370,20 @@ export function KnowledgeToolCard({
 
   const meta = useMemo(() => extractDocMeta(parameters, result), [parameters, result])
 
-  // Extract clean text content
-  const content = useMemo(() => {
-    if (!result) return ''
-    if (typeof result.content === 'string') {
-      // Clean up Windows CRLF carriage returns to standard line breaks
-      return result.content.replace(/\r\n/g, '\n').replace(/\r/g, '\n').trim()
-    }
-    if (result.text && typeof result.text === 'string') {
-      return result.text.replace(/\r\n/g, '\n').replace(/\r/g, '\n').trim()
-    }
-    if (result.data) {
-      if (typeof result.data === 'string') {
-        return result.data.replace(/\r\n/g, '\n').replace(/\r/g, '\n').trim()
-      }
-      if (Array.isArray(result.data)) {
-        if (result.data.length === 0) return ''
-        return result.data
-          .map((item: any) => (typeof item === 'string' ? item : item.content || item.text || safeStringify(item, 2)))
-          .join('\n\n---\n\n')
-      }
-      return safeStringify(result.data, 2)
-    }
-    // Handle array of results or documents or articles or snippets
-    const items = result.results || result.documents || result.articles || result.snippets || result.matches
-    if (Array.isArray(items)) {
-      if (items.length === 0) return ''
-      return items
-        .map((item: any) => {
-          if (typeof item === 'string') return item
-          const itemTitle = item.title || item.name || item.id ? `### ${item.title || item.name || item.id}\n` : ''
-          const body = item.content || item.snippet || item.text || item.description || safeStringify(item, 2)
-          return `${itemTitle}${body}`
-        })
-        .join('\n\n---\n\n')
-    }
-    // Avoid stringifying empty object or object with only status/metadata
-    if (typeof result === 'object') {
-      const keys = Object.keys(result)
-      if (keys.length === 0) return ''
-      if (keys.every(k => ['status', 'success', 'mime_type', 'encoding', 'mimeType'].includes(k))) return ''
-    }
-    return safeStringify(result, 2)
-  }, [result])
+  // Parse knowledge excerpts / chunks
+  const parsedKnowledge = useMemo(() => parseKnowledgeContent(result), [result])
+  const parsedChunks = parsedKnowledge.chunks
+  const content = parsedKnowledge.fullText
 
   const contentLines = useMemo(() => (content ? content.split('\n') : []), [content])
   const wordCount = useMemo(() => (content ? content.trim().split(/\s+/).length : 0), [content])
   const charCount = useMemo(() => (content ? content.length : 0), [content])
 
-  // Needs truncation if more than 10 lines or > 600 characters
+  // Needs truncation if single excerpt is more than 10 lines or > 600 characters
   const isLongContent = contentLines.length > 10 || charCount > 600
   const displayedContent = isExpanded || !isLongContent ? content : contentLines.slice(0, 10).join('\n')
+  const displayedChunks = isExpanded ? parsedChunks : parsedChunks.slice(0, 3)
+  const hasMoreChunks = parsedChunks.length > 3
 
   const copyText = async (text: string, setFn: (v: boolean) => void) => {
     try {
@@ -496,7 +620,9 @@ export function KnowledgeToolCard({
                       {query ? 'Knowledge Results' : 'Document Content'}
                     </span>
                     <span className="text-[11px] text-text-tertiary font-mono">
-                      {contentLines.length} {contentLines.length === 1 ? 'line' : 'lines'} • {wordCount} words
+                      {parsedChunks.length > 1
+                        ? `${parsedChunks.length} excerpts • ${wordCount} words`
+                        : `${contentLines.length} ${contentLines.length === 1 ? 'line' : 'lines'} • ${wordCount} words`}
                     </span>
                   </div>
 
@@ -517,44 +643,122 @@ export function KnowledgeToolCard({
                     ) : (
                       <>
                         <Copy size={11} strokeWidth={2} />
-                        <span>Copy</span>
+                        <span>Copy All</span>
                       </>
                     )}
                   </button>
                 </div>
 
-                {/* Content Text Viewer */}
-                <div className="p-4 relative">
-                  <div className="font-sans text-[13.5px] leading-relaxed text-text-primary whitespace-pre-wrap break-words selection:bg-indigo-500/20">
-                    {displayedContent}
+                {/* Multiple chunks / excerpts cards OR single continuous document */}
+                {parsedChunks.length > 1 ? (
+                  <div className="p-3.5 space-y-3 bg-surface/30">
+                    {displayedChunks.map((chunk) => (
+                      <div
+                        key={chunk.id}
+                        className="rounded-xl border border-border-subtle bg-surface/90 p-3.5 space-y-2 shadow-xs transition-all hover:border-indigo-500/30"
+                      >
+                        <div className="flex items-center justify-between gap-2 border-b border-border-subtle/50 pb-2">
+                          <div className="flex items-center gap-2 min-w-0">
+                            <div className="p-1 rounded bg-indigo-500/10 text-indigo-500 flex-shrink-0">
+                              <FileText size={13} strokeWidth={2} />
+                            </div>
+                            <span className="text-[12px] font-semibold text-text-primary truncate">
+                              {chunk.title}
+                            </span>
+                            {chunk.chunkRange && (
+                              <span className="text-[10px] font-mono text-text-tertiary bg-surface px-1.5 py-0.5 rounded border border-border-subtle">
+                                byte {chunk.chunkRange}
+                              </span>
+                            )}
+                          </div>
+                          <button
+                            onClick={() => {
+                              copyText(chunk.text, () => {})
+                              setCopiedChunkId(chunk.id)
+                              setTimeout(() => setCopiedChunkId(null), 2000)
+                            }}
+                            className="flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-medium transition-colors border bg-surface text-text-secondary border-border-subtle hover:bg-surface-hover hover:text-text-primary cursor-pointer flex-shrink-0"
+                            title="Copy excerpt"
+                          >
+                            {copiedChunkId === chunk.id ? (
+                              <>
+                                <Check size={10} className="text-success" strokeWidth={2.5} />
+                                <span>Copied</span>
+                              </>
+                            ) : (
+                              <>
+                                <Copy size={10} strokeWidth={2} />
+                                <span>Copy</span>
+                              </>
+                            )}
+                          </button>
+                        </div>
+                        <div className="font-sans text-[13px] leading-relaxed text-text-primary whitespace-pre-wrap break-words select-text">
+                          {chunk.text}
+                        </div>
+                      </div>
+                    ))}
+
+                    {/* Expand / Collapse Button for excerpts */}
+                    {hasMoreChunks && (
+                      <div className="pt-1 flex justify-center">
+                        <button
+                          onClick={() => setIsExpanded(!isExpanded)}
+                          className="inline-flex items-center gap-1.5 text-[12px] font-medium text-indigo-500 hover:text-indigo-400 transition-colors cursor-pointer py-1 px-3 rounded-lg border border-dashed border-indigo-500/30 bg-indigo-500/5 hover:bg-indigo-500/10"
+                        >
+                          {isExpanded ? (
+                            <>
+                              <ChevronUp size={14} />
+                              <span>Show top 3 excerpts only</span>
+                            </>
+                          ) : (
+                            <>
+                              <ChevronDown size={14} />
+                              <span>
+                                Show all {parsedChunks.length} excerpts ({parsedChunks.length - 3} more)
+                              </span>
+                            </>
+                          )}
+                        </button>
+                      </div>
+                    )}
                   </div>
+                ) : (
+                  <>
+                    {/* Content Text Viewer for single excerpt / document */}
+                    <div className="p-4 relative">
+                      <div className="font-sans text-[13.5px] leading-relaxed text-text-primary whitespace-pre-wrap break-words selection:bg-indigo-500/20">
+                        {displayedContent}
+                      </div>
 
-                  {/* Gradient Fade if collapsed */}
-                  {isLongContent && !isExpanded && (
-                    <div className="absolute inset-x-0 bottom-0 h-16 bg-gradient-to-t from-surface via-surface/80 to-transparent pointer-events-none" />
-                  )}
-                </div>
-
-                {/* Expand / Collapse Button */}
-                {isLongContent && (
-                  <div className="px-4 py-2 border-t border-border-subtle bg-surface/50 flex justify-center">
-                    <button
-                      onClick={() => setIsExpanded(!isExpanded)}
-                      className="inline-flex items-center gap-1.5 text-[12px] font-medium text-indigo-500 hover:text-indigo-400 transition-colors"
-                    >
-                      {isExpanded ? (
-                        <>
-                          <ChevronUp size={14} />
-                          <span>Show Less</span>
-                        </>
-                      ) : (
-                        <>
-                          <ChevronDown size={14} />
-                          <span>Show Full Content ({contentLines.length - 10} more lines)</span>
-                        </>
+                      {/* Gradient Fade if collapsed */}
+                      {isLongContent && !isExpanded && (
+                        <div className="absolute inset-x-0 bottom-0 h-16 bg-gradient-to-t from-surface via-surface/80 to-transparent pointer-events-none" />
                       )}
-                    </button>
-                  </div>
+                    </div>
+
+                    {/* Expand / Collapse Button */}
+                    {isLongContent && (
+                      <div className="px-4 py-2 border-t border-border-subtle bg-surface/50 flex justify-center">
+                        <button
+                          onClick={() => setIsExpanded(!isExpanded)}
+                          className="inline-flex items-center gap-1.5 text-[12px] font-medium text-indigo-500 hover:text-indigo-400 transition-colors"
+                        >
+                          {isExpanded ? (
+                            <>
+                              <ChevronUp size={14} />
+                              <span>Show Less</span>
+                            </>
+                          ) : (
+                            <>
+                              <ChevronDown size={14} />
+                              <span>Show Full Content ({contentLines.length - 10} more lines)</span>
+                            </>
+                          )}
+                        </button>
+                      </div>
+                    )}
+                  </>
                 )}
               </div>
             ) : status === 'completed' ? (
