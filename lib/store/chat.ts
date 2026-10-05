@@ -417,7 +417,7 @@ export const useChatStore = create<ChatState>()(
 
             const now = new Date().toISOString()
             const hasContent = ([, msg]: (typeof ownEntries)[number]) =>
-              msg.content.trim().length > 0
+              msg.content.trim().length > 0 || (msg.reasoning && msg.reasoning.length > 0)
             const additionalMessages: Message[] = ownEntries
               .filter(hasContent)
               .map(([, msg]) => ({

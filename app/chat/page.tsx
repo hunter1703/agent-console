@@ -898,9 +898,9 @@ function ChatPageContent() {
                       }
 
                       if (item.type === 'reasoning') {
-                        const block = streamingMessages[item.id]?.reasoning?.[0]
+                        const block = (streamingMessages[item.id] ?? messageById.get(item.id))?.reasoning?.[0]
                         if (!block) return null
-                        return <ReasoningBlock key={item.id} block={block} />
+                        return <ReasoningBlock key={item.id} block={block as any} />
                       }
 
                       return null
