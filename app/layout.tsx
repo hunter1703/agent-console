@@ -3,6 +3,7 @@ import './globals.css'
 import { ThemeProvider } from '@/components/providers/ThemeProvider'
 import { QueryProvider } from '@/components/providers/QueryProvider'
 import { UIProvider } from '@/components/providers/UIProvider'
+import { AuthProvider } from '@/components/providers/AuthProvider'
 import { ErrorBoundary } from '@/components/common/ErrorBoundary'
 import { SkipLinks } from '@/components/common/SkipLinks'
 import { Header } from '@/components/layout/Header'
@@ -28,6 +29,7 @@ export default function RootLayout({
         <ThemeProvider>
           <QueryProvider>
             <ErrorBoundary>
+              <AuthProvider>
               <UIProvider>
                 <div className="min-h-screen bg-background flex flex-col">
                   <Header />
@@ -38,6 +40,7 @@ export default function RootLayout({
                   <FloatingDashboardButton />
                 </div>
               </UIProvider>
+              </AuthProvider>
             </ErrorBoundary>
           </QueryProvider>
         </ThemeProvider>

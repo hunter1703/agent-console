@@ -39,6 +39,7 @@ import {
   isAttachmentEvent,
   isReasoningStartEvent,
   isReasoningMessageStartEvent,
+  isReasoningMessageChunkEvent,
   isReasoningMessageContentEvent,
   isReasoningMessageEndEvent,
   isReasoningEndEvent,
@@ -165,7 +166,7 @@ export class AGUIEventHandler {
       this.handleReasoningStart(event, sessionId)
     } else if (isReasoningMessageStartEvent(event)) {
       this.handleReasoningMessageStart(event, sessionId)
-    } else if (isReasoningMessageContentEvent(event)) {
+    } else if (isReasoningMessageChunkEvent(event) || isReasoningMessageContentEvent(event)) {
       this.handleReasoningMessageContent(event, sessionId)
     } else if (isReasoningMessageEndEvent(event)) {
       this.handleReasoningMessageEnd(event, sessionId)
@@ -521,7 +522,7 @@ export class AGUIEventHandler {
   }
 
   private handleReasoningMessageContent(event: any, sessionId: string): void {
-    if (!isReasoningMessageContentEvent(event)) return
+    if (!isReasoningMessageChunkEvent(event) && !isReasoningMessageContentEvent(event)) return
     if (!event.delta) return
 
     const blockId = this.openReasoningBlockId.get(sessionId)

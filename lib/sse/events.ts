@@ -143,8 +143,15 @@ export interface ReasoningMessageStartEvent extends BaseAGUIEvent {
 export interface ReasoningMessageContentEvent extends BaseAGUIEvent {
   type: 'REASONING_MESSAGE_CONTENT'
   messageId: string // Inner thought message ID
-  content: string
+  content?: string
   delta: string
+}
+
+export interface ReasoningMessageChunkEvent extends BaseAGUIEvent {
+  type: 'REASONING_MESSAGE_CHUNK'
+  messageId: string
+  delta: string
+  content?: string
 }
 
 export interface ReasoningMessageEndEvent extends BaseAGUIEvent {
@@ -235,6 +242,7 @@ export type AGUIEvent =
   | ReasoningStartEvent
   | ReasoningMessageStartEvent
   | ReasoningMessageContentEvent
+  | ReasoningMessageChunkEvent
   | ReasoningMessageEndEvent
   | ReasoningEndEvent
   | InterruptRequestedEvent
@@ -325,6 +333,10 @@ export function isReasoningMessageStartEvent(event: AGUIEvent): event is Reasoni
 
 export function isReasoningMessageContentEvent(event: AGUIEvent): event is ReasoningMessageContentEvent {
   return event.type === 'REASONING_MESSAGE_CONTENT'
+}
+
+export function isReasoningMessageChunkEvent(event: AGUIEvent): event is ReasoningMessageChunkEvent {
+  return event.type === 'REASONING_MESSAGE_CHUNK'
 }
 
 export function isReasoningMessageEndEvent(event: AGUIEvent): event is ReasoningMessageEndEvent {

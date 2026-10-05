@@ -47,6 +47,7 @@ export async function fetchWithRetry<T>(
       const timeoutId = setTimeout(() => controller.abort(), timeout);
 
       const response = await fetch(url, {
+        credentials: 'include',
         ...fetchOptions,
         signal: controller.signal,
         headers: {

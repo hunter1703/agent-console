@@ -12,6 +12,8 @@ interface LookupWidgetProps {
   onChange: (value: string | string[] | null) => void
   error?: string
   disabled?: boolean
+  formData?: Record<string, any>
+  itemData?: Record<string, any>
 }
 
 interface LookupOption {
@@ -20,7 +22,15 @@ interface LookupOption {
   description?: string
 }
 
-export function LookupWidget({ field, value, onChange, error, disabled }: LookupWidgetProps) {
+export function LookupWidget({ 
+  field, 
+  value, 
+  onChange, 
+  error, 
+  disabled,
+  formData,
+  itemData 
+}: LookupWidgetProps) {
   const [isOpen, setIsOpen] = useState(false)
   const [isLoading, setIsLoading] = useState(false)
   const [options, setOptions] = useState<LookupOption[]>([])
@@ -31,6 +41,50 @@ export function LookupWidget({ field, value, onChange, error, disabled }: Lookup
   const assetType = field.lookup?.assetType || 'Agent'
   const isMultiple = field.lookup?.multiSelect || false
   const baseUrl = process.env.NEXT_PUBLIC_API_BASE_URL || 'http://localhost:8080'
+
+  const getByPath = (obj: any, path: string): any => {
+    if (!obj || !path) return null
+    return path.split('.').reduce((acc, part) => acc?.[part], obj) ?? null
+  }
+
+  const evaluateExpression = (expr: any): any => {
+    if (typeof expr !== 'string') return expr
+    if (!expr.startsWith('$')) return expr
+    try {
+      if (expr.startsWith('$item.')) {
+        // Sibling in the current collection item / object
+        return getByPath(itemData, expr.substring(6))
+      } else if (expr.startsWith('$parent.')) {
+        // Immediate parent / enclosing entity
+        return getByPath(formData, expr.substring(8))
+      } else if (expr.startsWith('$.')) {
+        // Root entity being edited
+        return getByPath(formData, expr.substring(2))
+      }
+    } catch (err) {
+      console.error('Failed to evaluate lookup expression:', expr, err)
+    }
+    return expr
+  }
+
+  const resolveLookupOptions = (): Record<string, any> | undefined => {
+    if (!field.lookup?.options) return undefined
+    const resolved: Record<string, any> = {}
+    for (const [key, expr] of Object.entries(field.lookup.options)) {
+      const val = evaluateExpression(expr)
+      if (val !== null && val !== undefined && val !== '') {
+        resolved[key] = val
+      }
+    }
+    return Object.keys(resolved).length > 0 ? resolved : undefined
+  }
+
+  const optionsKey = JSON.stringify(resolveLookupOptions() || {})
+
+  // Reset loaded options whenever dependent lookup options change
+  useEffect(() => {
+    setOptions([])
+  }, [optionsKey])
 
   // Load initial selected options
   useEffect(() => {
@@ -49,9 +103,11 @@ export function LookupWidget({ field, value, onChange, error, disabled }: Lookup
     
     const fetchSelected = async () => {
       try {
+        const resolvedOptions = resolveLookupOptions()
+        const queryParams = resolvedOptions ? '?' + new URLSearchParams(resolvedOptions).toString() : ''
         const responses = await Promise.all(
           ids.map(id => 
-            fetch(`${baseUrl}/v1/catalog/${assetType}/${id}`)
+            fetch(`${baseUrl}/v1/catalog/${assetType}/${id}${queryParams}`)
               .then(res => res.ok ? res.json() : null)
           )
         )
@@ -71,7 +127,7 @@ export function LookupWidget({ field, value, onChange, error, disabled }: Lookup
     }
 
     fetchSelected()
-  }, [value, assetType])
+  }, [value, assetType, optionsKey])
 
   // Load all options on focus
   const loadOptions = async () => {
@@ -80,6 +136,7 @@ export function LookupWidget({ field, value, onChange, error, disabled }: Lookup
     setIsLoading(true)
 
     try {
+      const resolvedOptions = resolveLookupOptions()
       const response = await fetch(
         `${baseUrl}/v1/catalog/list`,
         {
@@ -89,6 +146,7 @@ export function LookupWidget({ field, value, onChange, error, disabled }: Lookup
           },
           body: JSON.stringify({
             assetType: assetType,
+            options: resolvedOptions,
             limit: 100,
           }),
         }

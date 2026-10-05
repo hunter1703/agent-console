@@ -29,8 +29,17 @@ export function CollectionWidget({
   formData = {},
   parentPointer = ''
 }: CollectionWidgetProps) {
-  // Ensure items is always an array
-  const items = Array.isArray(value) ? value : []
+  // Ensure items is always an array; also handle legacy map format { [app]: string[] } for complex collections
+  const items = useMemo(() => {
+    if (Array.isArray(value)) return value
+    if (value && typeof value === 'object') {
+      const entries = Object.entries(value)
+      if (entries.length > 0 && entries.every(([, v]) => Array.isArray(v))) {
+        return entries.map(([key, val]) => ({ app: key, connectors: val }))
+      }
+    }
+    return []
+  }, [value])
   const [draggedItem, setDraggedItem] = useState<number | null>(null)
 
   // Check if this is a complex object collection (no widget means nested fields)

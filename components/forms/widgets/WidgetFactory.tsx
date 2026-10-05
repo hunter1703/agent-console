@@ -138,6 +138,8 @@ export function WidgetFactory({
           onChange={onChange}
           error={error}
           disabled={disabled}
+          formData={formData}
+          itemData={itemData}
         />
       )
 

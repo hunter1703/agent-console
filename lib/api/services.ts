@@ -342,6 +342,7 @@ export async function uploadToStorage(file: File): Promise<FileDetails> {
         'Content-Length': String(file.size),
       },
       body: file,
+      credentials: 'include',
     }
   )
 
@@ -413,6 +414,7 @@ export async function invokeAgentStream(
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(body),
       signal,
+      credentials: 'include',
     })
 
     if (!response.ok || !response.body) {

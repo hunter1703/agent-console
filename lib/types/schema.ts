@@ -91,6 +91,7 @@ export interface LayoutField {
   lookup?: {                           // For LOOKUP widget
     assetType: string                  // 'agent' | 'model'
     multiSelect?: boolean
+    options?: Record<string, string>   // Query/filter options with expressions (e.g. { appName: "$item.app" })
   }
   dynamicSchema?: {                    // For DYNAMIC_SCHEMA widget
     url: string                        // API endpoint

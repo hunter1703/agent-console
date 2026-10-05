@@ -152,6 +152,11 @@ export function DynamicSchemaWidget({
     }
   }
 
+  const getByPath = (obj: any, path: string): any => {
+    if (!obj || !path) return null
+    return path.split('.').reduce((acc, part) => acc?.[part], obj) ?? null
+  }
+
   // Evaluate expressions in the schema config
   // Supports: $item.field, $.field, $parent.field
   const evaluateExpression = (expr: any, itemData?: Record<string, any>): any => {
@@ -162,13 +167,14 @@ export function DynamicSchemaWidget({
 
     try {
       if (expr.startsWith('$item.')) {
-        // Reference to current collection item
-        const fieldName = expr.substring(6) // Remove "$item."
-        return itemData?.[fieldName] ?? null
+        // Reference to current collection item / sibling
+        return getByPath(itemData, expr.substring(6))
+      } else if (expr.startsWith('$parent.')) {
+        // Reference to parent form data
+        return getByPath(formData, expr.substring(8))
       } else if (expr.startsWith('$.')) {
         // Reference to root form data
-        const fieldName = expr.substring(2) // Remove "$."
-        return formData[fieldName] ?? null
+        return getByPath(formData, expr.substring(2))
       }
     } catch (err) {
       console.error('Failed to evaluate expression:', expr, err)
@@ -232,16 +238,17 @@ export function DynamicSchemaWidget({
         const data = await response.json()
         console.log('[DynamicSchemaWidget] Schema fetched successfully:', data)
         
-        // The POST /schemas endpoint returns raw JSON Schema, not BuilderDefinition
-        // Wrap it in a BuilderDefinition structure for consistent handling
-        const wrappedSchema: BuilderDefinition = {
-          schema: data,
-          layout: {
-            fields: {},
-            presets: undefined,
-            steps: undefined
-          }
-        }
+        // The POST /schemas endpoint can return a BuilderDefinition ({ schema, layout }) or raw JSON Schema
+        const wrappedSchema: BuilderDefinition = (data?.schema && data?.layout)
+          ? data
+          : {
+              schema: data,
+              layout: {
+                fields: {},
+                presets: undefined,
+                steps: undefined
+              }
+            }
         
         setNestedSchema(wrappedSchema)
       } catch (err) {
@@ -310,60 +317,75 @@ export function DynamicSchemaWidget({
             ) : nestedSchema ? (
               <div className="p-4 bg-surface rounded-lg">
                 {/* Render fields from layout if available, otherwise from JSON Schema */}
-                {nestedSchema.layout?.fields && Object.keys(nestedSchema.layout.fields).length > 0 ? (
-                  <div className="space-y-4">
-                    {Object.entries(nestedSchema.layout.fields)
-                      .sort(([, a], [, b]) => a.order - b.order)
-                      .map(([pointer, fieldDef]) => {
-                        const fieldName = pointer.substring(1) // Remove leading "/"
-                        const fieldValue = value?.[fieldName]
-                        
-                        return (
-                          <div key={pointer}>
-                            <label className="block text-sm font-medium text-text-primary mb-2">
-                              {fieldDef.label}
-                              {fieldDef.currentAccess === 'REQUIRED' && (
-                                <span className="text-error ml-1">*</span>
+                {(() => {
+                  const topLevelFields = Object.entries(nestedSchema.layout?.fields || {})
+                    .filter(([pointer]) => !pointer.slice(1).includes('/'))
+                    .sort(([, a], [, b]) => a.order - b.order)
+
+                  if (topLevelFields.length > 0) {
+                    return (
+                      <div className="space-y-4">
+                        {topLevelFields.map(([pointer, fieldDef]) => {
+                          const fieldName = pointer.substring(1) // Remove leading "/"
+                          const fieldValue = value?.[fieldName]
+                          
+                          return (
+                            <div key={pointer}>
+                              <label className="block text-sm font-medium text-text-primary mb-2">
+                                {fieldDef.label}
+                                {fieldDef.currentAccess === 'REQUIRED' && (
+                                  <span className="text-error ml-1">*</span>
+                                )}
+                              </label>
+                              <WidgetFactory
+                                field={fieldDef}
+                                value={fieldValue}
+                                onChange={(newValue) => {
+                                  const newData = { ...(value || {}), [fieldName]: newValue }
+                                  onChange(newData)
+                                }}
+                                disabled={disabled || fieldDef.currentAccess === 'READ_ONLY'}
+                                formData={formData}
+                                allFields={nestedSchema.layout?.fields}
+                                pointer={pointer}
+                                itemData={itemData}
+                              />
+                            </div>
+                          )
+                        })}
+                      </div>
+                    )
+                  }
+
+                  if (nestedSchema.schema?.properties) {
+                    return (
+                      // Render from raw JSON Schema properties
+                      <div className="space-y-4">
+                        {Object.entries(nestedSchema.schema.properties).map(([propName, propSchema]: [string, any]) => {
+                          const fieldValue = value?.[propName]
+                          const isRequired = nestedSchema.schema.required?.includes(propName) ?? false
+                          
+                          return (
+                            <div key={propName}>
+                              <label className="block text-sm font-medium text-text-primary mb-2">
+                                {propSchema.title || propName.charAt(0).toUpperCase() + propName.slice(1).replace(/([A-Z])/g, ' $1')}
+                                {isRequired && <span className="text-error ml-1">*</span>}
+                              </label>
+                              {propSchema.description && (
+                                <p className="text-xs text-text-tertiary mb-2">{propSchema.description}</p>
                               )}
-                            </label>
-                            <WidgetFactory
-                              field={fieldDef}
-                              value={fieldValue}
-                              onChange={(newValue) => {
-                                const newData = { ...(value || {}), [fieldName]: newValue }
-                                onChange(newData)
-                              }}
-                              disabled={disabled || fieldDef.currentAccess === 'READ_ONLY'}
-                              formData={formData}
-                            />
-                          </div>
-                        )
-                      })}
-                  </div>
-                ) : nestedSchema.schema?.properties ? (
-                  // Render from raw JSON Schema properties
-                  <div className="space-y-4">
-                    {Object.entries(nestedSchema.schema.properties).map(([propName, propSchema]: [string, any]) => {
-                      const fieldValue = value?.[propName]
-                      const isRequired = nestedSchema.schema.required?.includes(propName) ?? false
-                      
-                      return (
-                        <div key={propName}>
-                          <label className="block text-sm font-medium text-text-primary mb-2">
-                            {propSchema.title || propName.charAt(0).toUpperCase() + propName.slice(1).replace(/([A-Z])/g, ' $1')}
-                            {isRequired && <span className="text-error ml-1">*</span>}
-                          </label>
-                          {propSchema.description && (
-                            <p className="text-xs text-text-tertiary mb-2">{propSchema.description}</p>
-                          )}
-                          {renderSchemaField(propName, propSchema, fieldValue, isRequired)}
-                        </div>
-                      )
-                    })}
-                  </div>
-                ) : (
-                  <p className="text-sm text-text-tertiary">No configuration fields available</p>
-                )}
+                              {renderSchemaField(propName, propSchema, fieldValue, isRequired)}
+                            </div>
+                          )
+                        })}
+                      </div>
+                    )
+                  }
+
+                  return (
+                    <p className="text-sm text-text-tertiary">No configuration fields available</p>
+                  )
+                })()}
               </div>
             ) : (
               <div className="p-4 text-sm text-text-tertiary">
