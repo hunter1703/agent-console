@@ -20,25 +20,25 @@ import type { Plan, Task } from '@/types/planning'
 
 export interface PlanWidgetProps {
   plan: Plan
-  onTaskClick?: (taskId: string) => void
+  onTaskClick?: (taskName: string) => void
 }
 
 const PlanWidgetComponent = function PlanWidget({ plan, onTaskClick }: PlanWidgetProps) {
-  const [focusedTaskId, setFocusedTaskId] = useState<string | null>(null)
+  const [focusedTaskName, setFocusedTaskName] = useState<string | null>(null)
   const [navigationHistory, setNavigationHistory] = useState<(string | null)[]>([null])
   const [slideDirection, setSlideDirection] = useState<'left' | 'right'>('left')
   const prefersReducedMotion = useReducedMotion()
   const [ref, bounds] = useMeasure()
 
   // Get current context
-  const focusedTask = focusedTaskId ? plan.tasks.find(t => t.taskId === focusedTaskId) : null
-  const currentTasks = focusedTaskId 
-    ? plan.tasks.filter(t => t.parentId === focusedTaskId)
-    : plan.tasks.filter(t => !t.parentId)
+  const focusedTask = focusedTaskName ? plan.tasks.find(t => t.name === focusedTaskName) : null
+  const currentTasks = focusedTaskName 
+    ? plan.tasks.filter(t => t.parent === focusedTaskName)
+    : plan.tasks.filter(t => !t.parent)
 
   // Get parent task for back button
-  const parentTaskId = navigationHistory.length > 1 ? navigationHistory[navigationHistory.length - 2] : null
-  const parentTask = parentTaskId ? plan.tasks.find(t => t.taskId === parentTaskId) : null
+  const parentTaskName = navigationHistory.length > 1 ? navigationHistory[navigationHistory.length - 2] : null
+  const parentTask = parentTaskName ? plan.tasks.find(t => t.name === parentTaskName) : null
 
   const stats = {
     total: currentTasks.length,
@@ -76,9 +76,9 @@ const PlanWidgetComponent = function PlanWidget({ plan, onTaskClick }: PlanWidge
 
   const handleTaskClick = (task: Task) => {
     setSlideDirection('left')
-    setFocusedTaskId(task.taskId)
-    setNavigationHistory([...navigationHistory, task.taskId])
-    onTaskClick?.(task.taskId)
+    setFocusedTaskName(task.name)
+    setNavigationHistory([...navigationHistory, task.name])
+    onTaskClick?.(task.name)
   }
 
   const handleNavigateUp = () => {
@@ -87,7 +87,7 @@ const PlanWidgetComponent = function PlanWidget({ plan, onTaskClick }: PlanWidge
       const newHistory = [...navigationHistory]
       newHistory.pop()
       setNavigationHistory(newHistory)
-      setFocusedTaskId(newHistory[newHistory.length - 1])
+      setFocusedTaskName(newHistory[newHistory.length - 1])
     }
   }
 
@@ -95,7 +95,7 @@ const PlanWidgetComponent = function PlanWidget({ plan, onTaskClick }: PlanWidge
     <div className="advanced-widget relative max-w-2xl w-full">
       {/* Floating back button - top left, outside card */}
       <AnimatePresence initial={false}>
-        {focusedTaskId && (
+        {focusedTaskName && (
           <motion.button
             initial={{ opacity: 0, x: -20 }}
             animate={{ opacity: 1, x: 0 }}
@@ -172,7 +172,7 @@ const PlanWidgetComponent = function PlanWidget({ plan, onTaskClick }: PlanWidge
           <AnimatePresence mode="wait" initial={false}>
           <motion.div
             layout
-            key={focusedTaskId || 'plan'}
+            key={focusedTaskName || 'plan'}
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
@@ -195,7 +195,7 @@ const PlanWidgetComponent = function PlanWidget({ plan, onTaskClick }: PlanWidge
 
               {/* Circular progress indicator - smooth color transition */}
               <motion.div
-                key={`progress-${focusedTaskId}-${stats.completed}`}
+                key={`progress-${focusedTaskName}-${stats.completed}`}
                 className="relative w-14 h-14 flex-shrink-0"
                 initial={{ scale: 0.8, opacity: 0, rotate: -90 }}
                 animate={{ scale: 1, opacity: 1, rotate: 0 }}
@@ -245,12 +245,6 @@ const PlanWidgetComponent = function PlanWidget({ plan, onTaskClick }: PlanWidge
                     <span className="text-slate-400">{focusedTask.description}</span>
                   </div>
                 )}
-                {focusedTask.result && (
-                  <div className="text-sm p-3 bg-green-900/20 rounded-lg border border-green-800 leading-relaxed shadow-sm">
-                    <span className="text-green-300 font-bold">Result:</span>{' '}
-                    <span className="text-green-400">{focusedTask.result}</span>
-                  </div>
-                )}
               </div>
             )}
 
@@ -258,7 +252,7 @@ const PlanWidgetComponent = function PlanWidget({ plan, onTaskClick }: PlanWidge
             <div className="space-y-2">
               <AnimatePresence mode="wait" initial={false}>
                 <motion.div
-                  key={`tasks-${focusedTaskId}`}
+                  key={`tasks-${focusedTaskName}`}
                   initial={{ opacity: 0 }}
                   animate={{ opacity: 1 }}
                   exit={{ opacity: 0 }}
@@ -271,11 +265,12 @@ const PlanWidgetComponent = function PlanWidget({ plan, onTaskClick }: PlanWidge
                     </div>
                   ) : (
                     currentTasks.map((task, index) => {
-                      const hasChildren = plan.tasks.some(t => t.parentId === task.taskId)
+                      const hasChildren = plan.tasks.some(t => t.parent === task.name)
+                      const taskKey = task.name
                       
                       return (
                         <motion.button
-                          key={task.taskId || `task-${plan.planId}-${index}`}
+                          key={taskKey}
                           initial={{ opacity: 0 }}
                           animate={{ opacity: 1 }}
                           transition={{ delay: index * 0.03, duration: 0.2 }}
@@ -287,7 +282,7 @@ const PlanWidgetComponent = function PlanWidget({ plan, onTaskClick }: PlanWidge
                             <div className="w-6 h-6 flex-shrink-0 flex items-center justify-center">
                               {task.status === 'COMPLETED' ? (
                                 <motion.div
-                                  key={`completed-${task.taskId}`}
+                                  key={`completed-${taskKey}`}
                                   initial={{ scale: 0, rotate: -180 }}
                                   animate={{ scale: 1, rotate: 0 }}
                                   transition={{ duration: 0.5, ease: [0.34, 1.56, 0.64, 1] }}
@@ -313,12 +308,12 @@ const PlanWidgetComponent = function PlanWidget({ plan, onTaskClick }: PlanWidge
                                 </motion.div>
                               ) : task.status === 'IN_PROGRESS' ? (
                                 <div
-                                  key={`progress-${task.taskId}`}
+                                  key={`progress-${taskKey}`}
                                   className="w-5 h-5 rounded-full border-[2.5px] border-amber-500 border-t-transparent shadow-sm animate-spin"
                                 />
                               ) : task.status === 'FAILED' ? (
                                 <motion.div
-                                  key={`failed-${task.taskId}`}
+                                  key={`failed-${taskKey}`}
                                   initial={{ scale: 0 }}
                                   animate={{ scale: 1 }}
                                   transition={{ duration: 0.3, ease: [0.34, 1.56, 0.64, 1] }}
@@ -344,7 +339,7 @@ const PlanWidgetComponent = function PlanWidget({ plan, onTaskClick }: PlanWidge
                                 </motion.div>
                               ) : (
                                 <motion.div
-                                  key={`pending-${task.taskId}`}
+                                  key={`pending-${taskKey}`}
                                   className="w-5 h-5 rounded-full border-[2.5px] border-slate-300"
                                   animate={{ 
                                     scale: [1, 1.1, 1],
@@ -374,8 +369,8 @@ const PlanWidgetComponent = function PlanWidget({ plan, onTaskClick }: PlanWidge
                             {/* Subtask count badge */}
                             {hasChildren && (
                               <span className="text-xs font-extrabold text-slate-200 bg-slate-800 px-2.5 py-1.5 rounded-lg border border-slate-700">
-                                {plan.tasks.filter(t => t.parentId === task.taskId && t.status === 'COMPLETED').length}/
-                                {plan.tasks.filter(t => t.parentId === task.taskId).length}
+                                {plan.tasks.filter(t => t.parent === task.name && t.status === 'COMPLETED').length}/
+                                {plan.tasks.filter(t => t.parent === task.name).length}
                               </span>
                             )}
                           </div>

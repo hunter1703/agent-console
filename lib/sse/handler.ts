@@ -22,6 +22,10 @@
 import {
   AGUIEvent,
   parseAGUIEvent,
+  isMetaEvent,
+  TOKEN_USAGE_META_TYPE,
+  type MetaEvent,
+  type TokenUsagePayload,
   isRunStartedEvent,
   isRunFinishedEvent,
   isRunErrorEvent,
@@ -61,6 +65,8 @@ export class AGUIEventHandler {
   private processedToolCallIds: Map<string, Set<string>> = new Map()
   // Maps runId → agentId so every event in a run can be attributed to the right agent.
   private runAgentIds: Map<string, string> = new Map()
+  // Runs started by another run — a sub-agent's — as announced by RUN_STARTED's parentRunId.
+  private childRunIds: Set<string> = new Set()
   // The currently-open outer reasoning block id per session. REASONING_MESSAGE_START carries
   // no link to its parent block on the wire — the protocol relies on stream order instead
   // (a REASONING_START always immediately precedes its child REASONING_MESSAGE_START events).
@@ -83,6 +89,7 @@ export class AGUIEventHandler {
     // Clear run→agent mappings for this session's runs
     // (we can't easily scope by session, so we clear all — safe since streams are per-session)
     this.runAgentIds.clear()
+    this.childRunIds.clear()
   }
 
   private seenRun(sessionId: string, runId: string): boolean {
@@ -174,8 +181,16 @@ export class AGUIEventHandler {
       this.handleReasoningEnd(event, sessionId)
     } else if (event.type === 'CUSTOM') {
       this.handleCustomEvent(event as any, sessionId)
+    } else if (isMetaEvent(event)) {
+      this.handleMetaEvent(event, sessionId)
     } else {
       console.warn('Unknown AGUI event type:', (event as any).type)
+    }
+  }
+
+  private handleMetaEvent(event: MetaEvent, sessionId: string): void {
+    if (event.metaType === TOKEN_USAGE_META_TYPE) {
+      this.getChatStore().recordTokenUsage(sessionId, event.payload as TokenUsagePayload)
     }
   }
 
@@ -219,10 +234,10 @@ export class AGUIEventHandler {
       chatStore.setActiveSession(sessionId)
     }
 
-    // Handle multi-agent sessions (parent-child relationships)
-    if (event.parentRunId) {
-      // This is a child session - add to tabs
-      chatStore.addSessionTab(sessionId)
+    // A run with a parentRunId was started by another run (a sub-agent's). Remembered so that a
+    // RUN_ERROR for it is shown against that sub-agent instead of ending the whole session.
+    if (event.runId && event.parentRunId) {
+      this.childRunIds.add(event.runId)
     }
   }
 
@@ -238,6 +253,13 @@ export class AGUIEventHandler {
 
   private handleRunError(event: any, sessionId: string): void {
     if (!isRunErrorEvent(event)) return
+
+    // The failed run travels in rawEvent.runId, since RUN_ERROR itself has no run field.
+    const failedRunId = event.rawEvent?.runId as string | undefined
+    if (failedRunId && this.childRunIds.has(failedRunId)) {
+      this.handleChildRunError(event, sessionId, failedRunId)
+      return
+    }
 
     const chatStore = this.getChatStore()
     const errorMessage = event.message || 'An error occurred'
@@ -266,6 +288,27 @@ export class AGUIEventHandler {
       isStreaming: false,
       lastActivity: now,
     })
+  }
+
+  // A sub-agent's failure does not end the session: its parent is told through its tool result
+  // and carries on. The error is shown against the sub-agent and the session keeps streaming.
+  private handleChildRunError(event: any, sessionId: string, failedRunId: string): void {
+    const chatStore = this.getChatStore()
+    const agentId =
+      (event.rawEvent?.author as string | undefined) || this.runAgentIds.get(failedRunId) || 'sub-agent'
+    const now = new Date().toISOString()
+    const errorMessageId = `error-${failedRunId}-${Date.now()}`
+
+    chatStore.addMessage(sessionId, {
+      id: errorMessageId,
+      messageId: errorMessageId,
+      sessionId,
+      role: 'assistant',
+      content: `❌ **Error in ${agentId}**: ${event.message || 'An error occurred'}`,
+      createdTime: now,
+      updatedTime: now,
+    } as any)
+    chatStore.updateSession(sessionId, { lastActivity: now })
   }
 
   private handleTextMessageStart(event: any, sessionId: string): void {
@@ -409,8 +452,9 @@ export class AGUIEventHandler {
 
     // Handle different tool types with specific UI updates
     if (isPlanningToolCall(toolName)) {
-      if (toolName === 'create_plan') {
-        // The plan widget is anchored at the create_plan event position.
+      if (toolName === 'create_plan' && !this.hasOpenPlan(sessionId)) {
+        // The plan widget is anchored at the create_plan event position. A call made while a plan
+        // is open is refused by the engine, so it neither adds a card nor replaces the plan shown.
         console.log('📍 Adding plan to timeline:', { sessionId, toolCallId: event.toolCallId })
         chatStore.addTimelineItem(sessionId, { type: 'plan', id: event.toolCallId })
       }
@@ -507,9 +551,10 @@ export class AGUIEventHandler {
     if (!isReasoningStartEvent(event)) return
 
     const blockId = canonicalStreamId(event.messageId)
+    const agentId = event.rawEvent?.agentId
     this.openReasoningBlockId.set(sessionId, blockId)
     this.getChatStore().addReasoningBlock(blockId, blockId)
-    this.getChatStore().addTimelineItem(sessionId, { type: 'reasoning', id: blockId })
+    this.getChatStore().addTimelineItem(sessionId, { type: 'reasoning', id: blockId, agentId })
   }
 
   private handleReasoningMessageStart(event: any, sessionId: string): void {
@@ -548,17 +593,22 @@ export class AGUIEventHandler {
     const interruptStore = useInterruptStore.getState()
 
     if (isInterruptRequestedEvent(event)) {
+      // The run stays open while the backend waits for the answer, so no RUN_FINISHED turns the
+      // streaming indicator off here: it is the user's turn.
+      chatStore.updateSession(sessionId, { isStreaming: false })
       interruptStore.addInterrupt({
         id: event.value.interruptId,
         sessionId,
         type: event.value.kind,
-        prompt: event.value.prompt,
+        question: event.value.question,
         status: 'pending',
         options: event.value.options?.map((opt: string, idx: number) => ({
           id: idx.toString(),
           label: opt,
           value: opt,
         })),
+        allowCustomAnswer: event.value.allowCustomAnswer,
+        isMultiSelect: event.value.isMultiSelect,
         linkedToolCallId: event.value.originalToolCallId,
         requestingAgentId: (event.rawEvent as any)?.agentId || (event.rawEvent as any)?.author || (event.runId ? this.runAgentIds.get(event.runId) : chatStore.sessions[sessionId]?.agentId),
         createdAt: new Date().toISOString(),
@@ -611,9 +661,15 @@ export class AGUIEventHandler {
     }
   }
 
+  private hasOpenPlan(sessionId: string): boolean {
+    const plan = this.getChatStore().sessions[sessionId]?.activePlan
+    const status = plan?.status as string | undefined
+    return !!plan && status !== 'COMPLETED' && status !== 'FAILED'
+  }
+
   private handlePlanningToolStart(event: any, sessionId: string): void {
     // When create_plan starts, seed an empty plan immediately so the card appears
-    if (event.toolName === 'create_plan') {
+    if (event.toolName === 'create_plan' && !this.hasOpenPlan(sessionId)) {
       const args = event.arguments ?? {}
       this.getChatStore().setActivePlan(sessionId, {
         planId: event.toolCallId,
@@ -633,87 +689,91 @@ export class AGUIEventHandler {
     const chatStore = this.getChatStore()
     const args = toolCall.arguments ?? {}
 
+    let parsed: any = null
+    if (typeof event.content === 'string') {
+      try {
+        parsed = JSON.parse(event.content)
+      } catch { /* ignore parse error */ }
+    } else if (typeof event.content === 'object' && event.content !== null) {
+      parsed = event.content
+    }
+
+    if (parsed?.error) {
+      console.warn(`[handlePlanningToolResult] Tool call ${toolCall.toolName} returned error:`, parsed.error)
+      return
+    }
+
     switch (toolCall.toolName) {
       case 'create_plan': {
-        // Use the result's createdPlan which has real planId and taskId values.
-        // The call args tasks have no taskId, causing undefined === undefined
-        // false-positives in the hasChildren check.
-        try {
-          const { createdPlan } = JSON.parse(event.content)
-          if (createdPlan) {
-            chatStore.setActivePlan(sessionId, {
-              planId: createdPlan.planId,
-              title: createdPlan.title ?? args.title ?? 'Plan',
-              goal: createdPlan.goal ?? args.goal ?? '',
-              status: 'IN_PROGRESS' as any,
-              tasks: createdPlan.tasks ?? [],
-            })
-            break
-          }
-        } catch { /* fall through to arg-based fallback */ }
+        if (parsed?.createdPlan) {
+          chatStore.setActivePlan(sessionId, {
+            planId: parsed.createdPlan.planId,
+            title: parsed.createdPlan.title ?? args.title ?? 'Plan',
+            goal: parsed.createdPlan.goal ?? args.goal ?? '',
+            status: 'IN_PROGRESS' as any,
+            tasks: parsed.createdPlan.tasks ?? [],
+          })
+          break
+        }
         chatStore.setActivePlan(sessionId, {
           planId: toolCall.toolCallId,
           title: args.title ?? 'Plan',
           goal: args.goal ?? '',
           status: 'IN_PROGRESS' as any,
-          tasks: args.tasks ?? [],
+          tasks: (args.tasks ?? []).map((t: any) => ({
+            name: t.name ?? t.task ?? '',
+            goal: t.goal ?? '',
+            description: t.description,
+            status: t.status ?? 'TODO',
+            parent: t.parent,
+          })),
         })
+        if (Array.isArray(parsed?.active_lineage)) {
+          for (const lineageTask of parsed.active_lineage) {
+            const name = typeof lineageTask === 'string' ? lineageTask : lineageTask?.name
+            if (name) {
+              chatStore.updatePlanTask(sessionId, name, { status: 'IN_PROGRESS' })
+            }
+          }
+        } else if (parsed?.active_task) {
+          const activeName = typeof parsed.active_task === 'string' ? parsed.active_task : parsed.active_task?.name
+          if (activeName) {
+            chatStore.updatePlanTask(sessionId, activeName, { status: 'IN_PROGRESS' })
+          }
+        }
         break
       }
       case 'add_task': {
-        // Backend uses snake_case (task_id, parent_id)
-        const taskId = args.task_id ?? args.taskId
-        const parentId = args.parent_id ?? args.parentId
-        if (taskId) {
+        const name = parsed?.task?.name ?? args.name ?? args.task ?? ''
+        if (name) {
           chatStore.upsertPlanTask(sessionId, {
-            taskId,
-            name: args.name ?? args.title ?? '',
-            goal: args.goal ?? '',
-            description: args.description,
+            name,
+            goal: parsed?.task?.goal ?? args.goal ?? '',
+            description: parsed?.task?.description ?? args.description,
             status: 'TODO',
-            parentId,
+            parent: parsed?.task?.parent ?? args.parent,
           })
         }
         break
       }
-      case 'update_task_info': {
-        const taskId = args.task_id ?? args.taskId
-        if (taskId) {
-          chatStore.updatePlanTask(sessionId, taskId, {
-            name: args.name,
-            goal: args.goal,
-            description: args.description,
+
+      case 'abandon_active_task':
+      case 'complete_active_task': {
+        const abandoned = toolCall.toolName === 'abandon_active_task'
+        const taskName = abandoned ? parsed?.abandoned_task : parsed?.completed_task
+        if (taskName) {
+          chatStore.updatePlanTask(sessionId, taskName, {
+            status: abandoned ? 'FAILED' : 'COMPLETED',
           })
+        }
+        if (parsed?.next_task) {
+          chatStore.updatePlanTask(sessionId, parsed.next_task, { status: 'IN_PROGRESS' })
+        }
+        if (parsed?.plan_finished) {
+          chatStore.updateActivePlan(sessionId, { status: 'COMPLETED' as any })
         }
         break
       }
-      case 'start_task': {
-        const taskId = args.task_id ?? args.taskId
-        if (taskId) chatStore.updatePlanTask(sessionId, taskId, { status: 'IN_PROGRESS' })
-        break
-      }
-      case 'complete_task': {
-        const taskId = args.task_id ?? args.taskId
-        if (taskId) {
-          chatStore.updatePlanTask(sessionId, taskId, {
-            status: 'COMPLETED',
-            result: args.result,
-          })
-        }
-        break
-      }
-      case 'update_plan':
-        chatStore.updateActivePlan(sessionId, {
-          title: args.title,
-          goal: args.goal,
-        })
-        break
-      case 'finish_plan':
-        chatStore.updateActivePlan(sessionId, {
-          status: 'COMPLETED' as any,
-          result: args.result,
-        })
-        break
       default:
         break
     }

@@ -216,7 +216,7 @@ export interface ReasoningThought {
 
 export interface Interrupt {
   interruptId: string
-  prompt: string
+  question: string
   kind: InterruptKind
   options?: string[]
   response?: InterruptResponse

@@ -35,18 +35,23 @@ export function WidgetFactory({
 }: WidgetFactoryProps) {
   // Handle collection fields
   if (field.collection) {
-    return (
-      <CollectionWidget
-        field={field}
-        value={value}
-        onChange={onChange}
-        error={error}
-        disabled={disabled}
-        allFields={allFields}
-        formData={formData}
-        parentPointer={pointer}
-      />
-    )
+    // If it's a multi-select lookup, don't use CollectionWidget, let LookupWidget handle it directly
+    const isMultiSelectLookup = field.widget === 'LOOKUP' && field.lookup?.multiSelect;
+    
+    if (!isMultiSelectLookup) {
+      return (
+        <CollectionWidget
+          field={field}
+          value={value}
+          onChange={onChange}
+          error={error}
+          disabled={disabled}
+          allFields={allFields}
+          formData={formData}
+          parentPointer={pointer}
+        />
+      )
+    }
   }
 
   // Handle nested objects (no widget, not a collection)

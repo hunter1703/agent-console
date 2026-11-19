@@ -180,9 +180,11 @@ export interface InterruptRequestedEvent extends CustomEvent {
   name: 'interrupt_requested'
   value: {
     interruptId: string
-    prompt: string
+    question: string
     originalToolCallId?: string
     options?: string[]
+    allowCustomAnswer?: boolean
+    isMultiSelect?: boolean
     kind: 'DECISION' | 'TEXT'
     timeout?: number
   }
@@ -226,6 +228,27 @@ export interface AttachmentEvent extends CustomEvent {
 // Union Type
 // ============================================================================
 
+/** Tokens one model call used, sent once per call as a side-band META_EVENT. */
+export interface TokenUsagePayload {
+  /** The model event the usage belongs to; makes a re-delivered annotation idempotent. */
+  eventId: string
+  /** The session whose model call it was — a child session's events arrive on its root's stream. */
+  sessionId: string
+  inputTokens: number
+  outputTokens: number
+  thinkingTokens: number
+  cachedTokens: number
+  totalTokens: number
+}
+
+export interface MetaEvent extends BaseAGUIEvent {
+  type: 'META_EVENT'
+  metaType: string
+  payload: unknown
+}
+
+export const TOKEN_USAGE_META_TYPE = 'token_usage'
+
 export type AGUIEvent =
   | RunStartedEvent
   | RunFinishedEvent
@@ -250,6 +273,7 @@ export type AGUIEvent =
   | CorrectionEvent
   | AttachmentEvent
   | CustomEvent
+  | MetaEvent
 
 // ============================================================================
 // Event Parser
@@ -274,6 +298,10 @@ export function parseAGUIEvent(eventData: string): AGUIEvent | null {
 // ============================================================================
 // Event Type Guards
 // ============================================================================
+
+export function isMetaEvent(event: AGUIEvent): event is MetaEvent {
+  return event.type === 'META_EVENT'
+}
 
 export function isRunStartedEvent(event: AGUIEvent): event is RunStartedEvent {
   return event.type === 'RUN_STARTED'
@@ -366,13 +394,9 @@ export function isStepFinishedEvent(event: AGUIEvent): event is StepFinishedEven
 export function isPlanningToolCall(toolName: string): boolean {
   const planningTools = [
     'create_plan',
-    'update_plan', 
     'add_task',
-    'update_task_info',
-    'start_task',
-    'complete_task',
-    'finish_plan',
-    'view_plan'
+    'complete_active_task',
+    'abandon_active_task',
   ]
   return planningTools.includes(toolName)
 }

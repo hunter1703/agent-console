@@ -14,6 +14,7 @@ import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { Plus } from 'lucide-react'
 
 import { ChatInterface } from '@/components/chat/ChatInterface'
+import { TokenUsageBadge } from '@/components/chat/TokenUsageBadge'
 import { MessageInput } from '@/components/chat/MessageInput'
 import { TypingIndicator } from '@/components/chat/TypingIndicator'
 import { EmptyState } from '@/components/chat/EmptyState'
@@ -900,7 +901,8 @@ function ChatPageContent() {
                       if (item.type === 'reasoning') {
                         const block = (streamingMessages[item.id] ?? messageById.get(item.id))?.reasoning?.[0]
                         if (!block) return null
-                        return <ReasoningBlock key={item.id} block={block as any} />
+                        const agentName = item.agentId ? resolveAgentName(item.agentId) : undefined
+                        return <ReasoningBlock key={item.id} block={block as any} agentName={agentName} />
                       }
 
                       return null
@@ -1013,6 +1015,7 @@ function ChatPageContent() {
                 </div>
                 
                 <div className="flex items-center gap-3">
+                  <TokenUsageBadge usage={activeSession?.modelCallUsage} />
                   {/* Back to Dashboard Button */}
                   <Button
                     variant="ghost"

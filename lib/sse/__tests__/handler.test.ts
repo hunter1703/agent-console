@@ -245,4 +245,56 @@ describe('AGUIEventHandler replay safety', () => {
     expect(sawUpdate).toBe(true)
     expect(useChatStore.getState().sessionTabs).toContain('eaed2e01-ab53-4d01-894c-c90e73a42fd5')
   })
+
+  it('shows a sub-agent RUN_ERROR against that agent and keeps the session streaming', () => {
+    const handler = new AGUIEventHandler()
+    send(handler, sessionId, { type: 'RUN_STARTED', runId: 'e-parent', threadId: sessionId, rawEvent: { author: 'story_editor' } })
+    send(handler, sessionId, {
+      type: 'RUN_STARTED',
+      runId: 'e-child',
+      parentRunId: 'e-parent',
+      threadId: sessionId,
+      rawEvent: { author: 'story_characters_builder' },
+    })
+    send(handler, sessionId, {
+      type: 'RUN_ERROR',
+      message: 'EOFException: EOF reached while reading',
+      rawEvent: { author: 'story_characters_builder', runId: 'e-child' },
+    })
+
+    const session = useChatStore.getState().sessions[sessionId]
+    expect(session.isStreaming).toBe(true)
+    expect(session.messages.some((m) => String(m.content).includes('Error in story_characters_builder'))).toBe(true)
+  })
+
+  it('still ends the session when the RUN_ERROR is for its own run', () => {
+    const handler = new AGUIEventHandler()
+    send(handler, sessionId, { type: 'RUN_STARTED', runId: 'e-parent', threadId: sessionId, rawEvent: { author: 'story_editor' } })
+    send(handler, sessionId, {
+      type: 'RUN_ERROR',
+      message: 'Daily token quota exceeded',
+      rawEvent: { author: 'story_editor', runId: 'e-parent' },
+    })
+
+    const session = useChatStore.getState().sessions[sessionId]
+    expect(session.isStreaming).toBe(false)
+    expect(session.messages.some((m) => String(m.content).includes('Daily token quota exceeded'))).toBe(true)
+  })
+
+  it('stops the streaming indicator when the run waits for a question to the user', () => {
+    const handler = new AGUIEventHandler()
+    const author = { author: 'story_editor' }
+    send(handler, sessionId, { type: 'RUN_STARTED', runId: 'run-1', threadId: sessionId, rawEvent: author })
+    send(handler, sessionId, { type: 'TEXT_MESSAGE_START', messageId: 'msg-1', role: 'assistant', rawEvent: author })
+    expect(useChatStore.getState().sessions[sessionId].isStreaming).toBe(true)
+
+    send(handler, sessionId, {
+      type: 'CUSTOM',
+      name: 'interrupt_requested',
+      value: { interruptId: 'int-1', prompt: 'Approve?', kind: 'DECISION' },
+      rawEvent: author,
+    })
+
+    expect(useChatStore.getState().sessions[sessionId].isStreaming).toBe(false)
+  })
 })

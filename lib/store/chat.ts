@@ -12,6 +12,7 @@ import type { Session, Message } from '@/lib/api/types'
 import type { MessageAttachment } from '@/lib/api/types'
 import type { Plan, Task } from '@/types/planning'
 import type { SessionStreamHandle } from '@/lib/sse/managedStream'
+import type { TokenUsagePayload } from '@/lib/sse/events'
 
 // ============================================================================
 // Types
@@ -46,6 +47,11 @@ export interface ChatSession extends Session {
   corrections: Record<string, CorrectionEvent>
   activePlan: Plan | null
   timeline: TimelineItem[]
+  /**
+   * Token usage of every model call seen on this session's stream, its children's included,
+   * keyed by the model event id so a replayed annotation is counted once.
+   */
+  modelCallUsage?: Record<string, TokenUsagePayload>
 }
 
 export interface ActiveToolCall {
@@ -137,6 +143,9 @@ export interface ChatState {
   addCorrectionEvent: (sessionId: string, correction: Omit<CorrectionEvent, 'timestamp'>) => void
   removeCorrectionEvent: (sessionId: string, correctionId: string) => void
 
+  // Token usage actions
+  recordTokenUsage: (sessionId: string, usage: TokenUsagePayload) => void
+
   // Attachment actions
   addAttachmentToMessage: (sessionId: string, messageId: string, attachment: MessageAttachment) => void
   /** Stage an attachment for a message that hasn't been committed yet. */
@@ -158,7 +167,7 @@ export interface ChatState {
   setActivePlan: (sessionId: string, plan: Plan) => void
   updateActivePlan: (sessionId: string, updates: Partial<Plan>) => void
   upsertPlanTask: (sessionId: string, task: Task) => void
-  updatePlanTask: (sessionId: string, taskId: string, updates: Partial<Task>) => void
+  updatePlanTask: (sessionId: string, taskName: string, updates: Partial<Task>) => void
   
   // Input actions
   setMessageInput: (input: string) => void
@@ -208,6 +217,7 @@ export const useChatStore = create<ChatState>()(
                 corrections: session.corrections ?? {},
                 activePlan: session.activePlan ?? null,
                 timeline: session.timeline ?? [],
+                modelCallUsage: session.modelCallUsage ?? {},
               },
             },
             sessionTabs: state.sessionTabs.includes(session.sessionId)
@@ -659,6 +669,22 @@ export const useChatStore = create<ChatState>()(
           })
         },
 
+        recordTokenUsage: (sessionId, usage) => {
+          set((state) => {
+            const session = state.sessions[sessionId]
+            if (!session || session.modelCallUsage?.[usage.eventId]) return state
+            return {
+              sessions: {
+                ...state.sessions,
+                [sessionId]: {
+                  ...session,
+                  modelCallUsage: { ...(session.modelCallUsage ?? {}), [usage.eventId]: usage },
+                },
+              },
+            }
+          })
+        },
+
         // Attachment actions
         addAttachmentToMessage: (sessionId, messageId, attachment) => {
           set((state) => {
@@ -761,9 +787,9 @@ export const useChatStore = create<ChatState>()(
           set((state) => {
             const session = state.sessions[sessionId]
             if (!session?.activePlan) return state
-            const exists = session.activePlan.tasks.some((t) => t.taskId === task.taskId)
+            const exists = session.activePlan.tasks.some((t) => t.name === task.name)
             const tasks = exists
-              ? session.activePlan.tasks.map((t) => (t.taskId === task.taskId ? task : t))
+              ? session.activePlan.tasks.map((t) => (t.name === task.name ? { ...t, ...task } : t))
               : [...session.activePlan.tasks, task]
             return {
               sessions: {
@@ -777,7 +803,7 @@ export const useChatStore = create<ChatState>()(
           })
         },
 
-        updatePlanTask: (sessionId, taskId, updates) => {
+        updatePlanTask: (sessionId, taskName, updates) => {
           set((state) => {
             const session = state.sessions[sessionId]
             if (!session?.activePlan) return state
@@ -789,7 +815,7 @@ export const useChatStore = create<ChatState>()(
                   activePlan: {
                     ...session.activePlan,
                     tasks: session.activePlan.tasks.map((t) =>
-                      t.taskId === taskId ? { ...t, ...updates } : t
+                      t.name === taskName ? { ...t, ...updates } : t
                     ),
                   },
                 },

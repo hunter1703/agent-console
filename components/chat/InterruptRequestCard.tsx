@@ -212,8 +212,8 @@ function InterruptRequestCardComponent({
           )}
         </AnimatePresence>
 
-        {/* Prompt */}
-        <p className="text-sm text-text-primary mb-2 leading-snug pl-4">{interrupt.prompt}</p>
+        {/* Question */}
+        <p className="text-sm text-text-primary mb-2 leading-snug pl-4">{interrupt.question}</p>
 
         {/* Error */}
         <AnimatePresence>
@@ -239,7 +239,7 @@ function InterruptRequestCardComponent({
               exit={{ opacity: 0, scale: 0.97 }}
               transition={{ duration: 0.25, ease: 'easeOut' }}
             >
-              {isBinaryDecision && (
+              {interrupt.type === 'DECISION' && (
                 <BinaryDecisionInput
                   onConfirm={handleApprove}
                   onReject={handleDecline}
@@ -247,15 +247,17 @@ function InterruptRequestCardComponent({
                   isAnswered={false}
                 />
               )}
-              {interrupt.type === 'DECISION' && !isBinaryDecision && (
+              {interrupt.type === 'TEXT' && (interrupt.options && interrupt.options.length > 0) && (
                 <MultipleChoiceInput
-                  options={interrupt.options!}
+                  options={interrupt.options}
+                  allowCustomAnswer={interrupt.allowCustomAnswer}
+                  isMultiSelect={interrupt.isMultiSelect}
                   onSubmit={handleSubmitAnswer}
                   disabled={isSubmitting}
                   isAnswered={false}
                 />
               )}
-              {interrupt.type === 'TEXT' && (
+              {interrupt.type === 'TEXT' && (!interrupt.options || interrupt.options.length === 0) && (
                 <TextInterruptInput
                   onSubmit={handleSubmitAnswer}
                   disabled={isSubmitting}
@@ -270,7 +272,7 @@ function InterruptRequestCardComponent({
               animate={{ opacity: 1, y: 0 }}
               transition={{ duration: 0.35, ease: [0.16, 1, 0.3, 1] }}
             >
-              {isBinaryDecision && (
+              {interrupt.type === 'DECISION' && (
                 <BinaryDecisionInput
                   onConfirm={() => {}}
                   onReject={() => {}}
@@ -279,16 +281,18 @@ function InterruptRequestCardComponent({
                   wasConfirmed={isResolved}
                 />
               )}
-              {interrupt.type === 'DECISION' && !isBinaryDecision && (
+              {interrupt.type === 'TEXT' && (interrupt.options && interrupt.options.length > 0) && (
                 <MultipleChoiceInput
-                  options={interrupt.options!}
+                  options={interrupt.options}
+                  allowCustomAnswer={interrupt.allowCustomAnswer}
+                  isMultiSelect={interrupt.isMultiSelect}
                   onSubmit={() => {}}
                   disabled={true}
                   isAnswered={true}
                   selectedAnswer={interrupt.answer}
                 />
               )}
-              {interrupt.type === 'TEXT' && (
+              {interrupt.type === 'TEXT' && (!interrupt.options || interrupt.options.length === 0) && (
                 <TextInterruptInput
                   onSubmit={() => {}}
                   disabled={true}
@@ -314,7 +318,7 @@ export const InterruptRequestCard = memo(
     // idempotent add and updateInterrupt only ever touches status/answer), but comparing
     // them defensively means this doesn't silently start showing stale content the moment
     // either of those gains the ability to correct an already-created interrupt.
-    prev.interrupt.prompt === next.interrupt.prompt &&
+    prev.interrupt.question === next.interrupt.question &&
     prev.interrupt.createdAt === next.interrupt.createdAt &&
     (prev.interrupt.options ?? []).map((o) => o.value).join(',') ===
       (next.interrupt.options ?? []).map((o) => o.value).join(',') &&

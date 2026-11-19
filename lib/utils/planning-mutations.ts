@@ -11,15 +11,12 @@ import type { Plan, Task } from '@/types/planning'
  * Create a new plan from create_plan tool arguments
  */
 export function createPlanFromToolCall(args: Record<string, any>, timestamp?: number): Plan {
-  // Generate task IDs for tasks that don't have them
-  const tasksWithIds = (args.tasks || []).map((task: any, index: number) => ({
-    ...task,
-    taskId: task.taskId || task.task_id || `task-${index}-${Date.now()}`,
-    name: task.name,
-    goal: task.goal,
+  const tasks = (args.tasks || []).map((task: any, index: number) => ({
+    name: task.name || task.task || `Task ${index + 1}`,
+    goal: task.goal || '',
     description: task.description,
     status: 'TODO' as const,
-    parentId: task.parentId || task.parent_id,
+    parent: task.parent,
   }))
   
   return {
@@ -27,7 +24,7 @@ export function createPlanFromToolCall(args: Record<string, any>, timestamp?: nu
     title: args.title || 'Untitled Plan',
     goal: args.goal || '',
     status: 'TODO',
-    tasks: tasksWithIds,
+    tasks,
     createdTime: timestamp ? new Date(timestamp).toISOString() : new Date().toISOString(),
   }
 }
@@ -47,13 +44,14 @@ export function updatePlanInfo(plan: Plan, args: Record<string, any>): Plan {
  * Add a new task to the plan from add_task tool
  */
 export function addTaskToPlan(plan: Plan, args: Record<string, any>, result: any): Plan {
+  const name = args.name || args.task || result?.task || ''
+  const parent = args.parent
   const newTask: Task = {
-    taskId: result.task_id || `task-${Date.now()}`,
-    name: args.name,
+    name,
     goal: args.goal,
     status: 'TODO',
     ...(args.description && { description: args.description }),
-    ...(args.parent_id && { parentId: args.parent_id }),
+    ...(parent && { parent }),
   }
   
   return {
@@ -62,62 +60,51 @@ export function addTaskToPlan(plan: Plan, args: Record<string, any>, result: any
   }
 }
 
-/**
- * Update task information from update_task_info tool
- */
-export function updateTaskInfo(plan: Plan, args: Record<string, any>): Plan {
-  const taskId = args.task_id
-  
-  return {
-    ...plan,
-    tasks: plan.tasks.map(task =>
-      task.taskId === taskId
-        ? {
-            ...task,
-            ...(args.name && { name: args.name }),
-            ...(args.goal && { goal: args.goal }),
-            ...(args.description && { description: args.description }),
-          }
-        : task
-    ),
-  }
-}
 
-/**
- * Mark a task as IN_PROGRESS from start_task tool
- * Also marks the plan as IN_PROGRESS if this is the first task started
- */
-export function startTask(plan: Plan, args: Record<string, any>): Plan {
-  const taskId = args.task_id
-  const hasInProgressTasks = plan.tasks.some(t => t.status === 'IN_PROGRESS')
-  
-  return {
-    ...plan,
-    // Mark plan as IN_PROGRESS if this is the first task being started
-    status: hasInProgressTasks || plan.status === 'IN_PROGRESS' ? plan.status : 'IN_PROGRESS',
-    tasks: plan.tasks.map(task =>
-      task.taskId === taskId
-        ? { ...task, status: 'IN_PROGRESS' }
-        : task
-    ),
-  }
-}
 
 /**
  * Complete a task from complete_task tool
  */
-export function completeTask(plan: Plan, args: Record<string, any>): Plan {
-  const taskId = args.task_id
-  const status = args.status?.toUpperCase() === 'DONE' ? 'COMPLETED' : 'FAILED'
-  const result = args.result
-  
+export function completeTask(plan: Plan, args: Record<string, any>, resultObj?: any): Plan {
+  const taskName = resultObj?.completed_task || args.task || args.name
+  const status = (args.status?.toUpperCase() === 'FAILED' || args.status?.toUpperCase() === 'ABANDONED') ? 'FAILED' : 'COMPLETED'
+
+  let updatedTasks: Task[] = plan.tasks.map(task =>
+    task.name === taskName
+      ? { ...task, status }
+      : task
+  )
+
+  const isPlanFinished = resultObj?.plan_finished || (updatedTasks.length > 0 && updatedTasks.every(t => t.status === 'COMPLETED' || t.status === 'FAILED'))
+  const planStatus = resultObj?.plan_status?.toUpperCase() === 'ABANDONED' ? 'FAILED' : 'COMPLETED'
+
+  if (!isPlanFinished) {
+    if (Array.isArray(resultObj?.active_lineage)) {
+      const lineageSet = new Set(
+        resultObj.active_lineage.map((t: any) => (typeof t === 'string' ? t : t?.name))
+      )
+      updatedTasks = updatedTasks.map(task => {
+        if (lineageSet.has(task.name)) {
+          return { ...task, status: 'IN_PROGRESS' as const }
+        }
+        return task
+      })
+    } else if (resultObj?.next_task) {
+      const nextTaskName =
+        typeof resultObj.next_task === 'string' ? resultObj.next_task : resultObj.next_task?.name
+      updatedTasks = updatedTasks.map(task => {
+        if (task.name === nextTaskName) {
+          return { ...task, status: 'IN_PROGRESS' as const }
+        }
+        return task
+      })
+    }
+  }
+
   return {
     ...plan,
-    tasks: plan.tasks.map(task =>
-      task.taskId === taskId
-        ? { ...task, status, result }
-        : task
-    ),
+    status: isPlanFinished ? planStatus : 'IN_PROGRESS',
+    tasks: updatedTasks,
   }
 }
 
@@ -126,12 +113,10 @@ export function completeTask(plan: Plan, args: Record<string, any>): Plan {
  */
 export function finishPlan(plan: Plan, args: Record<string, any>): Plan {
   const status = args.status?.toUpperCase() === 'DONE' ? 'COMPLETED' : 'FAILED'
-  const result = args.result
-  
+
   return {
     ...plan,
     status,
-    result,
   }
 }
 
@@ -139,6 +124,5 @@ export function finishPlan(plan: Plan, args: Record<string, any>): Plan {
  * Replace the entire plan from view_plan tool result
  */
 export function replacePlanFromView(viewResult: any): Plan {
-  // The view_plan tool returns the complete Plan object
   return viewResult as Plan
 }

@@ -155,4 +155,21 @@ describe('MultipleChoiceInput — answered state', () => {
     )
     expect(screen.queryByText('blue')).not.toBeInTheDocument()
   })
+
+  it('correctly marks an option with internal commas as selected', () => {
+    const complexOptions = [
+      { id: '0', label: 'Low, medium, or high', value: 'Low, medium, or high' },
+      { id: '1', label: 'Other option', value: 'Other option' },
+    ]
+    render(
+      <MultipleChoiceInput
+        options={complexOptions}
+        onSubmit={vi.fn()}
+        isAnswered
+        selectedAnswer="Low, medium, or high"
+      />
+    )
+    expect(screen.getByText('Low, medium, or high')).toHaveClass('text-blue-600')
+    expect(screen.getByText('Other')).toHaveClass('text-text-secondary')
+  })
 })

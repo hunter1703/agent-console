@@ -10,9 +10,10 @@ import { SmoothText } from '@/components/chat/SmoothText'
 
 interface ReasoningBlockProps {
   block: NonNullable<StreamingMessage['reasoning']>[number]
+  agentName?: string
 }
 
-const ReasoningBlockComponent = function ReasoningBlock({ block }: ReasoningBlockProps) {
+const ReasoningBlockComponent = function ReasoningBlock({ block, agentName }: ReasoningBlockProps) {
   const [isExpanded, setIsExpanded] = useState(!block.isComplete)
   const text = block.thoughts.map((t) => t.content).join('\n\n')
 
@@ -28,7 +29,9 @@ const ReasoningBlockComponent = function ReasoningBlock({ block }: ReasoningBloc
           className={cn('text-text-tertiary', !block.isComplete && 'animate-pulse')}
         />
         <span className="text-[13px] font-medium text-text-secondary">
-          {block.isComplete ? 'Thought process' : 'Thinking…'}
+          {block.isComplete 
+            ? (agentName ? `${agentName}'s thought process` : 'Thought process') 
+            : (agentName ? `${agentName} is thinking…` : 'Thinking…')}
         </span>
         <ChevronDown
           size={14}

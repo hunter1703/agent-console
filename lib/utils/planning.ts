@@ -16,20 +16,22 @@ export function buildTaskTree(tasks: Task[]): TaskWithChildren[] {
 
   // First pass: create all task nodes
   tasks.forEach(task => {
-    taskMap.set(task.taskId, {
+    const node: TaskWithChildren = {
       ...task,
       children: [],
       depth: 0,
-    })
+    }
+    taskMap.set(task.name, node)
   })
 
   // Second pass: build hierarchy
   tasks.forEach(task => {
-    const taskNode = taskMap.get(task.taskId)!
+    const taskNode = taskMap.get(task.name)
+    if (!taskNode) return
     
-    if (task.parentId) {
-      const parent = taskMap.get(task.parentId)
-      if (parent) {
+    if (task.parent) {
+      const parent = taskMap.get(task.parent)
+      if (parent && parent !== taskNode) {
         parent.children.push(taskNode)
         taskNode.depth = parent.depth + 1
       } else {

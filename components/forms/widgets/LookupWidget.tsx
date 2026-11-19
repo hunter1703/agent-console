@@ -4,6 +4,7 @@ import { useState, useEffect, useRef } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { ChevronDown, X, Loader2, Check } from 'lucide-react'
 import { springPresets, slideDown } from '@/lib/constants/animations'
+import { apiClient } from '@/lib/api/client'
 import type { LayoutField } from '@/lib/types/schema'
 
 interface LookupWidgetProps {
@@ -107,14 +108,14 @@ export function LookupWidget({
         const queryParams = resolvedOptions ? '?' + new URLSearchParams(resolvedOptions).toString() : ''
         const responses = await Promise.all(
           ids.map(id => 
-            fetch(`${baseUrl}/v1/catalog/${assetType}/${id}${queryParams}`)
-              .then(res => res.ok ? res.json() : null)
+            apiClient.get(`/v1/catalog/${assetType}/${id}${queryParams}`)
+              .catch(() => null)
           )
         )
         
         const validOptions = responses
           .filter(Boolean)
-          .map(item => ({
+          .map((item: any) => ({
             id: item.id,
             name: item.name || item.id,
             description: item.description,
@@ -137,26 +138,15 @@ export function LookupWidget({
 
     try {
       const resolvedOptions = resolveLookupOptions()
-      const response = await fetch(
-        `${baseUrl}/v1/catalog/list`,
+      const data: any = await apiClient.post(
+        `/v1/catalog/list`,
         {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({
-            assetType: assetType,
-            options: resolvedOptions,
-            limit: 100,
-          }),
+          assetType: assetType,
+          options: resolvedOptions,
+          limit: 100,
         }
       )
       
-      if (!response.ok) {
-        throw new Error('Failed to load options')
-      }
-
-      const data = await response.json()
       const items = data.items || []
       
       setOptions(
@@ -238,31 +228,52 @@ export function LookupWidget({
       {/* Dropdown Trigger */}
       <div className="relative">
         <div className="flex items-center gap-2">
-          <button
-            type="button"
-            onClick={handleFocus}
-            disabled={disabled}
+          <div
+            onClick={() => !disabled && handleFocus()}
             className={`
               flex-1 px-3 py-2 rounded-lg border-2 text-left
-              bg-background text-text-primary
-              focus:outline-none focus:border-primary
-              disabled:opacity-50 disabled:cursor-not-allowed
-              transition-colors flex items-center justify-between
+              bg-background text-text-primary min-h-[44px]
+              focus-within:border-primary
+              ${disabled ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'}
+              transition-colors flex items-center justify-between gap-2
               ${error ? 'border-error' : 'border-border-subtle hover:border-border-medium'}
-              ${disabled ? '' : 'cursor-pointer'}
             `}
           >
-            <span className={selectedOptions.length === 0 ? 'text-text-tertiary' : ''}>
-              {selectedOptions.length === 0 
-                ? `Select ${assetType.toLowerCase()}...` 
-                : isMultiple 
-                  ? `${selectedOptions.length} selected`
-                  : selectedOptions[0].name
-              }
-            </span>
+            <div className="flex flex-wrap gap-2 flex-1 items-center">
+              {selectedOptions.length === 0 ? (
+                <span className="text-text-tertiary">Select {assetType.toLowerCase()}...</span>
+              ) : isMultiple ? (
+                selectedOptions.map(option => (
+                  <motion.div
+                    key={option.id}
+                    className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md bg-surface-hover border border-border-medium text-text-primary text-sm font-medium shadow-sm"
+                    initial={{ scale: 0.9, opacity: 0 }}
+                    animate={{ scale: 1, opacity: 1 }}
+                    exit={{ scale: 0.9, opacity: 0 }}
+                    transition={springPresets.snappy}
+                    onClick={(e) => e.stopPropagation()}
+                  >
+                    <span>{option.name}</span>
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        e.stopPropagation()
+                        handleRemove(option.id)
+                      }}
+                      disabled={disabled}
+                      className="hover:bg-border-medium rounded-full p-0.5 transition-colors focus:outline-none"
+                    >
+                      <X className="w-3.5 h-3.5 text-text-secondary hover:text-text-primary" />
+                    </button>
+                  </motion.div>
+                ))
+              ) : (
+                <span>{selectedOptions[0].name}</span>
+              )}
+            </div>
             
-            <ChevronDown className={`w-4 h-4 text-text-tertiary transition-transform ${isOpen ? 'rotate-180' : ''}`} />
-          </button>
+            <ChevronDown className={`w-4 h-4 text-text-tertiary transition-transform flex-shrink-0 ${isOpen ? 'rotate-180' : ''}`} />
+          </div>
 
           {/* Clear button (only for single select with value) - outside main button */}
           {!isMultiple && selectedOptions.length > 0 && !disabled && (
@@ -301,35 +312,7 @@ export function LookupWidget({
                 </div>
               ) : (
                 <div className="max-h-64 overflow-y-auto">
-                  {/* Multi-select: show selected chips at top */}
-                  {isMultiple && selectedOptions.length > 0 && (
-                    <div className="p-3 border-b border-border-subtle bg-background">
-                      <div className="flex flex-wrap gap-2">
-                        {selectedOptions.map(option => (
-                          <motion.div
-                            key={option.id}
-                            className="inline-flex items-center gap-2 px-2 py-1 rounded-full bg-primary-light text-primary text-sm"
-                            initial={{ scale: 0, opacity: 0 }}
-                            animate={{ scale: 1, opacity: 1 }}
-                            exit={{ scale: 0, opacity: 0 }}
-                            transition={springPresets.bouncy}
-                          >
-                            <span>{option.name}</span>
-                            <button
-                              type="button"
-                              onClick={(e) => {
-                                e.stopPropagation()
-                                handleRemove(option.id)
-                              }}
-                              className="hover:bg-primary-hover rounded-full p-0.5 transition-colors"
-                            >
-                              <X className="w-3 h-3" />
-                            </button>
-                          </motion.div>
-                        ))}
-                      </div>
-                    </div>
-                  )}
+
                   
                   {/* Options list */}
                   {options.map(option => {

@@ -17,9 +17,11 @@ export interface InterruptRequest {
   id: string
   sessionId: string
   type: InterruptType
-  prompt: string
+  question: string
   status: InterruptStatus
   options?: InterruptOption[] // For MULTIPLE_CHOICE
+  allowCustomAnswer?: boolean
+  isMultiSelect?: boolean
   answer?: string // User's answer
   resolvedAt?: string // ISO timestamp
   linkedToolCallId?: string // ID of the tool call that triggered this — the backend never sends

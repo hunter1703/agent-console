@@ -9,6 +9,8 @@ import type { InterruptOption } from '@/types/interrupt'
 
 interface MultipleChoiceInputProps {
   options: InterruptOption[]
+  allowCustomAnswer?: boolean
+  isMultiSelect?: boolean
   onSubmit: (answer: string) => void
   disabled?: boolean
   isAnswered?: boolean
@@ -17,12 +19,14 @@ interface MultipleChoiceInputProps {
 
 export function MultipleChoiceInput({
   options,
+  allowCustomAnswer = true,
+  isMultiSelect = false,
   onSubmit,
   disabled = false,
   isAnswered = false,
   selectedAnswer,
 }: MultipleChoiceInputProps) {
-  const [selectedOption, setSelectedOption] = useState<string | null>(null)
+  const [selectedOptions, setSelectedOptions] = useState<string[]>([])
   const [customAnswer, setCustomAnswer] = useState('')
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [showConfetti, setShowConfetti] = useState(false)
@@ -37,24 +41,68 @@ export function MultipleChoiceInput({
   }, [isAnswered])
 
   const handleSubmit = async () => {
-    const answer = customAnswer.trim() || selectedOption
-    if (!answer) return
+    const answers = [...selectedOptions]
+    if (customAnswer.trim()) {
+      answers.push(customAnswer.trim())
+    }
+    
+    if (answers.length === 0) return
+
+    // The backend expects a single string; join multiple answers with a comma.
+    const answerStr = answers.join(', ')
 
     setIsSubmitting(true)
     
     try {
-      await onSubmit(answer)
+      await onSubmit(answerStr)
     } finally {
       setIsSubmitting(false)
     }
   }
 
-  const canSubmit = customAnswer.trim() || selectedOption
+  const canSubmit = customAnswer.trim() || selectedOptions.length > 0
 
   // Answered state
   if (isAnswered) {
-    const isOptionSelected = options.some(opt => opt.value === selectedAnswer)
-    const isCustomAnswerSelected = !isOptionSelected && !!selectedAnswer
+    let answeredValues: string[] = []
+    let isCustomAnswerSelected = false
+    let customAnswerText = ''
+
+    if (selectedAnswer) {
+      if (!isMultiSelect) {
+        // Single-select: match option value directly to preserve internal commas or numbers
+        const matchingOption = options.find((opt) => opt.value === selectedAnswer)
+        if (matchingOption) {
+          answeredValues = [matchingOption.value]
+        } else {
+          isCustomAnswerSelected = true
+          customAnswerText = selectedAnswer
+        }
+      } else {
+        // Multi-select: identify which options are present in selectedAnswer
+        const matchedOptions = options.filter((opt) => selectedAnswer.includes(opt.value))
+        if (matchedOptions.length > 0) {
+          answeredValues = matchedOptions.map((opt) => opt.value)
+          let remaining = selectedAnswer
+          for (const opt of matchedOptions) {
+            remaining = remaining.replace(opt.value, '')
+          }
+          const trimmedCustom = remaining.replace(/^[\s,]+|[\s,]+$/g, '').trim()
+          if (trimmedCustom) {
+            isCustomAnswerSelected = true
+            customAnswerText = trimmedCustom
+          }
+        } else {
+          const parts = selectedAnswer.split(',').map((s) => s.trim())
+          answeredValues = parts.filter((val) => options.some((opt) => opt.value === val))
+          const customParts = parts.filter((val) => !options.some((opt) => opt.value === val))
+          if (customParts.length > 0) {
+            isCustomAnswerSelected = true
+            customAnswerText = customParts.join(', ')
+          }
+        }
+      }
+    }
 
     return (
       <div className="relative space-y-0 bg-surface rounded-lg overflow-hidden border border-border shadow-sm">
@@ -71,7 +119,7 @@ export function MultipleChoiceInput({
           </div>
         )}
         {options.map((option, index) => {
-          const isSelected = option.value === selectedAnswer
+          const isSelected = answeredValues.includes(option.value)
           return (
             <div key={option.id}>
               <motion.div
@@ -94,9 +142,9 @@ export function MultipleChoiceInput({
                   style={{ zIndex: 1 }}
                 >
                   <motion.div
-                    className={`w-5 h-5 rounded-full flex items-center justify-center flex-shrink-0 ${isSelected ? 'bg-blue-500' : 'bg-border'}`}
+                    className={`w-5 h-5 flex items-center justify-center flex-shrink-0 ${isMultiSelect ? 'rounded-md' : 'rounded-full'} ${isSelected ? 'bg-blue-500' : 'bg-border'}`}
                     initial={false}
-                    animate={{ scale: isSelected ? [1, 1.3, 1] : 1, rotate: isSelected ? [0, 180, 360] : 0 }}
+                    animate={{ scale: isSelected ? [1, 1.3, 1] : 1, rotate: isSelected && !isMultiSelect ? [0, 180, 360] : 0 }}
                     transition={{ duration: 0.6, ease: [0.34, 1.56, 0.64, 1] }}
                   >
                     <AnimatePresence mode="wait">
@@ -129,65 +177,69 @@ export function MultipleChoiceInput({
         })}
 
         {/* Separator before Other */}
-        <div className="px-4">
-          <div className="h-px w-full bg-border" />
-        </div>
+        {(allowCustomAnswer || isCustomAnswerSelected) && (
+          <div className="px-4">
+            <div className="h-px w-full bg-border" />
+          </div>
+        )}
 
         {/* Other row */}
-        <div className="relative overflow-hidden">
-          {isCustomAnswerSelected && (
-            <motion.div
-              className="absolute inset-0 bg-gradient-to-r from-blue-500/10 to-indigo-500/5"
-              initial={{ scaleX: 0 }}
-              animate={{ scaleX: 1 }}
-              transition={{ duration: 0.5, ease: [0.16, 1, 0.3, 1] }}
-              style={{ zIndex: 0, transformOrigin: 'left' }}
-            />
-          )}
-          <div
-            className={`relative flex items-start gap-3 px-4 py-3 transition-all duration-300 ${!isCustomAnswerSelected ? 'opacity-50' : ''}`}
-            style={{ zIndex: 1 }}
-          >
-            <motion.div
-              className={`w-5 h-5 rounded-full flex items-center justify-center flex-shrink-0 mt-0.5 ${
-                isCustomAnswerSelected ? 'bg-gradient-to-br from-blue-500 to-indigo-500' : 'bg-border'
-              }`}
-              animate={{ scale: isCustomAnswerSelected ? [1, 1.3, 1] : 1 }}
-              transition={{ duration: 0.6, ease: [0.34, 1.56, 0.64, 1] }}
+        {(allowCustomAnswer || isCustomAnswerSelected) && (
+          <div className="relative overflow-hidden">
+            {isCustomAnswerSelected && (
+              <motion.div
+                className="absolute inset-0 bg-gradient-to-r from-blue-500/10 to-indigo-500/5"
+                initial={{ scaleX: 0 }}
+                animate={{ scaleX: 1 }}
+                transition={{ duration: 0.5, ease: [0.16, 1, 0.3, 1] }}
+                style={{ zIndex: 0, transformOrigin: 'left' }}
+              />
+            )}
+            <div
+              className={`relative flex items-start gap-3 px-4 py-3 transition-all duration-300 ${!isCustomAnswerSelected ? 'opacity-50' : ''}`}
+              style={{ zIndex: 1 }}
             >
-              <AnimatePresence mode="wait">
+              <motion.div
+                className={`w-5 h-5 flex items-center justify-center flex-shrink-0 mt-0.5 ${isMultiSelect ? 'rounded-md' : 'rounded-full'} ${
+                  isCustomAnswerSelected ? 'bg-gradient-to-br from-blue-500 to-indigo-500' : 'bg-border'
+                }`}
+                animate={{ scale: isCustomAnswerSelected ? [1, 1.3, 1] : 1 }}
+                transition={{ duration: 0.6, ease: [0.34, 1.56, 0.64, 1] }}
+              >
+                <AnimatePresence mode="wait">
+                  {isCustomAnswerSelected && (
+                    <motion.div
+                      key="checkmark"
+                      initial={{ scale: 0, rotate: -180, opacity: 0 }}
+                      animate={{ scale: 1, rotate: 0, opacity: 1 }}
+                      exit={{ scale: 0, rotate: 180, opacity: 0 }}
+                      transition={{ duration: 0.4, ease: [0.34, 1.56, 0.64, 1] }}
+                    >
+                      <Check className="w-3 h-3 text-white" strokeWidth={3} />
+                    </motion.div>
+                  )}
+                </AnimatePresence>
+              </motion.div>
+              <div className="flex-1">
+                <span className={`text-sm font-medium ${isCustomAnswerSelected ? 'text-blue-600' : 'text-text-secondary'}`}>
+                  Other
+                </span>
                 {isCustomAnswerSelected && (
                   <motion.div
-                    key="checkmark"
-                    initial={{ scale: 0, rotate: -180, opacity: 0 }}
-                    animate={{ scale: 1, rotate: 0, opacity: 1 }}
-                    exit={{ scale: 0, rotate: 180, opacity: 0 }}
-                    transition={{ duration: 0.4, ease: [0.34, 1.56, 0.64, 1] }}
+                    initial={{ opacity: 0, y: 4 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{ delay: 0.2, duration: 0.3 }}
+                    className="mt-2"
                   >
-                    <Check className="w-3 h-3 text-white" strokeWidth={3} />
+                    <p className="text-sm text-text-primary leading-relaxed whitespace-pre-wrap break-words">
+                      {customAnswerText}
+                    </p>
                   </motion.div>
                 )}
-              </AnimatePresence>
-            </motion.div>
-            <div className="flex-1">
-              <span className={`text-sm font-medium ${isCustomAnswerSelected ? 'text-blue-600' : 'text-text-secondary'}`}>
-                Other
-              </span>
-              {isCustomAnswerSelected && (
-                <motion.div
-                  initial={{ opacity: 0, y: 4 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  transition={{ delay: 0.2, duration: 0.3 }}
-                  className="mt-2"
-                >
-                  <p className="text-sm text-text-primary leading-relaxed whitespace-pre-wrap break-words">
-                    {selectedAnswer}
-                  </p>
-                </motion.div>
-              )}
+              </div>
             </div>
           </div>
-        </div>
+        )}
       </div>
     )
   }
@@ -199,14 +251,22 @@ export function MultipleChoiceInput({
     <div className="space-y-3">
       <div className="space-y-0 relative bg-surface rounded-lg overflow-hidden border border-border shadow-sm">
         {options.map((option, index) => {
-          const isSelected = selectedOption === option.value
+          const isSelected = selectedOptions.includes(option.value)
           return (
             <div key={option.id} className="relative">
               <motion.button
                 type="button"
                 onClick={() => {
-                  setSelectedOption(option.value)
-                  setCustomAnswer('')
+                  if (isMultiSelect) {
+                    setSelectedOptions(prev => 
+                      prev.includes(option.value) 
+                        ? prev.filter(val => val !== option.value)
+                        : [...prev, option.value]
+                    )
+                  } else {
+                    setSelectedOptions([option.value])
+                    setCustomAnswer('')
+                  }
                 }}
                 disabled={disabled || isSubmitting}
                 whileHover={{ x: 4 }}
@@ -229,8 +289,9 @@ export function MultipleChoiceInput({
                 <div className="relative w-5 h-5 flex-shrink-0" style={{ zIndex: 1 }}>
                   <motion.div
                     className={`
-                      w-5 h-5 rounded-full flex items-center justify-center
+                      w-5 h-5 flex items-center justify-center
                       transition-all duration-200
+                      ${isMultiSelect ? 'rounded-md' : 'rounded-full'}
                       ${isSelected ? 'bg-gradient-to-br from-blue-500 to-indigo-500 shadow-lg shadow-blue-500/50' : 'bg-surface ring-2 ring-border'}
                     `}
                   >
@@ -263,73 +324,78 @@ export function MultipleChoiceInput({
         })}
 
         {/* Separator before Other */}
-        <div className="px-4">
-          <div className="h-px w-full bg-border" />
-        </div>
+        {allowCustomAnswer && (
+          <div className="px-4">
+            <div className="h-px w-full bg-border" />
+          </div>
+        )}
 
         {/* Other row */}
-        <div className="relative overflow-hidden">
-          {hasCustomAnswer && (
-            <motion.div
-              className="absolute inset-0 bg-gradient-to-r from-blue-500/10 to-indigo-500/5"
-              initial={{ scaleX: 0 }}
-              animate={{ scaleX: 1 }}
-              transition={{ duration: 0.3, ease: [0.16, 1, 0.3, 1] }}
-              style={{ transformOrigin: 'left', zIndex: 0 }}
-            />
-          )}
-          <div className="relative flex items-start gap-3 px-4 py-3" style={{ zIndex: 1 }}>
-            <div className="relative w-5 h-5 flex-shrink-0 mt-0.5">
+        {allowCustomAnswer && (
+          <div className="relative overflow-hidden">
+            {hasCustomAnswer && (
               <motion.div
-                className={`
-                  w-5 h-5 rounded-full flex items-center justify-center
-                  transition-all duration-200
-                  ${hasCustomAnswer ? 'bg-gradient-to-br from-blue-500 to-indigo-500' : 'bg-surface ring-2 ring-border'}
-                `}
-              >
-                <AnimatePresence>
-                  {hasCustomAnswer && (
-                    <motion.div
-                      initial={{ scale: 0, rotate: -90 }}
-                      animate={{ scale: 1, rotate: 0 }}
-                      exit={{ scale: 0, rotate: 90 }}
-                      transition={springPresets.bouncy}
-                    >
-                      <Check className="w-3 h-3 text-white" strokeWidth={3} />
-                    </motion.div>
-                  )}
-                </AnimatePresence>
-              </motion.div>
-            </div>
-            <div className="flex-1">
-              <span className={`text-sm font-medium transition-colors ${hasCustomAnswer ? 'text-blue-600' : 'text-text-primary'}`}>
-                Other
-              </span>
-              <textarea
-                value={customAnswer}
-                onChange={(e) => {
-                  setCustomAnswer(e.target.value)
-                  if (e.target.value.trim()) {
-                    setSelectedOption(null)
-                  }
-                }}
-                placeholder="Type a custom answer..."
-                disabled={disabled || isSubmitting}
-                rows={2}
-                className="
-                  mt-2 w-full px-3 py-2 rounded-lg
-                  bg-surface
-                  border border-border
-                  text-sm text-text-primary
-                  placeholder:text-text-tertiary
-                  focus:outline-none focus:border-border
-                  disabled:opacity-50 disabled:cursor-not-allowed
-                  resize-none transition-all duration-200
-                "
+                className="absolute inset-0 bg-gradient-to-r from-blue-500/10 to-indigo-500/5"
+                initial={{ scaleX: 0 }}
+                animate={{ scaleX: 1 }}
+                transition={{ duration: 0.3, ease: [0.16, 1, 0.3, 1] }}
+                style={{ transformOrigin: 'left', zIndex: 0 }}
               />
+            )}
+            <div className="relative flex items-start gap-3 px-4 py-3" style={{ zIndex: 1 }}>
+              <div className="relative w-5 h-5 flex-shrink-0 mt-0.5">
+                <motion.div
+                  className={`
+                    w-5 h-5 flex items-center justify-center
+                    transition-all duration-200
+                    ${isMultiSelect ? 'rounded-md' : 'rounded-full'}
+                    ${hasCustomAnswer ? 'bg-gradient-to-br from-blue-500 to-indigo-500' : 'bg-surface ring-2 ring-border'}
+                  `}
+                >
+                  <AnimatePresence>
+                    {hasCustomAnswer && (
+                      <motion.div
+                        initial={{ scale: 0, rotate: -90 }}
+                        animate={{ scale: 1, rotate: 0 }}
+                        exit={{ scale: 0, rotate: 90 }}
+                        transition={springPresets.bouncy}
+                      >
+                        <Check className="w-3 h-3 text-white" strokeWidth={3} />
+                      </motion.div>
+                    )}
+                  </AnimatePresence>
+                </motion.div>
+              </div>
+              <div className="flex-1">
+                <span className={`text-sm font-medium transition-colors ${hasCustomAnswer ? 'text-blue-600' : 'text-text-primary'}`}>
+                  Other
+                </span>
+                <textarea
+                  value={customAnswer}
+                  onChange={(e) => {
+                    setCustomAnswer(e.target.value)
+                    if (e.target.value.trim() && !isMultiSelect) {
+                      setSelectedOptions([])
+                    }
+                  }}
+                  placeholder="Type a custom answer..."
+                  disabled={disabled || isSubmitting}
+                  rows={2}
+                  className="
+                    mt-2 w-full px-3 py-2 rounded-lg
+                    bg-surface
+                    border border-border
+                    text-sm text-text-primary
+                    placeholder:text-text-tertiary
+                    focus:outline-none focus:border-border
+                    disabled:opacity-50 disabled:cursor-not-allowed
+                    resize-none transition-all duration-200
+                  "
+                />
+              </div>
             </div>
           </div>
-        </div>
+        )}
       </div>
 
       <button
