@@ -5,6 +5,7 @@ import { motion, AnimatePresence } from 'framer-motion'
 import { Loader2, ChevronDown, ChevronRight } from 'lucide-react'
 import { springPresets, fadeIn, slideDown } from '@/lib/constants/animations'
 import type { LayoutField, BuilderDefinition } from '@/lib/types/schema'
+import { resolveConditionalFields } from '@/lib/utils/jsonSchemaConditions'
 import { WidgetFactory } from './WidgetFactory'
 
 interface DynamicSchemaWidgetProps {
@@ -318,6 +319,8 @@ export function DynamicSchemaWidget({
               <div className="p-4 bg-surface rounded-lg">
                 {/* Render fields from layout if available, otherwise from JSON Schema */}
                 {(() => {
+                  // The conditions see the whole form too, as the auth type of a connection is outside its inputs
+                  const conditions = resolveConditionalFields(nestedSchema.schema || {}, { ...formData, ...(value || {}) })
                   const topLevelFields = Object.entries(nestedSchema.layout?.fields || {})
                     .filter(([pointer]) => !pointer.slice(1).includes('/'))
                     .sort(([, a], [, b]) => a.order - b.order)
@@ -328,14 +331,19 @@ export function DynamicSchemaWidget({
                         {topLevelFields.map(([pointer, fieldDef]) => {
                           const fieldName = pointer.substring(1) // Remove leading "/"
                           const fieldValue = value?.[fieldName]
-                          
+
+                          // A property of a condition is shown, and required, when the condition applies
+                          if (conditions.conditional.has(fieldName) && !conditions.applicable.has(fieldName)) {
+                            return null
+                          }
+                          const isRequired =
+                            fieldDef.currentAccess === 'REQUIRED' || conditions.required.has(fieldName)
+
                           return (
                             <div key={pointer}>
                               <label className="block text-sm font-medium text-text-primary mb-2">
                                 {fieldDef.label}
-                                {fieldDef.currentAccess === 'REQUIRED' && (
-                                  <span className="text-error ml-1">*</span>
-                                )}
+                                {isRequired && <span className="text-error ml-1">*</span>}
                               </label>
                               <WidgetFactory
                                 field={fieldDef}

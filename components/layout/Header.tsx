@@ -15,7 +15,8 @@ import {
   History, 
   Menu,
   X,
-  Database
+  Database,
+  Plug,
 } from 'lucide-react'
 
 import { Button } from '@/components/common/Button'
@@ -38,6 +39,11 @@ const navigationItems = [
     name: 'Models',
     href: '/models',
     icon: Database,
+  },
+  {
+    name: 'Connections',
+    href: '/connections',
+    icon: Plug,
   },
   {
     name: 'Sessions',
