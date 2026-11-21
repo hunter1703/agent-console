@@ -9,7 +9,7 @@
 import { useState, useEffect, useMemo } from 'react'
 import { useRouter } from 'next/navigation'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import { Plus, Plug, Search, Trash2 } from 'lucide-react'
+import { Pencil, Plus, Plug, Search, Trash2 } from 'lucide-react'
 
 import { Button } from '@/components/common/Button'
 import { Card } from '@/components/common/Card'
@@ -162,20 +162,32 @@ export default function ConnectionsPage() {
                     <span className="font-medium text-text-primary text-sm truncate">
                       {connection.name}
                     </span>
-                    <button
-                      onClick={e => {
-                        e.stopPropagation()
-                        danger(
-                          'Delete Connection',
-                          `Are you sure you want to delete "${connection.name}"? This action cannot be undone.`,
-                          () => deleteConnectionMutation.mutate(connection.id as string)
-                        )
-                      }}
-                      className="p-1.5 rounded-md text-text-tertiary opacity-0 group-hover:opacity-100 hover:text-error hover:bg-error/10 transition-colors cursor-pointer"
-                      aria-label="Delete connection"
-                    >
-                      <Trash2 size={14} />
-                    </button>
+                    <div className="flex items-center gap-1">
+                      <button
+                        onClick={e => {
+                          e.stopPropagation()
+                          router.push(`/connections/${connection.id}`)
+                        }}
+                        className="p-1.5 rounded-md text-text-tertiary opacity-0 group-hover:opacity-100 hover:text-text-primary hover:bg-surface-hover transition-colors cursor-pointer"
+                        aria-label="Edit connection"
+                      >
+                        <Pencil size={14} />
+                      </button>
+                      <button
+                        onClick={e => {
+                          e.stopPropagation()
+                          danger(
+                            'Delete Connection',
+                            `Are you sure you want to delete "${connection.name}"? This action cannot be undone.`,
+                            () => deleteConnectionMutation.mutate(connection.id as string)
+                          )
+                        }}
+                        className="p-1.5 rounded-md text-text-tertiary opacity-0 group-hover:opacity-100 hover:text-error hover:bg-error/10 transition-colors cursor-pointer"
+                        aria-label="Delete connection"
+                      >
+                        <Trash2 size={14} />
+                      </button>
+                    </div>
                   </div>
                 ))}
               </div>
