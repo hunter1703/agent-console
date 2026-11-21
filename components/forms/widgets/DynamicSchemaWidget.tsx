@@ -184,6 +184,11 @@ export function DynamicSchemaWidget({
     return expr
   }
 
+  // The request body as currently evaluated; a change in it (e.g. another app chosen) reloads the schema
+  const evaluatedBodyKey = JSON.stringify(
+    Object.entries(dynamicSchema?.body ?? {}).map(([key, val]) => [key, evaluateExpression(val, itemData)])
+  )
+
   // Fetch nested schema
   useEffect(() => {
     if (!dynamicSchema) return
@@ -261,7 +266,7 @@ export function DynamicSchemaWidget({
     }
 
     fetchSchema()
-  }, [dynamicSchema, itemData?.toolName])
+  }, [dynamicSchema, evaluatedBodyKey])
 
   return (
     <div className="dynamic-schema-widget space-y-3">
