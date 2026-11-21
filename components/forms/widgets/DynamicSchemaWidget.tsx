@@ -229,6 +229,7 @@ export function DynamicSchemaWidget({
         // Fetch schema using POST /schemas endpoint
         const response = await fetch(url, {
           method: dynamicSchema.method || 'POST',
+          credentials: 'include',
           headers: {
             'Content-Type': 'application/json',
           },
